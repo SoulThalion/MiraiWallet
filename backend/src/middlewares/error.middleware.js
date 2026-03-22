@@ -10,8 +10,8 @@ const logger      = require('../utils/logger')
  */
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
-  // Known operational error
-  if (err instanceof ApiError) {
+  // Known operational error (check both instanceof and name for ESM/CJS interop)
+  if (err instanceof ApiError || err.name === 'ApiError') {
     return ApiResponse.error(res, err.statusCode, err.message, err.details)
   }
 

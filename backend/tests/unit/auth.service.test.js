@@ -9,7 +9,7 @@ import { User, Category, Account } from '../../src/models/index.js'
 beforeAll(setupDb)
 afterAll(teardownDb)
 beforeEach(async () => {
-  await User.destroy({ where: {}, truncate: true, cascade: true })
+  await User.destroy({ where: {}, truncate: false, cascade: true })
 })
 
 describe('authService.register', () => {
@@ -40,9 +40,9 @@ describe('authService.register', () => {
   })
 
   it('throws 409 when email already exists', async () => {
-    await authService.register({ name: 'X', email: 'dup@test.com', password: 'Password1' })
+    await authService.register({ name: 'Xavier', email: 'dup@test.com', password: 'Password1' })
     await expect(
-      authService.register({ name: 'Y', email: 'dup@test.com', password: 'Password1' })
+      authService.register({ name: 'Yolanda', email: 'dup@test.com', password: 'Password1' })
     ).rejects.toMatchObject({ statusCode: 409 })
   })
 })
@@ -56,7 +56,7 @@ describe('authService.login', () => {
   })
 
   it('throws 401 for wrong password', async () => {
-    await authService.register({ name: 'D', email: 'd@test.com', password: 'Password1' })
+    await authService.register({ name: 'Daniel', email: 'd@test.com', password: 'Password1' })
     await expect(
       authService.login({ email: 'd@test.com', password: 'WrongPass1' })
     ).rejects.toMatchObject({ statusCode: 401 })
@@ -78,7 +78,7 @@ describe('authService.login', () => {
 
 describe('authService.refresh', () => {
   it('returns new token pair for valid refresh token', async () => {
-    const reg    = await authService.register({ name: 'R', email: 'r@test.com', password: 'Password1' })
+    const reg    = await authService.register({ name: 'Roberto', email: 'r@test.com', password: 'Password1' })
     const tokens = await authService.refresh({ refreshToken: reg.refreshToken })
     expect(tokens.accessToken).toBeDefined()
     expect(tokens.refreshToken).toBeDefined()
@@ -91,7 +91,7 @@ describe('authService.refresh', () => {
   })
 
   it('throws 401 for revoked token (after logout)', async () => {
-    const reg = await authService.register({ name: 'L', email: 'l@test.com', password: 'Password1' })
+    const reg = await authService.register({ name: 'Laura', email: 'l@test.com', password: 'Password1' })
     await authService.logout(reg.user.id)
     await expect(
       authService.refresh({ refreshToken: reg.refreshToken })
@@ -101,7 +101,7 @@ describe('authService.refresh', () => {
 
 describe('authService.changePassword', () => {
   it('updates password and revokes refresh token', async () => {
-    const reg  = await authService.register({ name: 'P', email: 'p@test.com', password: 'Password1' })
+    const reg  = await authService.register({ name: 'Pedro', email: 'p@test.com', password: 'Password1' })
     const user = await User.findByPk(reg.user.id)
     await authService.changePassword(user, { currentPassword: 'Password1', newPassword: 'NewPass9' })
     const updated = await User.findByPk(user.id)
@@ -111,7 +111,7 @@ describe('authService.changePassword', () => {
   })
 
   it('throws 400 for wrong current password', async () => {
-    const reg  = await authService.register({ name: 'Q', email: 'q@test.com', password: 'Password1' })
+    const reg  = await authService.register({ name: 'Quentin', email: 'q@test.com', password: 'Password1' })
     const user = await User.findByPk(reg.user.id)
     await expect(
       authService.changePassword(user, { currentPassword: 'Wrong1', newPassword: 'NewPass9' })
