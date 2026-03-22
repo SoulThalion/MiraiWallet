@@ -101,24 +101,30 @@
   </div>
 </template>
 
-<script setup>
-import { computed }       from 'vue'
+<script setup lang="ts">
+import { computed } from 'vue'
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme }       from '@/composables/useTheme'
-import { useCurrency }    from '@/composables/useCurrency'
-import TransactionItem    from '@/components/TransactionItem.vue'
+import { useTheme } from '@/composables/useTheme'
+import { useCurrency } from '@/composables/useCurrency'
+import TransactionItem from '@/components/TransactionItem.vue'
 
-const store          = useWalletStore()
-const { isDark }     = useTheme()
+interface BalanceStat {
+  label: string
+  value: string
+  color: string
+}
+
+const store = useWalletStore()
+const { isDark } = useTheme()
 const { formatEuro } = useCurrency()
 
 const [intStr, decStr] = store.balance.toFixed(2).split('.')
 const intPart = parseInt(intStr).toLocaleString('es-ES')
 const decPart = decStr
 
-const balanceStats = computed(() => [
-  { label: 'Ingresos',  value: formatEuro(store.totalIncome,    true), color: 'text-brand-green' },
-  { label: 'Gastos',    value: formatEuro(-store.totalExpenses, true), color: 'text-red-400' },
-  { label: 'Ahorrado',  value: formatEuro(store.saved,          true), color: 'text-brand-green' },
+const balanceStats = computed<BalanceStat[]>(() => [
+  { label: 'Ingresos', value: formatEuro(store.totalIncome, true), color: 'text-brand-green' },
+  { label: 'Gastos', value: formatEuro(-store.totalExpenses, true), color: 'text-red-400' },
+  { label: 'Ahorrado', value: formatEuro(store.saved, true), color: 'text-brand-green' },
 ])
 </script>

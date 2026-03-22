@@ -82,27 +82,34 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed }  from 'vue'
-import { useRoute }       from 'vue-router'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
-import MwLogo    from '@/components/MwLogo.vue'
+import MwLogo from '@/components/MwLogo.vue'
 import BottomNav from '@/components/BottomNav.vue'
 
-const store           = useWalletStore()
-const route           = useRoute()
-const sidebarExpanded = ref(true)
+interface NavItem {
+  name: string
+  to: string
+  icon: string
+  label: string
+}
 
-const navItems = [
-  { name: 'home',     to: '/home',     icon: '🏠', label: 'Inicio' },
-  { name: 'stats',    to: '/stats',    icon: '📊', label: 'Estadísticas' },
-  { name: 'add',      to: '/add',      icon: '➕', label: 'Añadir gasto' },
-  { name: 'alerts',   to: '/alerts',   icon: '🔔', label: 'Alertas' },
-  { name: 'settings', to: '/settings', icon: '⚙️',  label: 'Ajustes' },
+const store = useWalletStore()
+const route = useRoute()
+const sidebarExpanded = ref<boolean>(true)
+
+const navItems: NavItem[] = [
+  { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
+  { name: 'stats', to: '/stats', icon: '📊', label: 'Estadísticas' },
+  { name: 'add', to: '/add', icon: '➕', label: 'Añadir gasto' },
+  { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
+  { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
 ]
 
-const pageTitles = { home: 'Inicio', stats: 'Estadísticas', add: 'Añadir gasto', alerts: 'Alertas', settings: 'Ajustes', onboarding: 'Bienvenido' }
-const currentPageTitle = computed(() => pageTitles[route.name] ?? 'Mirai Wallet')
+const pageTitles: Record<string, string> = { home: 'Inicio', stats: 'Estadísticas', add: 'Añadir gasto', alerts: 'Alertas', settings: 'Ajustes', onboarding: 'Bienvenido' }
+const currentPageTitle = computed<string>(() => pageTitles[route.name as string] ?? 'Mirai Wallet')
 </script>
 
 <style>

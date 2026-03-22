@@ -52,16 +52,16 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme }       from '@/composables/useTheme'
-import AlertCard          from '@/components/AlertCard.vue'
-import BudgetBar          from '@/components/BudgetBar.vue'
+import { useTheme } from '@/composables/useTheme'
+import AlertCard from '@/components/AlertCard.vue'
+import BudgetBar from '@/components/BudgetBar.vue'
 
-const store      = useWalletStore()
+const store = useWalletStore()
 const { isDark } = useTheme()
 
-function handleAction({ alertId }) {
+function handleAction({ alertId }: { alertId: number }): void {
   store.dismissAlert(alertId)
 }
 </script>

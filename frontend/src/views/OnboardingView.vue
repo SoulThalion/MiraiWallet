@@ -32,23 +32,30 @@
   </div>
 </template>
 
-<script setup>
-import { useRouter }      from 'vue-router'
+<script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme }       from '@/composables/useTheme'
-import MwLogo             from '@/components/MwLogo.vue'
+import { useTheme } from '@/composables/useTheme'
+import MwLogo from '@/components/MwLogo.vue'
 
-const router     = useRouter()
-const store      = useWalletStore()
+interface Feature {
+  icon: string
+  title: string
+  desc: string
+  bg: string
+}
+
+const router = useRouter()
+const store = useWalletStore()
 const { isDark } = useTheme()
 
-const features = [
-  { icon: '📊', title: 'Visualiza tus gastos',   desc: 'Gráficos interactivos por categoría y mes', bg: 'bg-brand-blue/10' },
-  { icon: '🔔', title: 'Alertas inteligentes',   desc: 'Sugerencias de pago y financiación',        bg: 'bg-brand-green/10' },
-  { icon: '💳', title: 'Importa movimientos',    desc: 'Conecta tu banco o añade manualmente',       bg: 'bg-brand-gold/10' },
+const features: Feature[] = [
+  { icon: '📊', title: 'Visualiza tus gastos', desc: 'Gráficos interactivos por categoría y mes', bg: 'bg-brand-blue/10' },
+  { icon: '🔔', title: 'Alertas inteligentes', desc: 'Sugerencias de pago y financiación', bg: 'bg-brand-green/10' },
+  { icon: '💳', title: 'Importa movimientos', desc: 'Conecta tu banco o añade manualmente', bg: 'bg-brand-gold/10' },
 ]
 
-function start() {
+function start(): void {
   store.completeOnboarding()
   router.push('/home')
 }

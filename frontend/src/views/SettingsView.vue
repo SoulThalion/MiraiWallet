@@ -67,29 +67,41 @@
   </div>
 </template>
 
-<script setup>
-import { reactive, computed } from 'vue'
-import { useWalletStore }     from '@/stores/wallet'
-import { useTheme }           from '@/composables/useTheme'
+<script setup lang="ts">
+import { reactive } from 'vue'
+import { useWalletStore } from '@/stores/wallet'
+import { useTheme } from '@/composables/useTheme'
 
-const store      = useWalletStore()
+interface Toggle {
+  label: string
+  value: boolean
+}
+
+interface SettingItem {
+  icon: string
+  label: string
+  sub: string
+  bg: string
+}
+
+const store = useWalletStore()
 const { isDark } = useTheme()
 
-const toggles = reactive([
+const toggles = reactive<Toggle[]>([
   { label: 'Alertas inteligentes', value: true },
-  { label: 'Notificaciones push',  value: true },
+  { label: 'Notificaciones push', value: true },
 ])
 
-const settingItems = [
-  { icon: '💳', label: 'Cuentas bancarias',   sub: '2 conectadas',           bg: 'bg-brand-blue/10' },
-  { icon: '🎯', label: 'Presupuesto mensual', sub: '€2.200 configurado',     bg: 'bg-brand-green/10' },
-  { icon: '🏷️', label: 'Categorías',          sub: 'Personalizar etiquetas', bg: 'bg-brand-gold/10' },
-  { icon: '🔒', label: 'Privacidad',           sub: 'Face ID activado',       bg: 'bg-purple-400/10' },
-  { icon: '📤', label: 'Exportar datos',       sub: 'PDF, Excel o CSV',       bg: 'bg-red-400/10' },
-  { icon: '🔗', label: 'Integraciones',        sub: 'Bancos y servicios',     bg: 'bg-brand-gold/10' },
+const settingItems: SettingItem[] = [
+  { icon: '💳', label: 'Cuentas bancarias', sub: '2 conectadas', bg: 'bg-brand-blue/10' },
+  { icon: '🎯', label: 'Presupuesto mensual', sub: '€2.200 configurado', bg: 'bg-brand-green/10' },
+  { icon: '🏷️', label: 'Categorías', sub: 'Personalizar etiquetas', bg: 'bg-brand-gold/10' },
+  { icon: '🔒', label: 'Privacidad', sub: 'Face ID activado', bg: 'bg-purple-400/10' },
+  { icon: '📤', label: 'Exportar datos', sub: 'PDF, Excel o CSV', bg: 'bg-red-400/10' },
+  { icon: '🔗', label: 'Integraciones', sub: 'Bancos y servicios', bg: 'bg-brand-gold/10' },
 ]
 
-const toggleMode = (mode) => {
+const toggleMode = (mode: string): void => {
   if ((mode === 'Oscuro') !== isDark.value) {
     store.toggleDark();
   }

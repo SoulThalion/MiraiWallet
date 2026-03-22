@@ -77,15 +77,15 @@
   </div>
 </template>
 
-<script setup>
-import { ref }            from 'vue'
+<script setup lang="ts">
+import { ref } from 'vue'
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme }       from '@/composables/useTheme'
-import DonutChart         from '@/components/DonutChart.vue'
-import BarChart           from '@/components/BarChart.vue'
+import { useTheme } from '@/composables/useTheme'
+import DonutChart from '@/components/DonutChart.vue'
+import BarChart from '@/components/BarChart.vue'
 
-const store         = useWalletStore()
-const { isDark }    = useTheme()
-const months        = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun']
-const selectedMonth = ref('Mar')
+const store = useWalletStore()
+const { isDark } = useTheme()
+const months: string[] = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun']
+const selectedMonth = ref<string>('Mar')
 </script>

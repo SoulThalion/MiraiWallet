@@ -81,26 +81,39 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed }  from 'vue'
-import { useRouter }      from 'vue-router'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme }       from '@/composables/useTheme'
+import { useTheme } from '@/composables/useTheme'
 
-const store      = useWalletStore()
-const router     = useRouter()
+interface FormData {
+  description: string
+  amount: string
+  category: string
+  date: string
+  note: string
+}
+
+interface ImportOption {
+  icon: string
+  label: string
+}
+
+const store = useWalletStore()
+const router = useRouter()
 const { isDark } = useTheme()
 
-const fieldLabelClass = computed(() =>
+const fieldLabelClass = computed<string>(() =>
   ['block text-xs uppercase tracking-wider mb-1.5 font-semibold', isDark.value ? 'text-dark-txt2' : 'text-light-txt2'].join(' ')
 )
 
-const form = ref({ description: '', amount: '', category: 'Hogar', date: new Date().toISOString().split('T')[0], note: '' })
-const displayAmount = computed(() => form.value.amount ? parseFloat(form.value.amount).toFixed(2).replace('.', ',') : '')
-const isValid       = computed(() => form.value.description.trim().length > 0 && parseFloat(form.value.amount) > 0)
-const importOptions = [{ icon: '🏦', label: 'Conectar banco' }, { icon: '📄', label: 'Subir CSV / Excel' }]
+const form = ref<FormData>({ description: '', amount: '', category: 'Hogar', date: new Date().toISOString().split('T')[0], note: '' })
+const displayAmount = computed<string>(() => form.value.amount ? parseFloat(form.value.amount).toFixed(2).replace('.', ',') : '')
+const isValid = computed<boolean>(() => form.value.description.trim().length > 0 && parseFloat(form.value.amount) > 0)
+const importOptions: ImportOption[] = [{ icon: '🏦', label: 'Conectar banco' }, { icon: '📄', label: 'Subir CSV / Excel' }]
 
-function save() {
+function save(): void {
   if (!isValid.value) return
   store.addTransaction(form.value)
   router.push('/home')
