@@ -13,11 +13,8 @@
           <p class="font-display font-black text-2xl md:text-3xl mt-0.5 dark:text-dark-txt text-light-txt">
             {{ store.userDisplayName }} 👋
           </p>
-          <p class="text-xs mt-1 dark:text-dark-txt2 text-light-txt2">
-            Acumulado en todas las fechas: importes positivos como ingresos, negativos como gastos (incluye traspasos a ahorro).
-          </p>
-          <p v-if="statementCaption" class="text-xs mt-1.5 dark:text-dark-txt2/90 text-light-txt2 leading-snug max-w-xl">
-            {{ statementCaption }}
+          <p v-if="statementLine" class="text-xs mt-1 dark:text-dark-txt2 text-light-txt2">
+            {{ statementLine }}
           </p>
         </div>
         <!-- Balance (always visible, large on md+) -->
@@ -133,17 +130,16 @@ const balanceParts = computed(() => {
   }
 })
 
-/** Texto del último extracto ING guardado al importar (no es el mismo alcance que los KPI acumulados). */
-const statementCaption = computed(() => {
+/** Una línea opcional con periodo y variación del último Excel ING (sin texto explicativo largo). */
+const statementLine = computed(() => {
   const s = store.statementSnapshot
   if (!s) return ''
   const df = formatDateOnlyEs(s.firstDate)
   const dt = formatDateOnlyEs(s.lastDate)
   const range = df && dt ? `${df} – ${dt}` : ''
-  const head = range
-    ? `Último Excel importado (${range})`
-    : 'Último Excel importado'
-  return `${head}: ${formatEuro(s.openingSaldo, true)} → ${formatEuro(s.closingSaldo, true)}; variación del extracto ${formatEuro(s.delta, true)}. Los cuatro recuadros son totales históricos en la app; para cuadrar con el banco, suma solo los movimientos del mismo periodo del fichero.`
+  return range
+    ? `Último extracto (${range}): ${formatEuro(s.delta, true)}`
+    : `Último extracto: ${formatEuro(s.delta, true)}`
 })
 
 const balanceStats = computed<BalanceStat[]>(() => {
