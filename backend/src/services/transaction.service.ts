@@ -1,10 +1,10 @@
-import { Op }                              from 'sequelize'
+import { Op, type OrderItem }             from 'sequelize'
 import { Transaction, Account, Category, Subcategory } from '../models'
 import { ApiError }                        from '../utils/ApiError'
 import { parsePagination, buildPaginationMeta } from '../utils/pagination'
 import {
   CreateTransactionDto, UpdateTransactionDto,
-  TransactionQuery, PaginationMeta,
+  TransactionQuery, PaginationMeta, TransactionListSortBy,
 } from '../types'
 
 /** `required: false` → LEFT JOIN: no se pierden movimientos sin categoría o con FK huérfana (el total de gastos debe cuadrar con la suma por categorías). */
@@ -14,25 +14,84 @@ const WITH_RELATIONS = [
   { model: Subcategory, as: 'subcategory', attributes: ['id', 'name', 'icon', 'color'], required: false },
 ]
 
+function parseOptAmount(s: string | undefined): number | undefined {
+  if (s === undefined || s === '') return undefined
+  const n = parseFloat(String(s))
+  return Number.isFinite(n) ? n : undefined
+}
+
+function listSortDir(query: TransactionQuery, sortBy: TransactionListSortBy): 'ASC' | 'DESC' {
+  const o = String(query.sortOrder ?? '').toLowerCase()
+  if (o === 'asc') return 'ASC'
+  if (o === 'desc') return 'DESC'
+  if (sortBy === 'description' || sortBy === 'category' || sortBy === 'type' || sortBy === 'importSource') {
+    return 'ASC'
+  }
+  return 'DESC'
+}
+
+function listOrder(query: TransactionQuery): OrderItem[] {
+  const raw = (query.sortBy ?? 'date') as TransactionListSortBy
+  const sortBy: TransactionListSortBy =
+    ['date', 'amount', 'description', 'type', 'importSource', 'category'].includes(raw) ? raw : 'date'
+  const dir = listSortDir(query, sortBy)
+  const tie: OrderItem[] = [['createdAt', 'DESC']]
+
+  if (sortBy === 'category') {
+    return [[{ model: Category, as: 'category' }, 'name', dir], ['date', 'DESC'], ...tie]
+  }
+  const col =
+    sortBy === 'amount' ? 'amount'
+      : sortBy === 'description' ? 'description'
+        : sortBy === 'type' ? 'type'
+          : sortBy === 'importSource' ? 'importSource'
+            : 'date'
+  return [[col, dir], ...tie]
+}
+
 export async function list(
   userId: string, query: TransactionQuery
 ): Promise<{ rows: Transaction[]; meta: PaginationMeta }> {
   const { page, limit, offset } = parsePagination(query)
   const where: Record<string, unknown> = { userId }
 
-  if (query.type)       where.type       = query.type
-  if (query.accountId)  where.accountId  = query.accountId
-  if (query.categoryId) where.categoryId = query.categoryId
+  if (query.type)        where.type         = query.type
+  if (query.accountId)   where.accountId    = query.accountId
+  if (query.categoryId)  where.categoryId   = query.categoryId
+  if (query.importSource) where.importSource = query.importSource
+
+  if (query.description?.trim()) {
+    const raw = query.description.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+    where.description = { [Op.like]: `%${raw}%` }
+  }
+
+  const minA = parseOptAmount(query.minAmount)
+  const maxA = parseOptAmount(query.maxAmount)
+  if (minA !== undefined || maxA !== undefined) {
+    const r: Record<symbol, number> = {}
+    if (minA !== undefined) r[Op.gte] = minA
+    if (maxA !== undefined) r[Op.lte] = maxA
+    where.amount = r
+  }
+
   if (query.from || query.to) {
     where.date = {}
     if (query.from) (where.date as Record<string, unknown>)[Op.gte as unknown as string] = query.from
     if (query.to)   (where.date as Record<string, unknown>)[Op.lte as unknown as string] = query.to
   }
 
+  const sortBy = (query.sortBy ?? 'date') as TransactionListSortBy
+  const orderByCategory = sortBy === 'category'
+
   const { count, rows } = await Transaction.findAndCountAll({
-    where, limit, offset,
-    order:   [['date', 'DESC'], ['createdAt', 'DESC']],
+    where,
+    limit,
+    offset,
+    order:   listOrder(query),
     include: WITH_RELATIONS,
+    distinct: true,
+    col:      'id',
+    ...(orderByCategory ? { subQuery: false } : {}),
   })
 
   return { rows, meta: buildPaginationMeta(page, limit, count) }

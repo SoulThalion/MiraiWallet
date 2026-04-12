@@ -257,6 +257,12 @@ class ApiClient {
     categoryId?: string
     from?: string
     to?: string
+    description?: string
+    importSource?: 'manual' | 'csv' | 'bank_api'
+    minAmount?: number
+    maxAmount?: number
+    sortBy?: 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
+    sortOrder?: 'asc' | 'desc'
   }): Promise<PaginatedResponse<ApiTransaction>> {
     const response = await this.client.get<ApiSuccessBody<ApiTransaction[]>>('/transactions', { params })
     return unwrapPaginated(response.data)

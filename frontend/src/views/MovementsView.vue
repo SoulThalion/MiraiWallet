@@ -1,8 +1,18 @@
 <template>
   <div class="mx-auto flex w-full max-w-screen-xl min-h-0 flex-1 flex-col gap-3 px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
-    <p class="flex-shrink-0 text-xs dark:text-dark-txt2 text-light-txt2 md:hidden">
-      Desplázate hacia abajo para cargar más (20 por página).
-    </p>
+    <div class="flex flex-shrink-0 flex-wrap items-center justify-between gap-2">
+      <p class="text-xs dark:text-dark-txt2 text-light-txt2 md:hidden">
+        Desplázate hacia abajo para cargar más (20 por página).
+      </p>
+      <button
+        v-if="!initialLoading"
+        type="button"
+        class="ml-auto text-xs font-semibold text-brand-blue hover:underline md:ml-0"
+        @click="resetFiltersAndSort"
+      >
+        Limpiar filtros y orden
+      </button>
+    </div>
 
     <!--
       El scroll va en un hijo sin padding superior: si el scroll es el propio .mw-card (p-5),
@@ -17,69 +27,156 @@
         <div v-if="initialLoading" class="py-12 text-center text-sm dark:text-dark-txt2 text-light-txt2">
           Cargando movimientos…
         </div>
-        <div v-else-if="!rows.length" class="py-12 text-center text-sm dark:text-dark-txt2 text-light-txt2">
-          No hay movimientos.
-        </div>
-        <table v-else class="isolate w-full border-separate border-spacing-0 text-left text-sm">
-          <thead>
-            <tr>
-              <th :class="[thSticky, 'whitespace-nowrap text-left']">Fecha</th>
-              <th :class="[thSticky, 'min-w-[140px] text-left']">Concepto</th>
-              <th :class="[thSticky, 'hidden text-left sm:table-cell']">Categoría</th>
-              <th :class="[thSticky, 'hidden text-left md:table-cell']">Tipo</th>
-              <th :class="[thSticky, 'hidden text-left lg:table-cell']">Origen</th>
-              <th :class="[thSticky, 'whitespace-nowrap text-right']">Importe</th>
-              <th :class="[thSticky, 'w-24 text-center']">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="tx in rows"
-              :key="tx.id"
-              class="relative z-0 border-b border-brand-blue/5 dark:border-white/[0.05] hover:bg-brand-blue/[0.04] dark:hover:bg-white/[0.03]"
-            >
-              <td class="py-2.5 px-2 whitespace-nowrap dark:text-dark-txt2 text-light-txt2">{{ formatDate(tx.date) }}</td>
-              <td class="py-2.5 px-2 dark:text-dark-txt text-light-txt">
-                <span class="line-clamp-2">{{ tx.description }}</span>
-              </td>
-              <td class="py-2.5 px-2 hidden sm:table-cell dark:text-dark-txt2 text-light-txt2 text-xs">
-                {{ categoryLabel(tx) }}
-              </td>
-              <td class="py-2.5 px-2 hidden md:table-cell text-xs">{{ typeLabel(tx.type) }}</td>
-              <td class="py-2.5 px-2 hidden lg:table-cell text-xs">{{ sourceLabel(tx.importSource) }}</td>
-              <td
-                :class="[
-                  'py-2.5 px-2 text-right font-semibold whitespace-nowrap',
-                  tx.type === 'income' && 'text-emerald-500',
-                  tx.type === 'expense' && 'text-red-400',
-                  tx.type === 'transfer' && 'dark:text-dark-txt text-light-txt',
-                ]"
-              >
-                {{ amountCell(tx) }}
-              </td>
-              <td class="py-2.5 px-2 text-center">
-                <button
-                  v-if="tx.importSource === 'manual'"
-                  type="button"
-                  class="text-xs font-semibold text-brand-blue hover:underline"
-                  @click="openEdit(tx)"
-                >
-                  Editar
-                </button>
-                <span v-else class="text-xs dark:text-dark-txt3 text-light-txt3">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-if="loadingMore" class="py-3 text-center text-xs dark:text-dark-txt2 text-light-txt2">
-          Cargando más…
-        </div>
         <div
-          v-else-if="rows.length && !hasMore"
-          class="py-3 text-center text-[10px] dark:text-dark-txt3 text-light-txt3"
+          v-else
+          class="relative"
+          :class="{ 'pointer-events-none opacity-55': filtersBusy }"
         >
-          Fin del listado
+          <table class="isolate w-full border-separate border-spacing-0 text-left text-sm">
+            <thead>
+              <tr>
+                <th :class="[thSticky, 'min-w-[140px] max-w-[200px] align-top text-left']">
+                  <button
+                    type="button"
+                    class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
+                    @click="setSort('date')"
+                  >
+                    Fecha <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('date') }}</span>
+                  </button>
+                  <MwDateRangePicker v-model="dateRangeFilter" />
+                </th>
+                <th :class="[thSticky, 'min-w-[140px] align-top text-left']">
+                  <button
+                    type="button"
+                    class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
+                    @click="setSort('description')"
+                  >
+                    Concepto <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('description') }}</span>
+                  </button>
+                  <input
+                    v-model="filters.description"
+                    type="search"
+                    placeholder="Contiene…"
+                    :class="filterInputClass"
+                  />
+                </th>
+                <th :class="[thSticky, 'hidden min-w-[120px] align-top text-left sm:table-cell']">
+                  <button
+                    type="button"
+                    class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
+                    @click="setSort('category')"
+                  >
+                    Categoría <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('category') }}</span>
+                  </button>
+                  <select v-model="filters.categoryId" :class="filterInputClass">
+                    <option value="">Todas</option>
+                    <option v-for="c in allCategories" :key="c.id" :value="c.id">{{ c.icon }} {{ c.name }}</option>
+                  </select>
+                </th>
+                <th :class="[thSticky, 'hidden min-w-[100px] align-top text-left md:table-cell']">
+                  <button
+                    type="button"
+                    class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
+                    @click="setSort('type')"
+                  >
+                    Tipo <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('type') }}</span>
+                  </button>
+                  <select v-model="filters.type" :class="filterInputClass">
+                    <option value="">Todos</option>
+                    <option value="income">Ingreso</option>
+                    <option value="expense">Gasto</option>
+                    <option value="transfer">Traspaso</option>
+                  </select>
+                </th>
+                <th :class="[thSticky, 'hidden min-w-[108px] align-top text-left lg:table-cell']">
+                  <button
+                    type="button"
+                    class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
+                    @click="setSort('importSource')"
+                  >
+                    Origen <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('importSource') }}</span>
+                  </button>
+                  <select v-model="filters.importSource" :class="filterInputClass">
+                    <option value="">Todos</option>
+                    <option value="manual">Manual</option>
+                    <option value="csv">Import Excel</option>
+                    <option value="bank_api">Banco</option>
+                  </select>
+                </th>
+                <th :class="[thSticky, 'min-w-[100px] align-top text-right']">
+                  <button
+                    type="button"
+                    class="mb-1 flex w-full items-center justify-end gap-1 text-xs font-semibold hover:text-brand-blue"
+                    @click="setSort('amount')"
+                  >
+                    Importe <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('amount') }}</span>
+                  </button>
+                  <MwAmountRangePicker v-model="amountRangeFilter" />
+                </th>
+                <th :class="[thSticky, 'w-24 min-w-[4.5rem] align-top text-center text-xs font-semibold']">
+                  Acción
+                  <p class="mt-6 text-[10px] font-normal opacity-60">—</p>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-if="!rows.length">
+                <tr>
+                  <td colspan="7" class="py-10 text-center text-sm dark:text-dark-txt2 text-light-txt2">
+                    No hay movimientos con estos criterios.
+                  </td>
+                </tr>
+              </template>
+              <template v-else>
+                <tr
+                  v-for="tx in rows"
+                  :key="tx.id"
+                  class="relative z-0 border-b border-brand-blue/5 dark:border-white/[0.05] hover:bg-brand-blue/[0.04] dark:hover:bg-white/[0.03]"
+                >
+                  <td class="py-2.5 px-2 whitespace-nowrap dark:text-dark-txt2 text-light-txt2">{{ formatDate(tx.date) }}</td>
+                  <td class="py-2.5 px-2 dark:text-dark-txt text-light-txt">
+                    <span class="line-clamp-2">{{ tx.description }}</span>
+                  </td>
+                  <td class="py-2.5 px-2 hidden sm:table-cell dark:text-dark-txt2 text-light-txt2 text-xs">
+                    {{ categoryLabel(tx) }}
+                  </td>
+                  <td class="py-2.5 px-2 hidden md:table-cell text-xs">{{ typeLabel(tx.type) }}</td>
+                  <td class="py-2.5 px-2 hidden lg:table-cell text-xs">{{ sourceLabel(tx.importSource) }}</td>
+                  <td
+                    :class="[
+                      'py-2.5 px-2 text-right font-semibold whitespace-nowrap',
+                      tx.type === 'income' && 'text-emerald-500',
+                      tx.type === 'expense' && 'text-red-400',
+                      tx.type === 'transfer' && 'dark:text-dark-txt text-light-txt',
+                    ]"
+                  >
+                    {{ amountCell(tx) }}
+                  </td>
+                  <td class="py-2.5 px-2 text-center">
+                    <button
+                      v-if="tx.importSource === 'manual'"
+                      type="button"
+                      class="text-xs font-semibold text-brand-blue hover:underline"
+                      @click="openEdit(tx)"
+                    >
+                      Editar
+                    </button>
+                    <span v-else class="text-xs dark:text-dark-txt3 text-light-txt3">—</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+
+          <div v-if="loadingMore" class="py-3 text-center text-xs dark:text-dark-txt2 text-light-txt2">
+            Cargando más…
+          </div>
+          <div
+            v-else-if="rows.length && !hasMore"
+            class="py-3 text-center text-[10px] dark:text-dark-txt3 text-light-txt3"
+          >
+            Fin del listado
+          </div>
         </div>
       </div>
     </div>
@@ -178,15 +275,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, reactive } from 'vue'
 import { useWalletStore, type Category } from '@/stores/wallet'
 import { api, type ApiTransaction } from '@/services/api'
+import MwDateRangePicker from '@/components/MwDateRangePicker.vue'
+import MwAmountRangePicker from '@/components/MwAmountRangePicker.vue'
+
+type SortColumn = 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
 
 const store = useWalletStore()
 
 /** Fondo opaco alineado con `.mw-card` y sticky por `<th>` (el encabezado queda por encima del scroll del cuerpo). */
 const thSticky =
-  'sticky top-0 z-40 border-b border-brand-blue/10 bg-light-card py-3 px-2 align-middle font-semibold text-light-txt dark:border-white/[0.07] dark:bg-dark-card dark:text-dark-txt'
+  'sticky top-0 z-40 border-b border-brand-blue/10 bg-light-card py-3 px-2 align-top font-semibold text-light-txt dark:border-white/[0.07] dark:bg-dark-card dark:text-dark-txt'
+
+const filterInputClass =
+  'w-full min-w-0 rounded-lg border border-brand-blue/15 bg-light-surf px-1.5 py-1 text-xs text-light-txt dark:border-white/[0.07] dark:bg-dark-surf dark:text-dark-txt'
+
+const filters = reactive({
+  dateFrom: '',
+  dateTo: '',
+  description: '',
+  categoryId: '',
+  type: '' as '' | 'income' | 'expense' | 'transfer',
+  importSource: '' as '' | 'manual' | 'csv' | 'bank_api',
+  minAmount: '',
+  maxAmount: '',
+})
+
+const dateRangeFilter = computed({
+  get: () => ({ from: filters.dateFrom, to: filters.dateTo }),
+  set(v: { from: string; to: string }) {
+    filters.dateFrom = v.from
+    filters.dateTo = v.to
+  },
+})
+
+const amountRangeFilter = computed({
+  get: () => ({ min: filters.minAmount, max: filters.maxAmount }),
+  set(v: { min: string; max: string }) {
+    filters.minAmount = v.min
+    filters.maxAmount = v.max
+  },
+})
+
+const sortBy = ref<SortColumn>('date')
+const sortOrder = ref<'asc' | 'desc'>('desc')
 
 const scrollEl = ref<HTMLElement | null>(null)
 const rows = ref<ApiTransaction[]>([])
@@ -194,7 +328,12 @@ const page = ref(1)
 const hasMore = ref(true)
 const initialLoading = ref(true)
 const loadingMore = ref(false)
+const filtersBusy = ref(false)
 const PAGE_SIZE = 20
+
+let filterDebounceTimer: ReturnType<typeof setTimeout> | undefined
+/** Evita un segundo GET al resetear: el `watch` profundo también reacciona a los cambios. */
+const filterWatchPaused = ref(false)
 
 const editing = ref<ApiTransaction | null>(null)
 const editError = ref('')
@@ -216,6 +355,8 @@ const expenseCategories = computed<Category[]>(() =>
 const incomeCategories = computed<Category[]>(() =>
   store.categories.filter(c => c.categoryType === 'income' && c.id)
 )
+
+const allCategories = computed(() => store.categories.filter(c => Boolean(c.id)))
 
 const selectedEditCategory = computed(() =>
   store.categories.find(c => c.id === editForm.value.categoryId)
@@ -283,19 +424,98 @@ function amountCell(tx: ApiTransaction): string {
   return `€${abs}`
 }
 
-async function fetchPage(p: number, append: boolean): Promise<void> {
-  const { data, meta } = await api.getTransactions({ page: p, limit: PAGE_SIZE })
-  if (append) rows.value = rows.value.concat(data)
-  else rows.value = data
-  hasMore.value = Boolean(meta.hasNext)
+function buildListParams(pageNum: number): NonNullable<Parameters<typeof api.getTransactions>[0]> {
+  const p: NonNullable<Parameters<typeof api.getTransactions>[0]> = {
+    page: pageNum,
+    limit: PAGE_SIZE,
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+  }
+  if (filters.dateFrom.trim()) p.from = filters.dateFrom.trim()
+  if (filters.dateTo.trim()) p.to = filters.dateTo.trim()
+  if (filters.description.trim()) p.description = filters.description.trim()
+  if (filters.categoryId) p.categoryId = filters.categoryId
+  if (filters.type) p.type = filters.type
+  if (filters.importSource) p.importSource = filters.importSource
+  const min = parseFloat(filters.minAmount)
+  if (filters.minAmount.trim() !== '' && Number.isFinite(min)) p.minAmount = min
+  const max = parseFloat(filters.maxAmount)
+  if (filters.maxAmount.trim() !== '' && Number.isFinite(max)) p.maxAmount = max
+  return p
 }
+
+function sortGlyph(col: SortColumn): string {
+  if (sortBy.value !== col) return '·'
+  return sortOrder.value === 'asc' ? '▲' : '▼'
+}
+
+function setSort(col: SortColumn): void {
+  if (sortBy.value === col) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortBy.value = col
+    sortOrder.value =
+      col === 'description' || col === 'category' || col === 'type' || col === 'importSource' ? 'asc' : 'desc'
+  }
+  void reloadFromFilters()
+}
+
+async function reloadFromFilters(): Promise<void> {
+  if (initialLoading.value) return
+  filtersBusy.value = true
+  page.value = 1
+  try {
+    const { data, meta } = await api.getTransactions(buildListParams(1))
+    rows.value = data
+    hasMore.value = Boolean(meta.hasNext)
+    if (scrollEl.value) scrollEl.value.scrollTop = 0
+  } catch (e) {
+    console.error(e)
+    rows.value = []
+    hasMore.value = false
+  } finally {
+    filtersBusy.value = false
+  }
+}
+
+function resetFiltersAndSort(): void {
+  clearTimeout(filterDebounceTimer)
+  filterWatchPaused.value = true
+  filters.dateFrom = ''
+  filters.dateTo = ''
+  filters.description = ''
+  filters.categoryId = ''
+  filters.type = ''
+  filters.importSource = ''
+  filters.minAmount = ''
+  filters.maxAmount = ''
+  sortBy.value = 'date'
+  sortOrder.value = 'desc'
+  void reloadFromFilters().finally(() => {
+    filterWatchPaused.value = false
+  })
+}
+
+watch(
+  filters,
+  () => {
+    if (filterWatchPaused.value) return
+    clearTimeout(filterDebounceTimer)
+    filterDebounceTimer = setTimeout(() => {
+      void reloadFromFilters()
+    }, 350)
+  },
+  { deep: true }
+)
 
 async function loadInitial(): Promise<void> {
   initialLoading.value = true
   page.value = 1
   hasMore.value = true
   try {
-    await fetchPage(1, false)
+    const { data, meta } = await api.getTransactions(buildListParams(1))
+    rows.value = data
+    hasMore.value = Boolean(meta.hasNext)
   } catch (e) {
     console.error(e)
     rows.value = []
@@ -306,11 +526,11 @@ async function loadInitial(): Promise<void> {
 }
 
 async function loadNext(): Promise<void> {
-  if (!hasMore.value || loadingMore.value || initialLoading.value) return
+  if (!hasMore.value || loadingMore.value || initialLoading.value || filtersBusy.value) return
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const { data, meta } = await api.getTransactions({ page: next, limit: PAGE_SIZE })
+    const { data, meta } = await api.getTransactions(buildListParams(next))
     rows.value = rows.value.concat(data)
     page.value = next
     hasMore.value = Boolean(meta.hasNext)
@@ -323,7 +543,7 @@ async function loadNext(): Promise<void> {
 
 function onScroll(e: Event): void {
   const el = e.target as HTMLElement
-  if (!hasMore.value || loadingMore.value || initialLoading.value) return
+  if (!hasMore.value || loadingMore.value || initialLoading.value || filtersBusy.value) return
   const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
   if (nearBottom) void loadNext()
 }

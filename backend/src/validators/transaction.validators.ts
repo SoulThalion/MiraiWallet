@@ -41,4 +41,10 @@ export const listTransactionRules = [
   query('accountId').optional().isUUID(),
   query('from').optional().isDate(),
   query('to').optional().isDate(),
+  query('description').optional().trim().isLength({ max: 200 }),
+  query('importSource').optional().isIn(['manual', 'csv', 'bank_api']),
+  query('minAmount').optional().isFloat({ min: 0 }),
+  query('maxAmount').optional().isFloat({ min: 0 }),
+  query('sortBy').optional().isIn(['date', 'amount', 'description', 'type', 'importSource', 'category']),
+  query('sortOrder').optional().isIn(['asc', 'desc']),
 ]

@@ -66,14 +66,24 @@ export interface UpdateTransactionDto {
   recurringPeriod?: RecurringPeriod
 }
 
+export type TransactionListSortBy =
+  'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
+
 export interface TransactionQuery {
-  page?:        string
-  limit?:       string
-  type?:        TransactionType
-  accountId?:   string
-  categoryId?:  string
-  from?:        string
-  to?:          string
+  page?:          string
+  limit?:         string
+  type?:          TransactionType
+  accountId?:     string
+  categoryId?:    string
+  from?:          string
+  to?:            string
+  /** Contiene (LIKE) en `description`, insensible a mayúsculas en MySQL utf8mb4_unicode_ci. */
+  description?:  string
+  importSource?:  ImportSource
+  minAmount?:     string
+  maxAmount?:     string
+  sortBy?:       TransactionListSortBy | string
+  sortOrder?:    'asc' | 'desc' | string
 }
 
 export interface CreateAccountDto {
