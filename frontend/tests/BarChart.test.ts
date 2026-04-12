@@ -27,7 +27,7 @@ describe('BarChart', () => {
       props: { bars, maxVal }
     })
 
-    expect(wrapper.findAll('.flex-1').length).toBe(3)
+    expect(wrapper.findAll('.mw-bar-col').length).toBe(3)
     expect(wrapper.text()).toContain('Jan')
     expect(wrapper.text()).toContain('Feb')
     expect(wrapper.text()).toContain('Mar')
@@ -44,7 +44,7 @@ describe('BarChart', () => {
       props: { bars, maxVal }
     })
 
-    const barDivs = wrapper.findAll('.w-full.rounded-t')
+    const barDivs = wrapper.findAll('[data-testid="bar-fill"]')
     expect(barDivs.length).toBe(2)
   })
 })

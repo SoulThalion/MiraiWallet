@@ -76,6 +76,90 @@
         </div>
       </div>
 
+      <!-- Ciclo mensual (presupuestos, estadísticas, gasto del mes) -->
+      <div class="mw-card md:col-span-2 lg:col-span-3">
+        <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">Mes para presupuestos y totales</p>
+        <p class="mt-1 text-xs leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
+          Define cómo se etiqueta cada periodo como
+          <span class="font-mono text-[10px]">YYYY-MM</span>. Puedes usar el
+          <strong class="dark:text-dark-txt text-light-txt">mes natural</strong> o un
+          <strong class="dark:text-dark-txt text-light-txt">rango de días</strong> (p. ej. del 27 al 26, o del 2 al 1) y elegir si el inicio cae en el
+          <strong class="dark:text-dark-txt text-light-txt">mes anterior</strong> al etiquetado (típico nómina) o si el rango se
+          <strong class="dark:text-dark-txt text-light-txt">ancla al mes del calendario</strong> (si el fin queda «antes» en el calendario, el periodo cruza al mes siguiente).
+        </p>
+
+        <fieldset class="mt-4 space-y-3">
+          <legend class="sr-only">Tipo de periodo</legend>
+          <div class="flex flex-wrap gap-3">
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm dark:border-white/[0.08] border-brand-blue/12 dark:bg-dark-surf bg-light-surf has-[:checked]:border-brand-blue has-[:checked]:bg-brand-blue/10">
+              <input v-model="cycleMode" type="radio" value="calendar" class="accent-brand-blue" />
+              <span class="font-medium dark:text-dark-txt text-light-txt">Mes natural</span>
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm dark:border-white/[0.08] border-brand-blue/12 dark:bg-dark-surf bg-light-surf has-[:checked]:border-brand-blue has-[:checked]:bg-brand-blue/10">
+              <input v-model="cycleMode" type="radio" value="custom" class="accent-brand-blue" />
+              <span class="font-medium dark:text-dark-txt text-light-txt">Periodo personalizado</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div v-if="cycleMode === 'custom'" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label for="cycle-start" class="block text-xs font-semibold mb-1.5 dark:text-dark-txt2 text-light-txt2">
+              Día de inicio (1–31)
+            </label>
+            <input
+              id="cycle-start"
+              v-model.number="cycleStartDay"
+              type="number"
+              min="1"
+              max="31"
+              step="1"
+              class="mw-input tabular-nums w-full"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label for="cycle-end" class="block text-xs font-semibold mb-1.5 dark:text-dark-txt2 text-light-txt2">
+              Día de fin (1–31)
+            </label>
+            <input
+              id="cycle-end"
+              v-model.number="cycleEndDay"
+              type="number"
+              min="1"
+              max="31"
+              step="1"
+              class="mw-input tabular-nums w-full"
+              autocomplete="off"
+            />
+          </div>
+          <div class="sm:col-span-2 lg:col-span-1">
+            <span class="block text-xs font-semibold mb-1.5 dark:text-dark-txt2 text-light-txt2">Ancla del periodo</span>
+            <select
+              v-model="cycleAnchor"
+              class="mw-input w-full text-sm"
+              aria-label="Ancla del periodo"
+            >
+              <option value="previous">Inicio en el mes anterior al etiquetado</option>
+              <option value="current">Anclado al mes etiquetado (puede cruzar al siguiente)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <button
+            type="button"
+            class="rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-br from-brand-blue-dark to-brand-blue shadow-glow transition-opacity hover:opacity-90 disabled:opacity-40 disabled:pointer-events-none sm:self-end"
+            :disabled="cycleSaving || !cycleDirty"
+            @click="saveCycle"
+          >
+            {{ cycleSaving ? 'Guardando…' : 'Guardar' }}
+          </button>
+        </div>
+        <p v-if="cycleMsg" class="mt-3 text-xs text-brand-green dark:text-brand-green">{{ cycleMsg }}</p>
+        <p v-if="cycleErr" class="mt-3 text-xs text-red-400">{{ cycleErr }}</p>
+      </div>
+
       <!-- Danger zone -->
       <div class="mw-card md:col-span-2 lg:col-span-3 border border-red-400/30 dark:border-red-400/25">
         <p class="font-display font-bold text-sm text-red-500 mb-1">Zona peligrosa</p>
@@ -166,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
 import { api } from '@/services/api'
@@ -186,6 +270,73 @@ interface SettingItem {
 
 const store = useWalletStore()
 const router = useRouter()
+
+type CycleModeUi = 'calendar' | 'custom'
+
+const cycleMode = ref<CycleModeUi>('calendar')
+const cycleStartDay = ref(1)
+const cycleEndDay = ref(31)
+const cycleAnchor = ref<'previous' | 'current'>('previous')
+const cycleSaving = ref(false)
+const cycleMsg = ref('')
+const cycleErr = ref<string | null>(null)
+
+function clampDay(n: unknown, fallback: number): number {
+  const x = Math.floor(Number(n))
+  if (!Number.isInteger(x) || x < 1 || x > 31) return fallback
+  return x
+}
+
+watch(
+  () => store.user,
+  (u) => {
+    cycleMode.value = u?.monthCycleMode === 'custom' ? 'custom' : 'calendar'
+    cycleStartDay.value = clampDay(u?.monthCycleStartDay, 1)
+    cycleEndDay.value = clampDay(u?.monthCycleEndDay, 31)
+    cycleAnchor.value = u?.monthCycleAnchor === 'current' ? 'current' : 'previous'
+  },
+  { immediate: true, deep: true }
+)
+
+const cycleDirty = computed(() => {
+  const u = store.user
+  const curMode: CycleModeUi = u?.monthCycleMode === 'custom' ? 'custom' : 'calendar'
+  const curStart = clampDay(u?.monthCycleStartDay, 1)
+  const curEnd = clampDay(u?.monthCycleEndDay, 31)
+  const curAnchor = u?.monthCycleAnchor === 'current' ? 'current' : 'previous'
+  if (cycleMode.value !== curMode) return true
+  if (cycleMode.value === 'calendar') return false
+  const st = clampDay(cycleStartDay.value, 1)
+  const en = clampDay(cycleEndDay.value, 31)
+  return st !== curStart || en !== curEnd || cycleAnchor.value !== curAnchor
+})
+
+async function saveCycle(): Promise<void> {
+  cycleStartDay.value = clampDay(cycleStartDay.value, 1)
+  cycleEndDay.value = clampDay(cycleEndDay.value, 31)
+  cycleSaving.value = true
+  cycleMsg.value = ''
+  cycleErr.value = null
+  try {
+    if (cycleMode.value === 'calendar') {
+      await api.updateProfile({ monthCycleMode: 'calendar' })
+    } else {
+      await api.updateProfile({
+        monthCycleMode: 'custom',
+        monthCycleStartDay: cycleStartDay.value,
+        monthCycleEndDay: cycleEndDay.value,
+        monthCycleAnchor: cycleAnchor.value,
+      })
+    }
+    await store.loadUser()
+    cycleMsg.value = 'Preferencia guardada. Los presupuestos y totales usarán este corte.'
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: { message?: string } } } }
+    cycleErr.value = ax.response?.data?.error?.message ?? 'No se pudo guardar.'
+  } finally {
+    cycleSaving.value = false
+  }
+}
 
 const showWipeModal = ref(false)
 const wipePassword = ref('')

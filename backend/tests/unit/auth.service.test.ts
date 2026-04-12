@@ -97,3 +97,29 @@ describe('changePassword', () => {
       .rejects.toMatchObject({ statusCode: 400 })
   })
 })
+
+describe('updateProfile', () => {
+  it('activa periodo personalizado (27–26, mes anterior)', async () => {
+    const reg = await authService.register({ name: 'U', email: 'u@t.com', password: 'Password1' })
+    const user = await User.findByPk((reg.user as { id: string }).id)!
+    const out = await authService.updateProfile(user!, {
+      monthCycleMode: 'custom',
+      monthCycleStartDay: 27,
+      monthCycleEndDay: 26,
+      monthCycleAnchor: 'previous',
+    })
+    const o = out as { monthCycleMode: string; monthCycleStartDay: number; monthCycleEndDay: number }
+    expect(o.monthCycleMode).toBe('custom')
+    expect(o.monthCycleStartDay).toBe(27)
+    expect(o.monthCycleEndDay).toBe(26)
+    await user.reload()
+    expect(user.monthCycleMode).toBe('custom')
+  })
+
+  it('throws 400 for invalid monthCycleStartDay', async () => {
+    const reg = await authService.register({ name: 'V', email: 'v@t.com', password: 'Password1' })
+    const user = await User.findByPk((reg.user as { id: string }).id)!
+    await expect(authService.updateProfile(user!, { monthCycleStartDay: 32 }))
+      .rejects.toMatchObject({ statusCode: 400 })
+  })
+})

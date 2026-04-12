@@ -2,18 +2,11 @@ import { Op }                        from 'sequelize'
 import { Budget, Category, Transaction } from '../models'
 import { ApiError }                   from '../utils/ApiError'
 import { UpsertBudgetDto }            from '../types'
-
-function lastDateOfCalendarMonthYm(yearStr: string, monPadded: string): string {
-  const y = parseInt(yearStr, 10)
-  const m = parseInt(monPadded, 10)
-  const lastDay = new Date(y, m, 0).getDate()
-  return `${yearStr}-${monPadded}-${String(lastDay).padStart(2, '0')}`
-}
+import { getMonthCycleConfigForUser, ymToDateBounds } from '../utils/monthPeriod'
 
 export async function listWithSpending(userId: string, month: string) {
-  const [year, mon] = month.split('-')
-  const from = `${year}-${mon}-01`
-  const to     = lastDateOfCalendarMonthYm(year, mon)
+  const cfg = await getMonthCycleConfigForUser(userId)
+  const { from, to } = ymToDateBounds(month, cfg)
 
   const [budgets, txs] = await Promise.all([
     Budget.findAll({

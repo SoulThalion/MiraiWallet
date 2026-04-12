@@ -126,6 +126,41 @@ export interface DashboardData {
   }[]
 }
 
+/** `GET /stats/month-overview` — solo lo que consume la vista Estadísticas. */
+export interface StatsMonthBarDto {
+  month: string
+  label: string
+  expenses: number
+  income: number
+  net: number
+  isSelectedMonth: boolean
+  isCurrentSystemMonth: boolean
+}
+
+export interface StatsMonthCategoryDto {
+  id: string
+  name: string
+  icon: string
+  color: string
+  spent: number
+  budget: number
+  incomeInCategory: number
+}
+
+export interface StatsMonthOverviewDto {
+  month: string
+  year: number
+  monthlyBars: StatsMonthBarDto[]
+  categories: StatsMonthCategoryDto[]
+  totals: {
+    monthExpenseTotal: number
+    monthBudgetTotal: number
+    yearlyAverageExpense: number
+    bestMonthLabel: string
+    bestMonthAmount: number
+  }
+}
+
 export interface PaginationMeta {
   page: number
   limit: number
@@ -145,6 +180,17 @@ export interface SessionUser {
   name: string
   email: string
   role?: string
+  /** `calendar` = mes natural; `custom` = rango con inicio/fin/ancla. */
+  monthCycleMode?: 'calendar' | 'custom'
+  /** Día de inicio del periodo (1–31); en `calendar` se ignora para el corte. */
+  monthCycleStartDay?: number
+  /** Día de fin del periodo (1–31); en `calendar` se ignora. */
+  monthCycleEndDay?: number
+  /**
+   * `previous` = el periodo «M» va del `startDay` del mes anterior a M al `endDay` del mes M.
+   * `current` = rango dentro de M o, si inicio > fin, cruza al mes siguiente.
+   */
+  monthCycleAnchor?: 'previous' | 'current'
 }
 
 export interface IngBankImportResult {
@@ -250,6 +296,13 @@ class ApiClient {
     return response.data.data
   }
 
+  async getStatsMonthOverview(month?: string): Promise<StatsMonthOverviewDto> {
+    const response = await this.client.get<ApiSuccessBody<StatsMonthOverviewDto>>('/stats/month-overview', {
+      params: month ? { month } : {},
+    })
+    return response.data.data
+  }
+
   async getTransactions(params?: {
     page?: number
     limit?: number
@@ -348,6 +401,17 @@ class ApiClient {
 
   async getMe(): Promise<SessionUser> {
     const response = await this.client.get<ApiSuccessBody<SessionUser>>('/auth/me')
+    return response.data.data
+  }
+
+  async updateProfile(payload: {
+    name?: string
+    monthCycleMode?: 'calendar' | 'custom'
+    monthCycleStartDay?: number
+    monthCycleEndDay?: number
+    monthCycleAnchor?: 'previous' | 'current'
+  }): Promise<SessionUser> {
+    const response = await this.client.patch<ApiSuccessBody<SessionUser>>('/auth/me', payload)
     return response.data.data
   }
 

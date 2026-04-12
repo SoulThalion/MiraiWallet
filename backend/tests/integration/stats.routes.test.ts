@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request   from 'supertest'
 import { createApp }  from '../../src/app'
 import { setupDb, teardownDb }             from '../helpers/setup'
-import { createUser, createAccount, createCategory, createTransaction } from '../helpers/factories'
+import { createUser, createAccount, createCategory, createTransaction, createBudget } from '../helpers/factories'
 import { createTokenPair }                 from '../../src/utils/jwt'
 import { User }                            from '../../src/models'
 import type { Express } from 'express'
@@ -55,5 +55,47 @@ describe('GET /stats/dashboard', () => {
     expect(transfersToSavings).toBe(0)
     expect(expenses).toBeCloseTo(450)
     expect(netCashflow).toBeCloseTo(income - expenses)
+  })
+})
+
+const MONTH_OVERVIEW = '/api/v1/stats/month-overview'
+
+describe('GET /stats/month-overview', () => {
+  it('200 — monthlyBars, categories y totals (gasto del mes sin depender solo de presupuestos)', async () => {
+    await createTransaction(user.id, account.id, category.id, {
+      type: 'expense',
+      amount: 120,
+      date: '2026-03-15',
+    })
+    await createBudget(user.id, category.id, { month: '2026-03', amount: 200 })
+    const res = await request(app).get(MONTH_OVERVIEW).query({ month: '2026-03' }).set({ Authorization: `Bearer ${token}` })
+    expect(res.status).toBe(200)
+    const d = res.body.data
+    expect(d.month).toBe('2026-03')
+    expect(d.year).toBe(2026)
+    expect(d.monthlyBars).toHaveLength(12)
+    const mar = d.monthlyBars.find((b: { month: string }) => b.month === '03')
+    expect(mar.expenses).toBeCloseTo(120)
+    expect(typeof mar.income).toBe('number')
+    expect(typeof mar.net).toBe('number')
+    expect(mar.isSelectedMonth).toBe(true)
+    expect(d.categories.length).toBeGreaterThanOrEqual(1)
+    const row = d.categories.find((c: { id: string }) => c.id === category.id)
+    expect(row.spent).toBeCloseTo(120)
+    expect(row.budget).toBeCloseTo(200)
+    expect(d.totals.monthExpenseTotal).toBeCloseTo(120)
+    expect(d.totals.monthBudgetTotal).toBeCloseTo(200)
+  })
+
+  it('400 — month inválido', async () => {
+    const res = await request(app)
+      .get(MONTH_OVERVIEW)
+      .query({ month: '2026-13' })
+      .set({ Authorization: `Bearer ${token}` })
+    expect(res.status).toBe(400)
+  })
+
+  it('401 — no token', async () => {
+    expect((await request(app).get(MONTH_OVERVIEW).query({ month: '2026-01' })).status).toBe(401)
   })
 })

@@ -11,6 +11,7 @@ import {
   AuthResult,
   SessionUser,
 } from '@/services/api'
+import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
 
 // ── Types ────────────────────────────────────────────────
 export interface Transaction {
@@ -61,7 +62,14 @@ export interface Alert {
 export interface MonthlyData {
   month: string
   amount: number
+  /** Mes actual del calendario del dispositivo (si el año del gráfico coincide). */
   current?: boolean
+  /** Mes elegido en la vista (p. ej. chips de Estadísticas). */
+  selected?: boolean
+  /** Ingresos del mismo mes (tooltip en barras, si el origen los envía). */
+  income?: number
+  /** Neto mensual ingresos − gastos (tooltip). */
+  net?: number
 }
 
 export interface NewExpense {
@@ -218,9 +226,9 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
-  function currentMonthYm(): string {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  /** `YYYY-MM` del periodo fiscal según la configuración de ciclo del usuario. */
+  function currentPeriodYm(): string {
+    return fiscalYmForDate(new Date(), monthCycleConfigFromSession(user.value))
   }
 
   function normNameKey(name: string): string {
@@ -230,7 +238,7 @@ export const useWalletStore = defineStore('wallet', () => {
   async function loadDashboard(month?: string): Promise<void> {
     isLoading.value = true
     error.value = null
-    const ym = month ?? currentMonthYm()
+    const ym = month ?? currentPeriodYm()
     try {
       const data: DashboardData = await api.getDashboard(ym)
 
@@ -331,7 +339,7 @@ export const useWalletStore = defineStore('wallet', () => {
 
   async function loadBudgets(month?: string): Promise<void> {
     try {
-      const budgets = await api.getBudgets(month ?? currentMonthYm())
+      const budgets = await api.getBudgets(month ?? currentPeriodYm())
       categories.value = categories.value.map(cat => {
         const budget = budgets.find(b => b.categoryId === cat.id)
         if (budget) {
@@ -362,7 +370,7 @@ export const useWalletStore = defineStore('wallet', () => {
     if (!user.value) await loadUser()
     if (!user.value) return
     await loadAccounts()
-    const ym = currentMonthYm()
+    const ym = currentPeriodYm()
     /** Lista de categorías desde el API antes del dashboard para fusionar bien los importes del desglose (ids / nombres). */
     await loadCategories()
     await loadDashboard(ym)

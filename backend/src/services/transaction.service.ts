@@ -1,6 +1,12 @@
 import { Op, type OrderItem }             from 'sequelize'
 import { Transaction, Account, Category, Subcategory } from '../models'
 import { ApiError }                        from '../utils/ApiError'
+import {
+  dateToFiscalYm,
+  getMonthCycleConfigForUser,
+  toDateOnlyString,
+  ymToDateBounds,
+} from '../utils/monthPeriod'
 import { parsePagination, buildPaginationMeta } from '../utils/pagination'
 import {
   CreateTransactionDto, UpdateTransactionDto,
@@ -150,20 +156,17 @@ export async function remove(id: string, userId: string): Promise<void> {
   await tx.destroy()
 }
 
-/** Mes 0–11 desde DATEONLY `YYYY-MM-DD` sin pasar por `Date` (evita desfases UTC). */
+/** Mes 0–11 desde DATEONLY (misma lógica histórica cuando el ciclo es mes calendario). */
 function monthIndexFromDateOnly(dateVal: unknown): number {
-  const s = String(dateVal ?? '')
-  const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(s)
-  if (m) return parseInt(m[2], 10) - 1
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? 0 : d.getMonth()
+  const day = toDateOnlyString(dateVal)
+  const br = day ? /^(\d{4})-(\d{2})-\d{2}$/.exec(day) : null
+  if (br) return parseInt(br[2]!, 10) - 1
+  const d = new Date(String(dateVal ?? ''))
+  return Number.isNaN(d.getTime()) ? -1 : d.getMonth()
 }
 
 export async function monthlySummary(userId: string, year: number) {
-  const txs = await Transaction.findAll({
-    where: { userId, date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
-    attributes: ['type', 'amount', 'date'],
-  })
+  const cfg = await getMonthCycleConfigForUser(userId)
 
   const months = Array.from({ length: 12 }, (_, i) => ({
     month:    String(i + 1).padStart(2, '0'),
@@ -171,14 +174,39 @@ export async function monthlySummary(userId: string, year: number) {
     expenses: 0,
   }))
 
-  for (const tx of txs) {
-    const m = monthIndexFromDateOnly(tx.date)
-    if (m < 0 || m > 11) continue
-    const amt = Number(tx.amount)
-    if (!Number.isFinite(amt)) continue
-    if (tx.type === 'income') months[m].income += amt
-    else months[m].expenses += amt
+  if (cfg.mode === 'calendar') {
+    const txs = await Transaction.findAll({
+      where: { userId, date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
+      attributes: ['type', 'amount', 'date'],
+    })
+    for (const tx of txs) {
+      const m = monthIndexFromDateOnly(tx.date)
+      if (m < 0 || m > 11) continue
+      const amt = Number(tx.amount)
+      if (!Number.isFinite(amt)) continue
+      if (tx.type === 'income') months[m]!.income += amt
+      else months[m]!.expenses += amt
+    }
+  } else {
+    const fromY = ymToDateBounds(`${year}-01`, cfg).from
+    const toY = ymToDateBounds(`${year}-12`, cfg).to
+    const txs = await Transaction.findAll({
+      where: { userId, date: { [Op.between]: [fromY, toY] } },
+      attributes: ['type', 'amount', 'date'],
+    })
+    for (const tx of txs) {
+      const ym = dateToFiscalYm(tx.date, cfg)
+      if (!ym || !ym.startsWith(`${year}-`)) continue
+      const mm = parseInt(ym.split('-')[1]!, 10)
+      const mi = mm - 1
+      if (mi < 0 || mi > 11) continue
+      const amt = Number(tx.amount)
+      if (!Number.isFinite(amt)) continue
+      if (tx.type === 'income') months[mi]!.income += amt
+      else months[mi]!.expenses += amt
+    }
   }
+
   return months.map(mo => {
     const income = Math.round(mo.income * 100) / 100
     const expenses = Math.round(mo.expenses * 100) / 100
@@ -186,14 +214,6 @@ export async function monthlySummary(userId: string, year: number) {
     const net = Math.round((income - expenses) * 100) / 100
     return { month: mo.month, income, expenses, transfers, net }
   })
-}
-
-/** Último día del mes `YYYY-MM` como `YYYY-MM-DD` en calendario local (evita `toISOString()` UTC). */
-function lastDateOfCalendarMonthYm(yearStr: string, monPadded: string): string {
-  const y = parseInt(yearStr, 10)
-  const m = parseInt(monPadded, 10)
-  const lastDay = new Date(y, m, 0).getDate()
-  return `${yearStr}-${monPadded}-${String(lastDay).padStart(2, '0')}`
 }
 
 export type CategoryBreakdownRow = {
@@ -234,9 +254,8 @@ function aggregateExpenseByCategory(txs: Transaction[]): CategoryBreakdownRow[] 
 }
 
 export async function categoryBreakdown(userId: string, month: string) {
-  const [year, mon] = month.split('-')
-  const from = `${year}-${mon}-01`
-  const to     = lastDateOfCalendarMonthYm(year, mon)
+  const cfg = await getMonthCycleConfigForUser(userId)
+  const { from, to } = ymToDateBounds(month, cfg)
 
   const txs = await Transaction.findAll({
     where:   { userId, type: 'expense', date: { [Op.between]: [from, to] } },
@@ -244,6 +263,19 @@ export async function categoryBreakdown(userId: string, month: string) {
   })
 
   return aggregateExpenseByCategory(txs)
+}
+
+/** Ingresos del mes `YYYY-MM` agrupados por categoría (misma ventana que `categoryBreakdown`). */
+export async function categoryIncomeBreakdownMonth(userId: string, month: string) {
+  const cfg = await getMonthCycleConfigForUser(userId)
+  const { from, to } = ymToDateBounds(month, cfg)
+
+  const txs = await Transaction.findAll({
+    where:   { userId, type: 'income', date: { [Op.between]: [from, to] } },
+    include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
+  })
+
+  return aggregateAmountByCategory(txs)
 }
 
 /** Gastos acumulados por categoría (sin filtro de fechas). */

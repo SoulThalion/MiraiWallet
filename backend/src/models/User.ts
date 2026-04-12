@@ -18,6 +18,12 @@ export class User extends Model<
   declare refreshToken: CreationOptional<string | null>
   declare isActive:     CreationOptional<boolean>
   declare lastLoginAt:  CreationOptional<Date | null>
+  /** `calendar` = mes natural; `custom` = usa inicio/fin/ancla. */
+  declare monthCycleMode: CreationOptional<'calendar' | 'custom'>
+  declare monthCycleStartDay: CreationOptional<number>
+  declare monthCycleEndDay: CreationOptional<number>
+  /** `previous` = inicio en mes anterior al etiquetado; `current` = anclado al mes etiquetado (o cruza al siguiente si inicio > fin). */
+  declare monthCycleAnchor: CreationOptional<'previous' | 'current'>
   declare createdAt:    CreationOptional<Date>
   declare updatedAt:    CreationOptional<Date>
 
@@ -42,6 +48,28 @@ export function initUser(sequelize: Sequelize): void {
       refreshToken: { type: DataTypes.TEXT,         allowNull: true },
       isActive:     { type: DataTypes.BOOLEAN,      defaultValue: true },
       lastLoginAt:  { type: DataTypes.DATE,         allowNull: true },
+      monthCycleMode: {
+        type: DataTypes.ENUM('calendar', 'custom'),
+        allowNull: false,
+        defaultValue: 'calendar',
+      },
+      monthCycleStartDay: {
+        type: DataTypes.TINYINT.UNSIGNED,
+        allowNull: false,
+        defaultValue: 1,
+        validate: { min: 1, max: 31 },
+      },
+      monthCycleEndDay: {
+        type: DataTypes.TINYINT.UNSIGNED,
+        allowNull: false,
+        defaultValue: 31,
+        validate: { min: 1, max: 31 },
+      },
+      monthCycleAnchor: {
+        type: DataTypes.ENUM('previous', 'current'),
+        allowNull: false,
+        defaultValue: 'previous',
+      },
       createdAt:    DataTypes.DATE,
       updatedAt:    DataTypes.DATE,
     },

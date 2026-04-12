@@ -76,6 +76,10 @@ describe('GET /auth/me', () => {
       .set('Authorization', `Bearer ${login.body.data.accessToken}`)
     expect(res.status).toBe(200)
     expect(res.body.data.email).toBe(validUser.email)
+    expect(res.body.data.monthCycleStartDay).toBe(1)
+    expect(res.body.data.monthCycleMode).toBe('calendar')
+    expect(res.body.data.monthCycleEndDay).toBe(31)
+    expect(res.body.data.monthCycleAnchor).toBe('previous')
   })
 
   it('401 — no token', async () => {
@@ -86,6 +90,47 @@ describe('GET /auth/me', () => {
     const res = await request(app).get(`${BASE}/me`)
       .set('Authorization', 'Bearer bad.token')
     expect(res.status).toBe(401)
+  })
+})
+
+describe('PATCH /auth/me', () => {
+  async function tokenForNewUser(): Promise<string> {
+    const email = `patch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@t.com`
+    const reg = await request(app).post(`${BASE}/register`).send({
+      name: 'PatchUser', email, password: 'Password1',
+    })
+    return reg.body.data.accessToken as string
+  }
+
+  it('200 — updates periodo personalizado', async () => {
+    const token = await tokenForNewUser()
+    const res = await request(app)
+      .patch(`${BASE}/me`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        monthCycleMode: 'custom',
+        monthCycleStartDay: 27,
+        monthCycleEndDay: 26,
+        monthCycleAnchor: 'previous',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body.data.monthCycleMode).toBe('custom')
+    expect(res.body.data.monthCycleStartDay).toBe(27)
+    expect(res.body.data.monthCycleEndDay).toBe(26)
+    expect(res.body.data.monthCycleAnchor).toBe('previous')
+  })
+
+  it('400 — monthCycleStartDay fuera de rango', async () => {
+    const token = await tokenForNewUser()
+    const res = await request(app)
+      .patch(`${BASE}/me`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ monthCycleStartDay: 0 })
+    expect(res.status).toBe(400)
+  })
+
+  it('401 — sin token', async () => {
+    expect((await request(app).patch(`${BASE}/me`).send({ monthCycleStartDay: 2 })).status).toBe(401)
   })
 })
 

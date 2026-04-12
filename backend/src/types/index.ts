@@ -110,6 +110,43 @@ export interface UpsertBudgetDto {
   notes?:     string
 }
 
+/** Respuesta de `GET /stats/month-overview` (solo datos para la vista Estadísticas). */
+export interface StatsMonthBarDto {
+  month: string
+  label: string
+  expenses: number
+  /** Ingresos del mismo mes (calendario del año de la vista). */
+  income: number
+  /** Ingresos − gastos del mes (misma convención que `monthlySummary`). */
+  net: number
+  isSelectedMonth: boolean
+  isCurrentSystemMonth: boolean
+}
+
+export interface StatsMonthCategoryDto {
+  id: string
+  name: string
+  icon: string
+  color: string
+  spent: number
+  budget: number
+  incomeInCategory: number
+}
+
+export interface StatsMonthOverviewDto {
+  month: string
+  year: number
+  monthlyBars: StatsMonthBarDto[]
+  categories: StatsMonthCategoryDto[]
+  totals: {
+    monthExpenseTotal: number
+    monthBudgetTotal: number
+    yearlyAverageExpense: number
+    bestMonthLabel: string
+    bestMonthAmount: number
+  }
+}
+
 export interface TokenPair {
   accessToken:  string
   refreshToken: string

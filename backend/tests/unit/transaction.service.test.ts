@@ -141,4 +141,16 @@ describe('monthlySummary', () => {
       expect(m).toHaveProperty('net')
     })
   })
+
+  it('con ciclo por defecto (1) suma gastos en el mes calendario del movimiento', async () => {
+    const cat = await createCategory(user.id)
+    await createTransaction(user.id, account.id, cat.id, {
+      type: 'expense',
+      amount: 42,
+      date: '2031-06-15',
+    })
+    const r = await txService.monthlySummary(user.id, 2031)
+    const jun = r.find(m => m.month === '06')
+    expect(jun?.expenses).toBeCloseTo(42)
+  })
 })

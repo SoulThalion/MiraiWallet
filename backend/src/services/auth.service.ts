@@ -1,6 +1,8 @@
 import { User, Category, Account, Transaction as LedgerTransaction, Budget, Subcategory } from '../models'
 import { createTokenPair, verifyRefreshToken } from '../utils/jwt'
 import { ApiError }    from '../utils/ApiError'
+import type { MonthCycleAnchor, MonthCycleConfig, MonthCycleMode } from '../utils/monthPeriod'
+import { ymToDateBounds } from '../utils/monthPeriod'
 import { RegisterDto, LoginDto, ChangePasswordDto, TokenPair } from '../types'
 
 const DEFAULT_CATEGORIES = [
@@ -72,8 +74,87 @@ export async function getProfile(userId: string): Promise<object> {
   return user.toSafeJSON()
 }
 
-export async function updateProfile(user: User, data: { name?: string }): Promise<object> {
-  await user.update({ name: data.name })
+function floorDay(n: unknown): number {
+  return Math.floor(Number(n))
+}
+
+function validateCustomMonthCycle(start: number, end: number, anchor: MonthCycleAnchor): void {
+  const cfg: MonthCycleConfig = { mode: 'custom', startDay: start, endDay: end, anchor }
+  for (const ym of ['2024-01', '2024-02', '2024-06', '2024-12'] as const) {
+    let from: string
+    let to: string
+    try {
+      ;({ from, to } = ymToDateBounds(ym, cfg))
+    } catch (e) {
+      throw ApiError.badRequest(e instanceof Error ? e.message : 'Periodo de mes inválido')
+    }
+    if (from > to) {
+      throw ApiError.badRequest('La fecha de inicio del periodo no puede ser posterior a la de fin.')
+    }
+  }
+}
+
+export async function updateProfile(
+  user: User,
+  data: {
+    name?: string
+    monthCycleMode?: MonthCycleMode
+    monthCycleStartDay?: number
+    monthCycleEndDay?: number
+    monthCycleAnchor?: MonthCycleAnchor
+  },
+): Promise<object> {
+  const patch: Partial<{
+    name: string
+    monthCycleMode: MonthCycleMode
+    monthCycleStartDay: number
+    monthCycleEndDay: number
+    monthCycleAnchor: MonthCycleAnchor
+  }> = {}
+
+  if (typeof data.name === 'string') {
+    const t = data.name.trim()
+    if (t.length >= 2) patch.name = t
+  }
+
+  if (data.monthCycleMode !== undefined) {
+    if (data.monthCycleMode !== 'calendar' && data.monthCycleMode !== 'custom') {
+      throw ApiError.badRequest('monthCycleMode must be calendar or custom')
+    }
+    patch.monthCycleMode = data.monthCycleMode
+  }
+  if (data.monthCycleStartDay !== undefined) {
+    const n = floorDay(data.monthCycleStartDay)
+    if (!Number.isInteger(n) || n < 1 || n > 31) {
+      throw ApiError.badRequest('monthCycleStartDay must be an integer between 1 and 31')
+    }
+    patch.monthCycleStartDay = n
+  }
+  if (data.monthCycleEndDay !== undefined) {
+    const n = floorDay(data.monthCycleEndDay)
+    if (!Number.isInteger(n) || n < 1 || n > 31) {
+      throw ApiError.badRequest('monthCycleEndDay must be an integer between 1 and 31')
+    }
+    patch.monthCycleEndDay = n
+  }
+  if (data.monthCycleAnchor !== undefined) {
+    if (data.monthCycleAnchor !== 'previous' && data.monthCycleAnchor !== 'current') {
+      throw ApiError.badRequest('monthCycleAnchor must be previous or current')
+    }
+    patch.monthCycleAnchor = data.monthCycleAnchor
+  }
+
+  const nextMode = (patch.monthCycleMode ?? user.monthCycleMode ?? 'calendar') as MonthCycleMode
+  const nextStart = patch.monthCycleStartDay ?? floorDay(user.monthCycleStartDay ?? 1)
+  const nextEnd = patch.monthCycleEndDay ?? floorDay(user.monthCycleEndDay ?? 31)
+  const nextAnchor = (patch.monthCycleAnchor ?? user.monthCycleAnchor ?? 'previous') as MonthCycleAnchor
+
+  if (nextMode === 'custom') {
+    validateCustomMonthCycle(nextStart, nextEnd, nextAnchor)
+  }
+
+  if (Object.keys(patch).length > 0) await user.update(patch)
+  await user.reload()
   return user.toSafeJSON()
 }
 
