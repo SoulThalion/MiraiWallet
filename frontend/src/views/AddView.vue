@@ -3,13 +3,10 @@
     <div class="max-w-2xl mx-auto">
 
       <!-- Amount display -->
-      <div :class="[
-        'rounded-3xl p-6 md:p-8 mb-6 text-center relative overflow-hidden',
-        isDark ? 'bg-gradient-to-br from-[#091A30] to-dark-card' : 'bg-gradient-to-br from-[#D8E8FA] to-light-card border border-brand-blue/10'
-      ]">
-        <p :class="['text-xs uppercase tracking-widest mb-3', isDark ? 'text-dark-txt3' : 'text-light-txt3']">Importe a registrar</p>
-        <p :class="['font-display font-black text-5xl md:text-6xl tracking-tighter', isDark ? 'text-dark-txt' : 'text-light-txt']">
-          <span :class="['text-2xl font-semibold mr-1', isDark ? 'text-dark-txt2' : 'text-light-txt2']">€</span>
+      <div class="rounded-3xl p-6 md:p-8 mb-6 text-center relative overflow-hidden dark:bg-gradient-to-br dark:from-[#091A30] dark:to-dark-card bg-gradient-to-br from-[#D8E8FA] to-light-card border border-brand-blue/10 dark:border-0">
+        <p class="text-xs uppercase tracking-widest mb-3 dark:text-dark-txt3 text-light-txt3">Importe a registrar</p>
+        <p class="font-display font-black text-5xl md:text-6xl tracking-tighter dark:text-dark-txt text-light-txt">
+          <span class="text-2xl font-semibold mr-1 dark:text-dark-txt2 text-light-txt2">€</span>
           {{ displayAmount || '0,00' }}
         </p>
       </div>
@@ -35,7 +32,7 @@
                       :class="['px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5',
                                form.category === cat.name
                                  ? 'bg-brand-blue/10 border-brand-blue text-brand-blue'
-                                 : isDark ? 'bg-dark-surf border-white/[0.07] text-dark-txt2 hover:border-brand-blue/30' : 'bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-blue/30']"
+                                 : 'dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:border-brand-blue/30 bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-blue/30']"
                       @click="form.category = cat.name">
                 {{ cat.icon }} {{ cat.name }}
               </button>
@@ -57,7 +54,7 @@
             <div class="flex flex-col sm:flex-row gap-2 mt-1">
               <button v-for="opt in importOptions" :key="opt.label"
                       :class="['flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors',
-                               isDark ? 'bg-dark-surf border-white/[0.07] text-dark-txt2 hover:border-brand-green hover:text-brand-green' : 'bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-green hover:text-brand-green']">
+                               'dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:border-brand-green dark:hover:text-brand-green bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-green hover:text-brand-green']">
                 {{ opt.icon }} {{ opt.label }}
               </button>
             </div>
@@ -67,7 +64,7 @@
         <!-- Actions -->
         <div class="flex flex-col sm:flex-row gap-3 mt-6">
           <RouterLink to="/home" class="flex-1">
-            <button :class="['w-full py-3.5 rounded-xl text-sm font-semibold border transition-colors', isDark ? 'bg-dark-surf border-white/[0.07] text-dark-txt2 hover:border-brand-blue/30' : 'bg-light-surf border-brand-blue/10 text-light-txt2']">
+            <button class="w-full py-3.5 rounded-xl text-sm font-semibold border transition-colors dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:border-brand-blue/30 bg-light-surf border-brand-blue/10 text-light-txt2">
               Cancelar
             </button>
           </RouterLink>
@@ -85,7 +82,6 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme } from '@/composables/useTheme'
 
 interface FormData {
   description: string
@@ -102,20 +98,22 @@ interface ImportOption {
 
 const store = useWalletStore()
 const router = useRouter()
-const { isDark } = useTheme()
 
-const fieldLabelClass = computed<string>(() =>
-  ['block text-xs uppercase tracking-wider mb-1.5 font-semibold', isDark.value ? 'text-dark-txt2' : 'text-light-txt2'].join(' ')
-)
+const fieldLabelClass = 'block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2'
 
 const form = ref<FormData>({ description: '', amount: '', category: 'Hogar', date: new Date().toISOString().split('T')[0], note: '' })
 const displayAmount = computed<string>(() => form.value.amount ? parseFloat(form.value.amount).toFixed(2).replace('.', ',') : '')
 const isValid = computed<boolean>(() => form.value.description.trim().length > 0 && parseFloat(form.value.amount) > 0)
 const importOptions: ImportOption[] = [{ icon: '🏦', label: 'Conectar banco' }, { icon: '📄', label: 'Subir CSV / Excel' }]
 
-function save(): void {
+async function save(): Promise<void> {
   if (!isValid.value) return
-  store.addTransaction(form.value)
-  router.push('/home')
+  try {
+    await store.addTransaction({ ...form.value, note: form.value.note })
+    router.push('/home')
+  } catch (err) {
+    // Error is already handled in the store
+    console.error('Error saving transaction:', err)
+  }
 }
 </script>

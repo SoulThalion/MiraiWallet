@@ -10,6 +10,9 @@ export default defineConfig({
     }
   },
   test: {
+    env: {
+      VITE_API_URL: 'http://127.0.0.1:3000/api/v1'
+    },
     environment: 'jsdom',
     globals: true,
     coverage: {

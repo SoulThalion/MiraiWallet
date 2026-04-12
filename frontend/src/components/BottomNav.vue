@@ -1,8 +1,5 @@
 <template>
-  <nav :class="[
-    'fixed bottom-0 left-0 right-0 h-[68px] flex items-center justify-around px-2 pb-2 z-20 border-t',
-    isDark ? 'bg-dark-card/95 border-white/[0.07]' : 'bg-light-card border-brand-blue/10'
-  ]">
+  <nav class="fixed bottom-0 left-0 right-0 h-[68px] flex items-center justify-around px-2 pb-2 z-20 border-t dark:bg-dark-card/95 dark:border-white/[0.07] bg-light-card border-brand-blue/10">
     <RouterLink v-for="item in navItemsLeft" :key="item.name" :to="item.to" custom v-slot="{ isActive, navigate }">
       <button :class="['nav-item', isActive ? 'active' : '']" @click="navigate">
         <span class="nav-icon">{{ item.icon }}</span>
@@ -23,15 +20,20 @@
   </nav>
 </template>
 
-<script setup>
-import { useTheme } from '@/composables/useTheme'
-const { isDark } = useTheme()
-const navItemsLeft  = [
-  { name: 'home',  to: '/home',  icon: '🏠', label: 'Inicio' },
+<script setup lang="ts">
+interface NavItem {
+  name: string
+  to: string
+  icon: string
+  label: string
+}
+
+const navItemsLeft: NavItem[] = [
+  { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
   { name: 'stats', to: '/stats', icon: '📊', label: 'Stats' },
 ]
-const navItemsRight = [
-  { name: 'alerts',   to: '/alerts',   icon: '🔔', label: 'Alertas' },
-  { name: 'settings', to: '/settings', icon: '⚙️',  label: 'Ajustes' },
+const navItemsRight: NavItem[] = [
+  { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
+  { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
 ]
 </script>

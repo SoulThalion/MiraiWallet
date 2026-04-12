@@ -1,9 +1,19 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import {
+  api,
+  ApiTransaction,
+  ApiCategory,
+  ApiAlert,
+  ApiBudget,
+  DashboardData,
+  AuthResult,
+  SessionUser,
+} from '@/services/api'
 
 // ── Types ────────────────────────────────────────────────
 export interface Transaction {
-  id: number
+  id: string | number
   name: string
   category: string
   icon: string
@@ -12,6 +22,7 @@ export interface Transaction {
 }
 
 export interface Category {
+  id?: string
   name: string
   icon: string
   budget: number
@@ -25,8 +36,8 @@ export interface AlertAction {
 }
 
 export interface Alert {
-  id: number
-  type: 'danger' | 'success' | 'warning'
+  id: string | number
+  type: 'danger' | 'success' | 'warning' | 'info'
   badge: string
   title: string
   body: string
@@ -56,82 +67,230 @@ export interface DonutSegment extends Category {
 
 // ── Store ────────────────────────────────────────────────
 export const useWalletStore = defineStore('wallet', () => {
-  // ── State ──────────────────────────────────────────────
   const darkMode = ref<boolean>(true)
   const onboarded = ref<boolean>(false)
+  const isLoading = ref<boolean>(false)
+  const error = ref<string | null>(null)
 
-  const balance = ref<number>(12840.50)
+  const user = ref<SessionUser | null>(null)
+  const defaultAccountId = ref<string | null>(null)
 
-  const transactions = ref<Transaction[]>([
-    { id: 1,  name: 'Mercadona',       category: 'Comida',          icon: '🛒', amount: -87.40,  date: 'Hoy, 10:23' },
-    { id: 2,  name: 'Nómina',          category: 'Ingresos',        icon: '💰', amount: 3200.00, date: '14 Mar' },
-    { id: 3,  name: 'Spotify Premium', category: 'Suscripciones',   icon: '🎵', amount: -10.99,  date: '13 Mar' },
-    { id: 4,  name: 'Repsol',          category: 'Transporte',      icon: '⛽', amount: -65.00,  date: '12 Mar' },
-    { id: 5,  name: 'Amazon',          category: 'Compras',         icon: '📦', amount: -43.20,  date: '10 Mar' },
-    { id: 6,  name: 'Gimnasio',        category: 'Salud',           icon: '💪', amount: -45.00,  date: '1 Mar'  },
-  ])
+  const balance = ref<number>(0)
+  const transactions = ref<Transaction[]>([])
+  const categories = ref<Category[]>([])
+  const alerts = ref<Alert[]>([])
+  const monthlyData = ref<MonthlyData[]>([])
+  const monthlySummary = ref<{ month: string; income: number; expenses: number; net: number }[]>([])
+  const newExpense = ref<NewExpense>({ description: '', category: '', amount: '', date: '' })
 
-  const categories = ref<Category[]>([
-    { name: 'Hogar',      icon: '🏠', budget: 700,  spent: 620, color: '#1A8CFF' },
-    { name: 'Comida',     icon: '🍔', budget: 400,  spent: 340, color: '#2EC776' },
-    { name: 'Transporte', icon: '🚗', budget: 250,  spent: 180, color: '#F5C842' },
-    { name: 'Ocio',       icon: '🎬', budget: 200,  spent: 210, color: '#7F77DD' },
-    { name: 'Salud',      icon: '💊', budget: 150,  spent: 90,  color: '#FF5A5A' },
-  ])
-
-  const alerts = ref<Alert[]>([
-    {
-      id: 1, type: 'danger', badge: 'URGENTE',
-      title: 'Seguro del coche vence en 3 días',
-      body: 'Tienes saldo suficiente para pagarlo sin comprometer el presupuesto mensual.',
-      amount: '€420,00', amountLabel: null,
-      actions: [{ label: 'Pagar ahora', style: 'primary' }, { label: 'Recordar', style: 'secondary' }]
-    },
-    {
-      id: 2, type: 'success', badge: 'SUGERENCIA',
-      title: 'Financiación 0% disponible',
-      body: 'MacBook Pro a 12 meses sin intereses. Cuota: 4,7% de tu ingreso mensual.',
-      amount: '€132/mes × 12',
-      actions: [{ label: 'Ver oferta', style: 'success' }, { label: 'Ignorar', style: 'secondary' }]
-    },
-    {
-      id: 3, type: 'warning', badge: 'AVISO',
-      title: 'Ocio +24% vs febrero',
-      body: '€210 gastados vs €169 el mes anterior. Considera ajustar el límite.',
-      amount: '+€41 vs feb',
-      actions: [{ label: 'Ajustar límite', style: 'gold' }, { label: 'Ver desglose', style: 'secondary' }]
+  function mapApiTransaction(tx: ApiTransaction): Transaction {
+    const signed =
+      tx.type === 'income' ? tx.amount : tx.type === 'expense' ? -tx.amount : -tx.amount
+    return {
+      id: tx.id,
+      name: tx.description,
+      category: tx.category?.name || 'Sin categoría',
+      icon: tx.category?.icon || '💸',
+      amount: signed,
+      date: new Date(tx.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
     }
-  ])
+  }
 
-  const monthlyData = ref<MonthlyData[]>([
-    { month: 'Oct', amount: 1604 },
-    { month: 'Nov', amount: 2100 },
-    { month: 'Dic', amount: 2800 },
-    { month: 'Ene', amount: 1920 },
-    { month: 'Feb', amount: 1703 },
-    { month: 'Mar', amount: 1847, current: true },
-  ])
+  function mapApiCategory(cat: ApiCategory, budget?: ApiBudget): Category {
+    const monthly = cat.monthlyBudget ?? cat.budget ?? 0
+    return {
+      id: cat.id,
+      name: cat.name,
+      icon: cat.icon,
+      color: cat.color,
+      budget: budget?.amount ?? monthly,
+      spent: cat.spent ?? budget?.spent ?? 0
+    }
+  }
 
-  const newExpense = ref<NewExpense>({ description: '', category: 'Hogar', amount: '', date: '' })
+  function mapApiAlert(alert: ApiAlert): Alert {
+    const raw = alert.amount
+    return {
+      id: alert.id,
+      type: alert.type,
+      badge: alert.badge,
+      title: alert.title,
+      body: alert.body,
+      amount: raw != null && raw !== '' ? String(raw) : null,
+      actions: Array.isArray(alert.actions) ? alert.actions : []
+    }
+  }
 
-  // ── Computed ───────────────────────────────────────────
+  function mapMonthlyData(summary: { month: string; income: number; expenses: number; net: number }[]): MonthlyData[] {
+    const monthNames: Record<string, string> = {
+      '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr', '05': 'May', '06': 'Jun',
+      '07': 'Jul', '08': 'Ago', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic'
+    }
+    const now = new Date()
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
+
+    return summary.map(m => ({
+      month: monthNames[m.month] || m.month,
+      amount: m.expenses,
+      current: m.month === currentMonth
+    }))
+  }
+
+  function applyAuth(result: AuthResult): void {
+    localStorage.setItem('token', result.accessToken)
+    localStorage.setItem('refreshToken', result.refreshToken)
+    user.value = result.user
+  }
+
+  function clearSession(): void {
+    localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
+    user.value = null
+    defaultAccountId.value = null
+  }
+
+  async function logout(): Promise<void> {
+    try {
+      await api.logout()
+    } catch {
+      /* sesión ya inválida */
+    }
+    clearSession()
+  }
+
+  async function loadUser(): Promise<void> {
+    if (!localStorage.getItem('token')) {
+      user.value = null
+      return
+    }
+    try {
+      user.value = await api.getMe()
+    } catch {
+      clearSession()
+    }
+  }
+
+  async function loadAccounts(): Promise<void> {
+    try {
+      const accs = await api.getAccounts()
+      defaultAccountId.value = accs[0]?.id ?? null
+    } catch (err) {
+      console.error('Error loading accounts:', err)
+      defaultAccountId.value = null
+    }
+  }
+
+  async function loadDashboard(): Promise<void> {
+    isLoading.value = true
+    error.value = null
+    try {
+      const data: DashboardData = await api.getDashboard()
+
+      balance.value = data.balance
+      monthlySummary.value = data.monthlySummary
+      monthlyData.value = mapMonthlyData(data.monthlySummary)
+
+      categories.value = data.categoryBreakdown.map(cb => ({
+        id: cb.categoryId || 'uncategorized',
+        name: cb.name,
+        icon: cb.icon,
+        color: cb.color,
+        budget: 0,
+        spent: cb.total
+      }))
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Error al cargar datos'
+      console.error('Error loading dashboard:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadTransactions(page = 1, limit = 20): Promise<void> {
+    isLoading.value = true
+    error.value = null
+    try {
+      const response = await api.getTransactions({ page, limit })
+      transactions.value = response.data.map(mapApiTransaction)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Error al cargar transacciones'
+      console.error('Error loading transactions:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadCategories(): Promise<void> {
+    try {
+      const cats = await api.getCategories()
+      const existingSpent = new Map(categories.value.map(c => [c.id, c.spent]))
+      categories.value = cats.map(cat => mapApiCategory(cat, undefined)).map(cat => ({
+        ...cat,
+        spent: existingSpent.get(cat.id) ?? cat.spent
+      }))
+    } catch (err) {
+      console.error('Error loading categories:', err)
+    }
+  }
+
+  async function loadBudgets(month?: string): Promise<void> {
+    try {
+      const budgets = await api.getBudgets(month)
+      categories.value = categories.value.map(cat => {
+        const budget = budgets.find(b => b.categoryId === cat.id)
+        if (budget) {
+          return { ...cat, budget: budget.amount, spent: budget.spent ?? cat.spent }
+        }
+        return cat
+      })
+    } catch (err) {
+      console.error('Error loading budgets:', err)
+    }
+  }
+
+  async function loadAlerts(): Promise<void> {
+    try {
+      const response = await api.getAlerts({ limit: 50 })
+      alerts.value = response.data.map(mapApiAlert)
+    } catch (err) {
+      console.error('Error loading alerts:', err)
+    }
+  }
+
+  async function initialize(): Promise<void> {
+    if (!localStorage.getItem('token')) return
+    if (!user.value) await loadUser()
+    if (!user.value) return
+    await loadAccounts()
+    await Promise.all([
+      loadDashboard(),
+      loadTransactions(),
+      loadCategories(),
+      loadBudgets(),
+      loadAlerts()
+    ])
+  }
+
   const totalIncome = computed<number>(() =>
-    transactions.value.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+    monthlySummary.value.reduce((sum, m) => sum + m.income, 0)
   )
 
   const totalExpenses = computed<number>(() =>
-    Math.abs(transactions.value.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0))
+    monthlySummary.value.reduce((sum, m) => sum + m.expenses, 0)
   )
 
-  const saved = computed<number>(() => totalIncome.value - totalExpenses.value)
+  const saved = computed<number>(() =>
+    monthlySummary.value.reduce((sum, m) => sum + m.net, 0)
+  )
 
   const monthlyAverage = computed<number>(() => {
+    if (monthlyData.value.length === 0) return 0
     const totals = monthlyData.value.map(m => m.amount)
     return Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)
   })
 
   const bestMonth = computed<MonthlyData>(() =>
-    monthlyData.value.reduce((min, m) => m.amount < min.amount ? m : min)
+    monthlyData.value.reduce((min, m) => m.amount < min.amount ? m : min, monthlyData.value[0] || { month: '', amount: 0 })
   )
 
   const totalBudget = computed<number>(() =>
@@ -144,9 +303,10 @@ export const useWalletStore = defineStore('wallet', () => {
 
   const donutSegments = computed<DonutSegment[]>(() => {
     const total = totalSpent.value
+    if (total === 0) return []
     const circumference = 2 * Math.PI * 36
     let offset = 0
-    return categories.value.map(cat => {
+    return categories.value.filter(cat => cat.spent > 0).map(cat => {
       const pct = cat.spent / total
       const dash = pct * circumference
       const seg: DonutSegment = { ...cat, pct: Math.round(pct * 100), dash, offset }
@@ -155,9 +315,21 @@ export const useWalletStore = defineStore('wallet', () => {
     })
   })
 
-  const maxBar = computed<number>(() => Math.max(...monthlyData.value.map(m => m.amount)))
+  const maxBar = computed<number>(() =>
+    Math.max(...monthlyData.value.map(m => m.amount), 0)
+  )
 
-  // ── Actions ────────────────────────────────────────────
+  const userInitials = computed<string>(() => {
+    if (!user.value?.name?.trim()) return '?'
+    const parts = user.value.name.trim().split(/\s+/)
+    const a = parts[0]?.[0] ?? ''
+    const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
+    const s = (a + b).toUpperCase()
+    return s || '?'
+  })
+
+  const userDisplayName = computed<string>(() => user.value?.name?.trim() || 'Usuario')
+
   function toggleDark(): void {
     darkMode.value = !darkMode.value
   }
@@ -166,34 +338,89 @@ export const useWalletStore = defineStore('wallet', () => {
     onboarded.value = true
   }
 
-  function dismissAlert(id: number): void {
-    alerts.value = alerts.value.filter(a => a.id !== id)
+  async function dismissAlert(id: number | string): Promise<void> {
+    try {
+      await api.dismissAlert(String(id))
+      alerts.value = alerts.value.filter(a => a.id !== id)
+    } catch (err) {
+      console.error('Error dismissing alert:', err)
+    }
   }
 
-  function addTransaction(tx: NewExpense): void {
-    const amount = parseFloat(tx.amount)
-    transactions.value.unshift({
-      id: Date.now(),
-      name: tx.description,
-      category: tx.category,
-      icon: '💸',
-      amount: -Math.abs(amount),
-      date: 'Hoy'
-    })
-    balance.value -= Math.abs(amount)
+  async function addTransaction(tx: NewExpense & { note?: string }): Promise<void> {
+    const accountId = defaultAccountId.value
+    if (!accountId) {
+      const msg = 'No hay cuenta asociada. Inicia sesión de nuevo o crea una cuenta en el backend.'
+      error.value = msg
+      throw new Error(msg)
+    }
+    try {
+      const category = categories.value.find(c => c.name === tx.category)
+      await api.createTransaction({
+        description: tx.description,
+        amount: parseFloat(tx.amount),
+        type: 'expense',
+        date: tx.date,
+        accountId,
+        categoryId: category?.id,
+        notes: tx.note?.trim() || undefined
+      })
+      await loadDashboard()
+      await loadTransactions()
+      await loadAccounts()
+    } catch (err) {
+      const ax = err as { response?: { data?: { error?: { message?: string } } } }
+      const apiMsg = ax.response?.data?.error?.message
+      error.value = typeof apiMsg === 'string' ? apiMsg : err instanceof Error ? err.message : 'Error al añadir transacción'
+      throw err
+    }
   }
 
-  function updateBudget(categoryName: string, newBudget: number): void {
-    const cat = categories.value.find(c => c.name === categoryName)
-    if (cat) cat.budget = newBudget
+  async function updateBudget(categoryName: string, newBudget: number): Promise<void> {
+    console.log('Update budget:', categoryName, newBudget)
   }
 
   return {
-    darkMode, onboarded, balance,
-    transactions, categories, alerts, monthlyData, newExpense,
-    totalIncome, totalExpenses, saved,
-    monthlyAverage, bestMonth, totalBudget, totalSpent,
-    donutSegments, maxBar,
-    toggleDark, completeOnboarding, dismissAlert, addTransaction, updateBudget
+    darkMode,
+    onboarded,
+    isLoading,
+    error,
+    user,
+    userInitials,
+    userDisplayName,
+    defaultAccountId,
+    balance,
+    transactions,
+    categories,
+    alerts,
+    monthlyData,
+    monthlySummary,
+    newExpense,
+
+    totalIncome,
+    totalExpenses,
+    saved,
+    monthlyAverage,
+    bestMonth,
+    totalBudget,
+    totalSpent,
+    donutSegments,
+    maxBar,
+
+    toggleDark,
+    completeOnboarding,
+    dismissAlert,
+    addTransaction,
+    updateBudget,
+    initialize,
+    loadDashboard,
+    loadTransactions,
+    loadCategories,
+    loadBudgets,
+    loadAlerts,
+    applyAuth,
+    clearSession,
+    logout,
+    loadUser
   }
 })

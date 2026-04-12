@@ -1,5 +1,5 @@
 <template>
-  <div :class="['alert-card', isDark ? '' : '', borderColor]">
+  <div :class="['alert-card', borderColor]">
     <!-- Left accent bar -->
     <div :class="['absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[3px]', accentColor]"></div>
 
@@ -15,10 +15,10 @@
         {{ alert.badge }}
       </span>
 
-      <p :class="['text-[13px] font-bold pr-14', isDark ? 'text-dark-txt' : 'text-light-txt']">
+      <p class="text-[13px] font-bold pr-14 dark:text-dark-txt text-light-txt">
         {{ alert.title }}
       </p>
-      <p :class="['text-[11px] mt-1 leading-relaxed', isDark ? 'text-dark-txt2' : 'text-light-txt2']">
+      <p class="text-[11px] mt-1 leading-relaxed dark:text-dark-txt2 text-light-txt2">
         {{ alert.body }}
       </p>
       <p :class="['font-display font-extrabold text-sm mt-2', amountColor]">
@@ -38,38 +38,50 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
-import { useTheme } from '@/composables/useTheme'
+import type { Alert } from '@/stores/wallet'
 
-const props = defineProps({
-  alert: { type: Object, required: true }
-})
-defineEmits(['dismiss', 'action'])
-
-const { isDark } = useTheme()
-
-const typeMap = {
-  danger:  { icon: '⚠️', accent: 'bg-red-400',         iconBg: 'bg-red-400/10',    border: 'border-red-400/30',         amount: 'text-red-400',        badge: 'bg-red-400/10 text-red-400' },
-  success: { icon: '💡', accent: 'bg-brand-green',     iconBg: 'bg-brand-green/10',border: 'border-brand-green/30',     amount: 'text-brand-green',    badge: 'bg-brand-green/10 text-brand-green' },
-  warning: { icon: '📈', accent: 'bg-brand-gold',      iconBg: 'bg-brand-gold/10', border: 'border-brand-gold/30',      amount: 'text-brand-gold',     badge: 'bg-brand-blue/10 text-brand-blue' },
-  info:    { icon: 'ℹ️', accent: 'bg-brand-blue',      iconBg: 'bg-brand-blue/10', border: 'border-brand-blue/30',      amount: 'text-brand-blue',     badge: 'bg-brand-blue/10 text-brand-blue' },
+interface Props {
+  alert: Alert
 }
 
-const t           = computed(() => typeMap[props.alert.type] || typeMap.info)
-const icon        = computed(() => t.value.icon)
-const accentColor = computed(() => t.value.accent)
-const iconBg      = computed(() => t.value.iconBg)
-const borderColor = computed(() => t.value.border)
-const amountColor = computed(() => t.value.amount)
-const badgeClass  = computed(() => t.value.badge)
+interface TypeStyle {
+  icon: string
+  accent: string
+  iconBg: string
+  border: string
+  amount: string
+  badge: string
+}
 
-function actionClass(style) {
+const props = defineProps<Props>()
+defineEmits<{
+  dismiss: [alertId: number]
+  action: [{ alertId: number, action: string }]
+}>()
+
+const typeMap: Record<string, TypeStyle> = {
+  danger: { icon: '⚠️', accent: 'bg-red-400', iconBg: 'bg-red-400/10', border: 'border-red-400/30', amount: 'text-red-400', badge: 'bg-red-400/10 text-red-400' },
+  success: { icon: '💡', accent: 'bg-brand-green', iconBg: 'bg-brand-green/10', border: 'border-brand-green/30', amount: 'text-brand-green', badge: 'bg-brand-green/10 text-brand-green' },
+  warning: { icon: '📈', accent: 'bg-brand-gold', iconBg: 'bg-brand-gold/10', border: 'border-brand-gold/30', amount: 'text-brand-gold', badge: 'bg-brand-blue/10 text-brand-blue' },
+  info: { icon: 'ℹ️', accent: 'bg-brand-blue', iconBg: 'bg-brand-blue/10', border: 'border-brand-blue/30', amount: 'text-brand-blue', badge: 'bg-brand-blue/10 text-brand-blue' },
+}
+
+const t = computed<TypeStyle>(() => typeMap[props.alert.type] || typeMap.info)
+const icon = computed<string>(() => t.value.icon)
+const accentColor = computed<string>(() => t.value.accent)
+const iconBg = computed<string>(() => t.value.iconBg)
+const borderColor = computed<string>(() => t.value.border)
+const amountColor = computed<string>(() => t.value.amount)
+const badgeClass = computed<string>(() => t.value.badge)
+
+function actionClass(style: string): string {
   return {
-    primary:   'bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white',
-    success:   'bg-gradient-to-r from-brand-green-dark to-brand-green text-white',
-    gold:      'bg-gradient-to-r from-yellow-600 to-brand-gold text-dark-bg',
-    secondary: isDark.value ? 'bg-dark-surf text-dark-txt2' : 'bg-light-surf text-light-txt2',
+    primary: 'bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white',
+    success: 'bg-gradient-to-r from-brand-green-dark to-brand-green text-white',
+    gold: 'bg-gradient-to-r from-yellow-600 to-brand-gold text-dark-bg',
+    secondary: 'dark:bg-dark-surf dark:text-dark-txt2 bg-light-surf text-light-txt2',
   }[style] || ''
 }
 </script>

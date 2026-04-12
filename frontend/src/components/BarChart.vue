@@ -1,7 +1,7 @@
 <template>
   <div class="flex items-end gap-2" style="height: 96px;">
     <div v-for="bar in bars" :key="bar.month" class="flex-1 flex flex-col items-center gap-1">
-      <span :class="['text-[9px]', isDark ? 'text-dark-txt3' : 'text-light-txt3']">
+      <span class="text-[9px] dark:text-dark-txt3 text-light-txt3">
         {{ formatK(bar.amount) }}
       </span>
       <div class="w-full relative flex items-end" style="height: 72px;">
@@ -12,36 +12,37 @@
             height: barHeight(bar.amount) + 'px',
             background: bar.current
               ? 'linear-gradient(0deg,#0047CC,#1A8CFF)'
-              : (isDark ? '#0E2340' : '#D4E4F5')
-          }">
+              : 'var(--bar-bg, #D4E4F5)'
+          }"
+          class="dark:!bg-[#0E2340]">
         </div>
       </div>
       <span :class="['text-[9px] font-semibold',
                      bar.current
                        ? 'text-brand-blue'
-                       : (isDark ? 'text-dark-txt2' : 'text-light-txt2')]">
+                       : 'dark:text-dark-txt2 text-light-txt2']">
         {{ bar.month }}
       </span>
     </div>
   </div>
 </template>
 
-<script setup>
-import { computed } from 'vue'
-import { useTheme } from '@/composables/useTheme'
+<script setup lang="ts">
+import type { MonthlyData } from '@/stores/wallet'
 
-const props = defineProps({
-  bars:   { type: Array,  required: true },
-  maxVal: { type: Number, required: true },
-})
+interface Props {
+  bars: MonthlyData[]
+  maxVal: number
+}
 
-const { isDark } = useTheme()
+const props = defineProps<Props>()
+
 const MAX_H = 72
 
-function barHeight(amount) {
+function barHeight(amount: number): number {
   return Math.round((amount / props.maxVal) * MAX_H)
 }
-function formatK(val) {
-  return val >= 1000 ? (val / 1000).toFixed(1).replace('.0', '') + 'k' : val
+function formatK(val: number): string {
+  return val >= 1000 ? (val / 1000).toFixed(1).replace('.0', '') + 'k' : String(val)
 }
 </script>

@@ -24,19 +24,23 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps({
-  size: { type: String, default: 'md' } // sm | md | lg
+interface Props {
+  size?: 'sm' | 'md' | 'lg'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  size: 'md'
 })
 
-const sizeClass = computed(() => ({
+const sizeClass = computed<string>(() => ({
   sm: 'w-9 h-9',
   md: 'w-14 h-14',
   lg: 'w-24 h-24',
 }[props.size]))
 
-const svgSize = computed(() => ({ sm: 20, md: 32, lg: 56 }[props.size]))
-const radius  = computed(() => ({ sm: 10, md: 14, lg: 24 }[props.size]))
+const svgSize = computed<number>(() => ({ sm: 20, md: 32, lg: 56 }[props.size]))
+const radius = computed<number>(() => ({ sm: 10, md: 14, lg: 24 }[props.size]))
 </script>

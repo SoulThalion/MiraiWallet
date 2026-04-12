@@ -1,8 +1,7 @@
 node_modules/
-*.sqlite3
-*.sqlite
+dist/
 .env
 logs/
 coverage/
-dist/
+*.sqlite3
 .DS_Store

@@ -1,18 +1,15 @@
 <template>
-  <div :class="[
-    'min-h-screen flex items-center justify-center p-4',
-    isDark ? 'bg-gradient-to-br from-[#071426] via-dark-bg to-[#071E10]' : 'bg-gradient-to-br from-[#D8EAFB] via-light-bg to-[#EAF5EE]'
-  ]">
+  <div class="min-h-screen flex items-center justify-center p-4 dark:bg-gradient-to-br dark:from-[#071426] dark:via-dark-bg dark:to-[#071E10] bg-gradient-to-br from-[#D8EAFB] via-light-bg to-[#EAF5EE]">
     <div class="w-full max-w-md mx-auto flex flex-col items-center text-center">
 
       <!-- Logo -->
       <MwLogo size="lg" class="mb-5" />
       <div class="flex items-baseline gap-1 mb-2">
         <span class="font-display font-black text-4xl bg-gradient-to-r from-brand-blue to-brand-blue/70 bg-clip-text text-transparent">Mirai</span>
-        <span :class="['font-display font-bold text-4xl', isDark ? 'text-dark-txt2' : 'text-light-txt2']">Wallet</span>
+        <span class="font-display font-bold text-4xl dark:text-dark-txt2 text-light-txt2">Wallet</span>
       </div>
-      <p :class="['text-sm mb-10', isDark ? 'text-dark-txt2' : 'text-light-txt2']">
-        <span :class="['font-medium', isDark ? 'text-dark-txt' : 'text-light-txt']">Your Money, Your Future</span>
+      <p class="text-sm mb-10 dark:text-dark-txt2 text-light-txt2">
+        <span class="font-medium dark:text-dark-txt text-light-txt">Your Money, Your Future</span>
       </p>
 
       <!-- Features -->
@@ -20,14 +17,16 @@
         <div v-for="f in features" :key="f.title" class="mw-card flex items-center gap-4 text-left">
           <div :class="['w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0', f.bg]">{{ f.icon }}</div>
           <div>
-            <p :class="['text-sm font-semibold', isDark ? 'text-dark-txt' : 'text-light-txt']">{{ f.title }}</p>
-            <p :class="['text-xs mt-0.5', isDark ? 'text-dark-txt2' : 'text-light-txt2']">{{ f.desc }}</p>
+            <p class="text-sm font-semibold dark:text-dark-txt text-light-txt">{{ f.title }}</p>
+            <p class="text-xs mt-0.5 dark:text-dark-txt2 text-light-txt2">{{ f.desc }}</p>
           </div>
         </div>
       </div>
 
       <button class="btn-primary mb-3" @click="start">Comenzar →</button>
-      <button :class="['text-sm underline underline-offset-2', isDark ? 'text-dark-txt2' : 'text-light-txt2']">Ya tengo una cuenta</button>
+      <button type="button" class="text-sm underline underline-offset-2 dark:text-dark-txt2 text-light-txt2" @click="goLogin">
+        Ya tengo una cuenta
+      </button>
     </div>
   </div>
 </template>
@@ -35,7 +34,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
-import { useTheme } from '@/composables/useTheme'
 import MwLogo from '@/components/MwLogo.vue'
 
 interface Feature {
@@ -47,7 +45,10 @@ interface Feature {
 
 const router = useRouter()
 const store = useWalletStore()
-const { isDark } = useTheme()
+
+function goLogin(): void {
+  router.push('/login')
+}
 
 const features: Feature[] = [
   { icon: '📊', title: 'Visualiza tus gastos', desc: 'Gráficos interactivos por categoría y mes', bg: 'bg-brand-blue/10' },
