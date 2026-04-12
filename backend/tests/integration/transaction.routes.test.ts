@@ -71,6 +71,17 @@ describe('POST /transactions', () => {
     expect(res.body.error.details.length).toBeGreaterThan(0)
   })
 
+  it('400 — gasto sin categoría', async () => {
+    const res = await request(app).post(BASE).set(auth(token)).send({
+      accountId: account.id,
+      description: 'Sin cat',
+      amount: 10,
+      type: 'expense',
+      date: new Date().toISOString().split('T')[0],
+    })
+    expect(res.status).toBe(400)
+  })
+
   it('400 — negative amount', async () => {
     const res = await request(app).post(BASE).set(auth(token)).send({
       accountId: account.id, description: 'X', amount: -10, type: 'expense',

@@ -2,12 +2,19 @@ import { body, query } from 'express-validator'
 
 export const createTransactionRules = [
   body('accountId').notEmpty().isUUID(),
-  body('categoryId').optional().isUUID(),
+  body('type').notEmpty().isIn(['income', 'expense', 'transfer']),
+  body('date').notEmpty().isDate().withMessage('Date must be YYYY-MM-DD'),
+  body('categoryId')
+    .if(body('type').equals('expense'))
+    .notEmpty().withMessage('La categoría es obligatoria para un gasto')
+    .isUUID(),
+  body('categoryId')
+    .if((value, { req }) => req.body?.type !== 'expense')
+    .optional({ values: 'null' })
+    .isUUID(),
   body('subcategoryId').optional().isUUID(),
   body('description').trim().notEmpty().isLength({ max: 200 }),
   body('amount').notEmpty().isFloat({ min: 0.01 }).withMessage('Amount must be > 0'),
-  body('type').notEmpty().isIn(['income', 'expense', 'transfer']),
-  body('date').notEmpty().isDate().withMessage('Date must be YYYY-MM-DD'),
   body('notes').optional().trim().isLength({ max: 1000 }),
   body('isRecurring').optional().isBoolean(),
   body('recurringPeriod').optional().isIn(['daily', 'weekly', 'monthly', 'yearly']),

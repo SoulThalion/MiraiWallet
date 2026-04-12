@@ -266,7 +266,9 @@ class ApiClient {
     date: string
     accountId: string
     categoryId?: string
+    subcategoryId?: string
     notes?: string
+    importSource?: 'manual' | 'csv' | 'bank_api'
   }): Promise<ApiTransaction> {
     const response = await this.client.post<ApiSuccessBody<ApiTransaction>>('/transactions', data)
     return response.data.data

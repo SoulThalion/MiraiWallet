@@ -35,6 +35,8 @@ export interface Category {
   incomeInCategory: number
   /** Tipo en API; afecta cómo se muestra el importe en tarjetas. */
   categoryType?: 'income' | 'expense'
+  /** Subcategorías (misma jerarquía que el Excel ING). */
+  subcategories?: { id: string; name: string; icon: string; color: string }[]
   /** Gasto del mes en categorías con presupuesto (API de presupuestos). */
   spentThisMonth: number
   color: string
@@ -64,7 +66,8 @@ export interface MonthlyData {
 
 export interface NewExpense {
   description: string
-  category: string
+  categoryId: string
+  subcategoryId: string
   amount: string
   date: string
 }
@@ -98,7 +101,13 @@ export const useWalletStore = defineStore('wallet', () => {
   const alerts = ref<Alert[]>([])
   const monthlyData = ref<MonthlyData[]>([])
   const monthlySummary = ref<{ month: string; income: number; expenses: number; transfers: number; net: number }[]>([])
-  const newExpense = ref<NewExpense>({ description: '', category: '', amount: '', date: '' })
+  const newExpense = ref<NewExpense>({
+    description: '',
+    categoryId: '',
+    subcategoryId: '',
+    amount: '',
+    date: '',
+  })
 
   function mapApiTransaction(tx: ApiTransaction): Transaction {
     const signed =
@@ -130,6 +139,7 @@ export const useWalletStore = defineStore('wallet', () => {
       spent: cat.spent ?? budget?.spent ?? 0,
       incomeInCategory: 0,
       categoryType: cat.type ?? 'expense',
+      subcategories: cat.subcategories ?? [],
       spentThisMonth: budget?.spent ?? 0
     }
   }
@@ -261,6 +271,7 @@ export const useWalletStore = defineStore('wallet', () => {
             ?? byNameInc.get(normNameKey(cb.name))
             ?? 0,
           categoryType: 'expense',
+          subcategories: [],
           spentThisMonth: 0
         }))
       } else {
@@ -442,15 +453,16 @@ export const useWalletStore = defineStore('wallet', () => {
       throw new Error(msg)
     }
     try {
-      const category = categories.value.find(c => c.name === tx.category)
       await api.createTransaction({
         description: tx.description,
         amount: parseFloat(tx.amount),
         type: 'expense',
         date: tx.date,
         accountId,
-        categoryId: category?.id,
-        notes: tx.note?.trim() || undefined
+        categoryId: tx.categoryId,
+        subcategoryId: tx.subcategoryId.trim() ? tx.subcategoryId : undefined,
+        notes: tx.note?.trim() || undefined,
+        importSource: 'manual',
       })
       await loadDashboard()
       await loadTransactions()
