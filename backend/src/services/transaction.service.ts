@@ -1,11 +1,13 @@
 import { Op, type OrderItem }             from 'sequelize'
 import { Transaction, Account, Category, Subcategory } from '../models'
+import type { StatsYearAvgCategoryDto, StatsYearAvgSubcategoryDto } from '../types'
 import { ApiError }                        from '../utils/ApiError'
 import {
   dateToFiscalYm,
   getMonthCycleConfigForUser,
   toDateOnlyString,
   ymToDateBounds,
+  type MonthCycleConfig,
 } from '../utils/monthPeriod'
 import { parsePagination, buildPaginationMeta } from '../utils/pagination'
 import {
@@ -294,4 +296,190 @@ export async function categoryIncomeBreakdownAllTime(userId: string) {
     include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
   })
   return aggregateAmountByCategory(txs)
+}
+
+type CatAgg = { total: number; name: string; icon: string; color: string }
+type SubAgg = {
+  total: number
+  categoryId: string
+  subcategoryId: string | null
+  categoryName: string
+  name: string
+  icon: string
+  color: string
+}
+
+function mapToYearAvgCategories(m: Map<string, CatAgg>, monthsDivisor: number): StatsYearAvgCategoryDto[] {
+  const d = Math.max(1, monthsDivisor)
+  return [...m.entries()]
+    .map(([categoryId, v]) => ({
+      categoryId,
+      name: v.name,
+      icon: v.icon,
+      color: v.color,
+      totalYear: roundMoney2(v.total),
+      avgPerMonth: roundMoney2(v.total / d),
+    }))
+    .filter(r => r.totalYear > 0)
+    .sort((a, b) => b.totalYear - a.totalYear || a.name.localeCompare(b.name))
+}
+
+function mapToYearAvgSubcategories(m: Map<string, SubAgg>, monthsDivisor: number): StatsYearAvgSubcategoryDto[] {
+  const d = Math.max(1, monthsDivisor)
+  return [...m.values()]
+    .map(v => ({
+      categoryId: v.categoryId,
+      subcategoryId: v.subcategoryId,
+      categoryName: v.categoryName,
+      name: v.name,
+      icon: v.icon,
+      color: v.color,
+      totalYear: roundMoney2(v.total),
+      avgPerMonth: roundMoney2(v.total / d),
+    }))
+    .filter(r => r.totalYear > 0)
+    .sort((a, b) => b.totalYear - a.totalYear || a.categoryName.localeCompare(b.categoryName) || a.name.localeCompare(b.name))
+}
+
+/**
+ * Cuenta meses fiscales `YYYY-MM` del año con al menos un movimiento (por tipo), excluyendo meses posteriores
+ * al mes fiscal actual cuando `year` es el año fiscal de hoy.
+ */
+function activeFiscalMonthsForYearAvg(
+  txs: Transaction[],
+  year: number,
+  cfg: MonthCycleConfig,
+  refYmd: string,
+  kind: 'expense' | 'income',
+): number {
+  const yPrefix = `${year}-`
+  const nowYm = dateToFiscalYm(refYmd, cfg)
+  const refYear = nowYm ? parseInt(nowYm.slice(0, 4), 10) : year
+  const active = new Set<string>()
+  for (const tx of txs) {
+    if (tx.type !== kind) continue
+    const ym = dateToFiscalYm(tx.date, cfg)
+    if (!ym || !ym.startsWith(yPrefix)) continue
+    if (year > refYear) continue
+    if (year === refYear && nowYm && ym > nowYm) continue
+    active.add(ym)
+  }
+  return Math.max(1, active.size)
+}
+
+/**
+ * Totales del año fiscal `year` y media mensual = total / meses con datos (≥1 movimiento de ese tipo en ese mes fiscal;
+ * en el año en curso no se cuentan meses futuros ni meses sin movimientos).
+ * Solo `expense` e `income` (los traspasos no entran aquí).
+ */
+export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year: number): Promise<{
+  expenseCategories: StatsYearAvgCategoryDto[]
+  expenseSubcategories: StatsYearAvgSubcategoryDto[]
+  incomeCategories: StatsYearAvgCategoryDto[]
+  incomeSubcategories: StatsYearAvgSubcategoryDto[]
+  /** Meses con ≥1 gasto (para alinear `totals.yearlyAverageExpense`). */
+  expenseMonthsDivisor: number
+  /** Meses con ≥1 ingreso. */
+  incomeMonthsDivisor: number
+}> {
+  const cfg = await getMonthCycleConfigForUser(userId)
+  const yPrefix = `${year}-`
+  const refYmd = toDateOnlyString(new Date())
+
+  let fromY: string
+  let toY: string
+  if (cfg.mode === 'calendar') {
+    fromY = `${year}-01-01`
+    toY = `${year}-12-31`
+  } else {
+    fromY = ymToDateBounds(`${year}-01`, cfg).from
+    toY = ymToDateBounds(`${year}-12`, cfg).to
+  }
+
+  const txs = await Transaction.findAll({
+    where: {
+      userId,
+      type: { [Op.in]: ['expense', 'income'] as const },
+      date: { [Op.between]: [fromY, toY] },
+    },
+    include: [
+      { model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false },
+      { model: Subcategory, as: 'subcategory', attributes: ['id', 'name', 'icon', 'color'], required: false },
+    ],
+  })
+
+  const expCat = new Map<string, CatAgg>()
+  const expSub = new Map<string, SubAgg>()
+  const incCat = new Map<string, CatAgg>()
+  const incSub = new Map<string, SubAgg>()
+
+  const subKey = (cid: string, sid: string | null) => `${cid}\t${sid ?? ''}`
+
+  for (const tx of txs) {
+    const ym = dateToFiscalYm(tx.date, cfg)
+    if (!ym || !ym.startsWith(yPrefix)) continue
+    const amt = Number(tx.amount)
+    if (!Number.isFinite(amt)) continue
+
+    const catId = tx.categoryId ?? 'uncategorized'
+    const cname = tx.category?.name ?? 'Sin categoría'
+    const cicon = tx.category?.icon ?? '💸'
+    const ccolor = tx.category?.color ?? '#888'
+
+    if (tx.type === 'expense') {
+      const ec = expCat.get(catId) ?? { total: 0, name: cname, icon: cicon, color: ccolor }
+      ec.total = roundMoney2(ec.total + amt)
+      expCat.set(catId, ec)
+
+      const sid = tx.subcategoryId ?? null
+      const sk = subKey(catId, sid)
+      const sname = sid ? (tx.subcategory?.name ?? 'Subcategoría') : 'Sin subcategoría'
+      const sicon = sid ? (tx.subcategory?.icon ?? cicon) : cicon
+      const scolor = sid ? (tx.subcategory?.color ?? ccolor) : ccolor
+      const es = expSub.get(sk) ?? {
+        total: 0,
+        categoryId: catId,
+        subcategoryId: sid,
+        categoryName: cname,
+        name: sname,
+        icon: sicon,
+        color: scolor,
+      }
+      es.total = roundMoney2(es.total + amt)
+      expSub.set(sk, es)
+    } else if (tx.type === 'income') {
+      const ic = incCat.get(catId) ?? { total: 0, name: cname, icon: cicon, color: ccolor }
+      ic.total = roundMoney2(ic.total + amt)
+      incCat.set(catId, ic)
+
+      const sid = tx.subcategoryId ?? null
+      const sk = subKey(catId, sid)
+      const sname = sid ? (tx.subcategory?.name ?? 'Subcategoría') : 'Sin subcategoría'
+      const sicon = sid ? (tx.subcategory?.icon ?? cicon) : cicon
+      const scolor = sid ? (tx.subcategory?.color ?? ccolor) : ccolor
+      const ins = incSub.get(sk) ?? {
+        total: 0,
+        categoryId: catId,
+        subcategoryId: sid,
+        categoryName: cname,
+        name: sname,
+        icon: sicon,
+        color: scolor,
+      }
+      ins.total = roundMoney2(ins.total + amt)
+      incSub.set(sk, ins)
+    }
+  }
+
+  const expenseMonthsDivisor = activeFiscalMonthsForYearAvg(txs, year, cfg, refYmd, 'expense')
+  const incomeMonthsDivisor = activeFiscalMonthsForYearAvg(txs, year, cfg, refYmd, 'income')
+
+  return {
+    expenseCategories: mapToYearAvgCategories(expCat, expenseMonthsDivisor),
+    expenseSubcategories: mapToYearAvgSubcategories(expSub, expenseMonthsDivisor),
+    incomeCategories: mapToYearAvgCategories(incCat, incomeMonthsDivisor),
+    incomeSubcategories: mapToYearAvgSubcategories(incSub, incomeMonthsDivisor),
+    expenseMonthsDivisor,
+    incomeMonthsDivisor,
+  }
 }

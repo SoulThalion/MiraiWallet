@@ -147,6 +147,43 @@ export interface StatsMonthCategoryDto {
   incomeInCategory: number
 }
 
+export interface StatsYearAvgCategoryDto {
+  categoryId: string
+  name: string
+  icon: string
+  color: string
+  totalYear: number
+  avgPerMonth: number
+}
+
+export interface StatsYearAvgSubcategoryDto {
+  categoryId: string
+  subcategoryId: string | null
+  categoryName: string
+  name: string
+  icon: string
+  color: string
+  totalYear: number
+  avgPerMonth: number
+}
+
+export interface StatsRecurringExpenseDto {
+  categoryId: string | null
+  subcategoryId: string | null
+  categoryName: string
+  subcategoryName: string | null
+  categoryIcon: string
+  categoryColor: string
+  description: string
+  amount: number
+  dayOfMonth: number
+  occurrenceCount: number
+  distinctMonthCount: number
+  firstDate: string
+  lastDate: string
+  patternKey: string
+}
+
 export interface StatsMonthOverviewDto {
   month: string
   year: number
@@ -158,7 +195,15 @@ export interface StatsMonthOverviewDto {
     yearlyAverageExpense: number
     bestMonthLabel: string
     bestMonthAmount: number
+    yearExpenseTotal: number
+    yearIncomeTotal: number
+    yearIncomeAvgPerMonth: number
   }
+  expenseCategoryYearAvg: StatsYearAvgCategoryDto[]
+  expenseSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
+  incomeCategoryYearAvg: StatsYearAvgCategoryDto[]
+  incomeSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
+  recurringExpenses: StatsRecurringExpenseDto[]
 }
 
 export interface PaginationMeta {
@@ -191,6 +236,10 @@ export interface SessionUser {
    * `current` = rango dentro de M o, si inicio > fin, cruza al mes siguiente.
    */
   monthCycleAnchor?: 'previous' | 'current'
+  /** Categorías de gasto excluidas del detector de recurrentes (UUIDs). */
+  recurringExcludedCategoryIds?: string[]
+  /** Subcategorías excluidas del detector de recurrentes (UUIDs). */
+  recurringExcludedSubcategoryIds?: string[]
 }
 
 export interface IngBankImportResult {
@@ -303,6 +352,11 @@ class ApiClient {
     return response.data.data
   }
 
+  /** Oculta un patrón recurrente hasta que haya un cargo en un mes natural posterior al mes del descarte. */
+  async dismissRecurringPattern(patternKey: string): Promise<void> {
+    await this.client.post('/stats/recurring-dismiss', { patternKey })
+  }
+
   async getTransactions(params?: {
     page?: number
     limit?: number
@@ -410,6 +464,8 @@ class ApiClient {
     monthCycleStartDay?: number
     monthCycleEndDay?: number
     monthCycleAnchor?: 'previous' | 'current'
+    recurringExcludedCategoryIds?: string[] | null
+    recurringExcludedSubcategoryIds?: string[] | null
   }): Promise<SessionUser> {
     const response = await this.client.patch<ApiSuccessBody<SessionUser>>('/auth/me', payload)
     return response.data.data

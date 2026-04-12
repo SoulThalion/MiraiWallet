@@ -1,4 +1,7 @@
-import { User, Category, Account, Transaction as LedgerTransaction, Budget, Subcategory } from '../models'
+import {
+  User, Category, Account, Transaction as LedgerTransaction, Budget, Subcategory,
+  RecurringPatternDismissal,
+} from '../models'
 import { createTokenPair, verifyRefreshToken } from '../utils/jwt'
 import { ApiError }    from '../utils/ApiError'
 import type { MonthCycleAnchor, MonthCycleConfig, MonthCycleMode } from '../utils/monthPeriod'
@@ -94,6 +97,9 @@ function validateCustomMonthCycle(start: number, end: number, anchor: MonthCycle
   }
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 export async function updateProfile(
   user: User,
   data: {
@@ -102,6 +108,8 @@ export async function updateProfile(
     monthCycleStartDay?: number
     monthCycleEndDay?: number
     monthCycleAnchor?: MonthCycleAnchor
+    recurringExcludedCategoryIds?: string[] | null
+    recurringExcludedSubcategoryIds?: string[] | null
   },
 ): Promise<object> {
   const patch: Partial<{
@@ -110,6 +118,8 @@ export async function updateProfile(
     monthCycleStartDay: number
     monthCycleEndDay: number
     monthCycleAnchor: MonthCycleAnchor
+    recurringExcludedCategoryIds: string[]
+    recurringExcludedSubcategoryIds: string[]
   }> = {}
 
   if (typeof data.name === 'string') {
@@ -144,6 +154,38 @@ export async function updateProfile(
     patch.monthCycleAnchor = data.monthCycleAnchor
   }
 
+  if (data.recurringExcludedCategoryIds !== undefined) {
+    if (data.recurringExcludedCategoryIds === null) {
+      patch.recurringExcludedCategoryIds = []
+    } else if (!Array.isArray(data.recurringExcludedCategoryIds)) {
+      throw ApiError.badRequest('recurringExcludedCategoryIds must be an array of category UUIDs')
+    } else {
+      const ids = [...new Set(data.recurringExcludedCategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 80)
+      for (const id of ids) {
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(`Invalid category id: ${id}`)
+        const cat = await Category.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
+        if (!cat) throw ApiError.badRequest('Unknown category for recurring exclusion')
+      }
+      patch.recurringExcludedCategoryIds = ids
+    }
+  }
+
+  if (data.recurringExcludedSubcategoryIds !== undefined) {
+    if (data.recurringExcludedSubcategoryIds === null) {
+      patch.recurringExcludedSubcategoryIds = []
+    } else if (!Array.isArray(data.recurringExcludedSubcategoryIds)) {
+      throw ApiError.badRequest('recurringExcludedSubcategoryIds must be an array of subcategory UUIDs')
+    } else {
+      const ids = [...new Set(data.recurringExcludedSubcategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 120)
+      for (const id of ids) {
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(`Invalid subcategory id: ${id}`)
+        const sub = await Subcategory.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
+        if (!sub) throw ApiError.badRequest('Unknown subcategory for recurring exclusion')
+      }
+      patch.recurringExcludedSubcategoryIds = ids
+    }
+  }
+
   const nextMode = (patch.monthCycleMode ?? user.monthCycleMode ?? 'calendar') as MonthCycleMode
   const nextStart = patch.monthCycleStartDay ?? floorDay(user.monthCycleStartDay ?? 1)
   const nextEnd = patch.monthCycleEndDay ?? floorDay(user.monthCycleEndDay ?? 31)
@@ -174,6 +216,7 @@ export async function wipeFinancialData(user: User, password: string): Promise<W
   if (!sequelize) throw ApiError.internal('Database not configured')
 
   return sequelize.transaction(async (trx) => {
+    await RecurringPatternDismissal.destroy({ where: { userId: user.id }, transaction: trx })
     const transactions = await LedgerTransaction.destroy({ where: { userId: user.id }, transaction: trx })
     const budgets        = await Budget.destroy({ where: { userId: user.id }, transaction: trx })
     const subcategories  = await Subcategory.destroy({ where: { userId: user.id }, transaction: trx })

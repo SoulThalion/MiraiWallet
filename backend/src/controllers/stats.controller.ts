@@ -18,3 +18,12 @@ export const monthOverview = async (req: Request, res: Response, next: NextFunct
     ApiResponse.success(res, await statsService.monthOverview(userId, month))
   } catch (e) { next(e) }
 }
+
+export const dismissRecurringPattern = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    const patternKey = typeof req.body?.patternKey === 'string' ? req.body.patternKey : ''
+    await statsService.dismissRecurringPattern(userId, patternKey)
+    ApiResponse.noContent(res)
+  } catch (e) { next(e) }
+}

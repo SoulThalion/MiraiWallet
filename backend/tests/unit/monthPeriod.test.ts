@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   ymToDateBounds,
   dateToFiscalYm,
+  fiscalMonthsElapsedForYear,
   toDateOnlyString,
   type MonthCycleConfig,
 } from '../../src/utils/monthPeriod'
@@ -74,5 +75,31 @@ describe('dateToFiscalYm', () => {
 
   it('custom: ya es mayo', () => {
     expect(dateToFiscalYm('2026-04-27', pay)).toBe('2026-05')
+  })
+})
+
+describe('fiscalMonthsElapsedForYear — calendar', () => {
+  it('año fiscal anterior al de la fecha → 12', () => {
+    expect(fiscalMonthsElapsedForYear(2024, CAL, '2026-06-15')).toBe(12)
+  })
+
+  it('mismo año fiscal que la fecha → mes inclusive (junio → 6)', () => {
+    expect(fiscalMonthsElapsedForYear(2026, CAL, '2026-06-15')).toBe(6)
+  })
+
+  it('enero → 1', () => {
+    expect(fiscalMonthsElapsedForYear(2026, CAL, '2026-01-05')).toBe(1)
+  })
+
+  it('año fiscal posterior → 1', () => {
+    expect(fiscalMonthsElapsedForYear(2028, CAL, '2026-06-15')).toBe(1)
+  })
+})
+
+describe('fiscalMonthsElapsedForYear — custom', () => {
+  const pay: MonthCycleConfig = { mode: 'custom', startDay: 27, endDay: 26, anchor: 'previous' }
+
+  it('26 abr 2026 sigue siendo periodo abril → 4 meses en 2026', () => {
+    expect(fiscalMonthsElapsedForYear(2026, pay, '2026-04-26')).toBe(4)
   })
 })

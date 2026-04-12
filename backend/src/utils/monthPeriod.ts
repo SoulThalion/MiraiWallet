@@ -112,6 +112,30 @@ export function ymToDateBounds(ym: string, cfg: MonthCycleConfig): { from: strin
   return { from: ymdInMonth(y, month, sd), to: ymdInMonth(ny, nm, ed) }
 }
 
+/**
+ * Cuántos periodos fiscales `YYYY-MM` del año `year` han transcurrido hasta `refDate` (inclusive del mes fiscal que contiene `refDate`).
+ * - Si `year` es anterior al año fiscal de `refDate` → 12 (año ya cerrado; media sobre 12 meses).
+ * - Si `year` coincide con el año fiscal de `refDate` → mes fiscal de `refDate` (1–12).
+ * - Si `year` es posterior → 1 (evita divisores inflados; año «futuro»).
+ */
+export function fiscalMonthsElapsedForYear(
+  year: number,
+  cfg: MonthCycleConfig,
+  refDate: Date | string = new Date(),
+): number {
+  if (!Number.isFinite(year)) return 12
+  const ymd = typeof refDate === 'string' ? refDate : toDateOnlyString(refDate)
+  const refYm = dateToFiscalYm(ymd, cfg)
+  if (!refYm) return 12
+  const br = /^(\d{4})-(\d{2})$/.exec(refYm)
+  if (!br) return 12
+  const ry = parseInt(br[1]!, 10)
+  const rm = parseInt(br[2]!, 10)
+  if (year < ry) return 12
+  if (year > ry) return 1
+  return Math.max(1, Math.min(12, rm))
+}
+
 /** `YYYY-MM` del periodo que contiene la fecha. */
 export function dateToFiscalYm(dateVal: unknown, cfg: MonthCycleConfig): string {
   const day = toDateOnlyString(dateVal)

@@ -1,9 +1,10 @@
 import { Op } from 'sequelize'
-import { Account, Budget, Category, Transaction } from '../models'
+import { Account, Budget, Category, RecurringPatternDismissal, Subcategory, Transaction, User } from '../models'
 import * as accountService     from './account.service'
 import * as transactionService from './transaction.service'
-import type { StatsMonthOverviewDto } from '../types'
-import { dateToFiscalYm, getMonthCycleConfigForUser } from '../utils/monthPeriod'
+import type { StatsMonthOverviewDto, StatsRecurringExpenseDto } from '../types'
+import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString } from '../utils/monthPeriod'
+import { ApiError } from '../utils/ApiError'
 
 function isYm(s: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(s)
@@ -33,6 +34,186 @@ async function defaultFiscalYmForUser(userId: string): Promise<string> {
   return dateToFiscalYm(ymd, cfg) || `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`
 }
 
+const RECURRING_LOOKBACK_MONTHS = 36
+/** Los más recientes primero: si hay muchos movimientos, los patrones actuales (Netflix, etc.) no deben quedar fuera. */
+const RECURRING_MAX_TX = 20000
+const RECURRING_MAX_RESULTS = 60
+
+function stripDiacritics(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+/**
+ * Clave estable para agrupar: quita prefijos típicos del banco («Pago en…»), puntuación y mayúsculas
+ * para que «Pago en NETFLIX.COM» y variaciones parecidas coincidan.
+ */
+function normalizeRecurringDescriptionKey(raw: string): string {
+  let s = stripDiacritics(raw.trim()).replace(/\s+/g, ' ').toLowerCase()
+  s = s.replace(
+    /^(pago en|pago a|pago por|compra en|compra a|compra con|cargo en|cargo de|transferencia a|bizum a|bizum de|recibo de|domiciliacion|domiciliación)\s+/i,
+    '',
+  )
+  s = s.replace(/[^a-z0-9]+/g, ' ')
+  return s.replace(/\s+/g, ' ').trim()
+}
+
+function calendarYmFromDateOnly(dateVal: unknown): string {
+  const ymd = toDateOnlyString(dateVal)
+  return ymd.length >= 7 ? ymd.slice(0, 7) : ''
+}
+
+function dayOfMonthFromDateOnly(dateVal: unknown): number {
+  const ymd = toDateOnlyString(dateVal)
+  const br = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (!br) return 0
+  return parseInt(br[3]!, 10)
+}
+
+function recurringExpenseGroupKey(tx: Transaction): string | null {
+  const catId = tx.categoryId ?? 'none'
+  const subId = tx.subcategoryId ?? 'none'
+  const rawAmt = Number(tx.amount)
+  if (!Number.isFinite(rawAmt)) return null
+  const amt = roundMoney2(Math.abs(rawAmt))
+  const day = dayOfMonthFromDateOnly(tx.date)
+  if (day < 1 || day > 31) return null
+  const desc = normalizeRecurringDescriptionKey(tx.description)
+  if (!desc) return null
+  return `${catId}\t${subId}\t${desc}\t${amt}\t${day}`
+}
+
+/**
+ * Agrupa gastos con la misma categoría, subcategoría, concepto (insensible a mayúsculas y espacios),
+ * importe y día del mes; solo incluye grupos con ≥2 apariciones en ≥2 meses naturales distintos.
+ */
+function calendarYmToday(d = new Date()): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`
+}
+
+async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurringExpenseDto[]> {
+  const user = await User.findByPk(userId, {
+    attributes: ['id', 'recurringExcludedCategoryIds', 'recurringExcludedSubcategoryIds'],
+  })
+  const rawExcludedCat = user?.recurringExcludedCategoryIds as unknown
+  const excludedCategorySet = new Set<string>(
+    Array.isArray(rawExcludedCat) ? rawExcludedCat.map(x => String(x)).filter(Boolean) : [],
+  )
+  const rawExcludedSub = user?.recurringExcludedSubcategoryIds as unknown
+  const excludedSubcategorySet = new Set<string>(
+    Array.isArray(rawExcludedSub) ? rawExcludedSub.map(x => String(x)).filter(Boolean) : [],
+  )
+
+  const dismissRows = await RecurringPatternDismissal.findAll({
+    where: { userId },
+    attributes: ['patternKey', 'dismissedYm'],
+  })
+  const dismissalMap = new Map(dismissRows.map(r => [r.patternKey, r.dismissedYm]))
+
+  const since = new Date()
+  since.setMonth(since.getMonth() - RECURRING_LOOKBACK_MONTHS)
+  const fromYmd = `${since.getFullYear()}-${pad2(since.getMonth() + 1)}-${pad2(since.getDate())}`
+
+  const txs = await Transaction.findAll({
+    where: { userId, type: 'expense', date: { [Op.gte]: fromYmd } },
+    include: [
+      { model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false },
+      { model: Subcategory, as: 'subcategory', attributes: ['id', 'name'], required: false },
+    ],
+    order: [['date', 'DESC']],
+    limit: RECURRING_MAX_TX,
+  })
+
+  type Acc = { txs: Transaction[]; months: Set<string> }
+  const groups = new Map<string, Acc>()
+
+  for (const tx of txs) {
+    if (tx.categoryId && excludedCategorySet.has(tx.categoryId)) continue
+    if (tx.subcategoryId && excludedSubcategorySet.has(tx.subcategoryId)) continue
+    const key = recurringExpenseGroupKey(tx)
+    if (!key) continue
+    const ym = calendarYmFromDateOnly(tx.date)
+    if (!/^\d{4}-\d{2}$/.test(ym)) continue
+    const acc = groups.get(key) ?? { txs: [], months: new Set() }
+    acc.txs.push(tx)
+    acc.months.add(ym)
+    groups.set(key, acc)
+  }
+
+  const out: StatsRecurringExpenseDto[] = []
+  for (const [, acc] of groups) {
+    if (acc.txs.length < 2 || acc.months.size < 2) continue
+    const sorted = [...acc.txs].sort((a, b) =>
+      toDateOnlyString(a.date).localeCompare(toDateOnlyString(b.date)),
+    )
+    const first = sorted[0]!
+    const dates = sorted.map(t => toDateOnlyString(t.date))
+    const firstDate = dates[0]!
+    const lastDate = dates[dates.length - 1]!
+    const day = dayOfMonthFromDateOnly(first.date)
+    const patternKey = recurringExpenseGroupKey(first)
+    if (!patternKey) continue
+    out.push({
+      categoryId:       first.categoryId ?? null,
+      subcategoryId:    first.subcategoryId ?? null,
+      categoryName:     first.category?.name ?? 'Sin categoría',
+      subcategoryName:  first.subcategory?.name ?? null,
+      categoryIcon:     first.category?.icon ?? '💸',
+      categoryColor:    first.category?.color ?? '#888',
+      description:      first.description.trim().replace(/\s+/g, ' '),
+      amount:           roundMoney2(Math.abs(Number(first.amount))),
+      dayOfMonth:       day,
+      occurrenceCount:  acc.txs.length,
+      distinctMonthCount: acc.months.size,
+      firstDate,
+      lastDate,
+      patternKey,
+    })
+  }
+
+  const keysToClearDismissal: string[] = []
+  const visible: StatsRecurringExpenseDto[] = []
+  for (const row of out) {
+    const dismissYm = dismissalMap.get(row.patternKey)
+    const lastYm = row.lastDate.slice(0, 7)
+    if (dismissYm) {
+      if (lastYm > dismissYm) {
+        keysToClearDismissal.push(row.patternKey)
+        visible.push(row)
+      }
+    } else {
+      visible.push(row)
+    }
+  }
+
+  if (keysToClearDismissal.length > 0) {
+    await RecurringPatternDismissal.destroy({
+      where: { userId, patternKey: { [Op.in]: [...new Set(keysToClearDismissal)] } },
+    })
+  }
+
+  visible.sort((a, b) => {
+    if (b.distinctMonthCount !== a.distinctMonthCount) return b.distinctMonthCount - a.distinctMonthCount
+    if (b.occurrenceCount !== a.occurrenceCount) return b.occurrenceCount - a.occurrenceCount
+    return a.description.localeCompare(b.description)
+  })
+
+  return visible.slice(0, RECURRING_MAX_RESULTS)
+}
+
+/**
+ * Oculta un patrón recurrente hasta que exista un movimiento en un mes natural **posterior**
+ * al mes calendario en que se descartó (`dismissedYm`). No borra transacciones.
+ */
+export async function dismissRecurringPattern(userId: string, patternKeyRaw: string): Promise<void> {
+  const patternKey = patternKeyRaw.trim().slice(0, 400)
+  if (!patternKey) throw ApiError.badRequest('patternKey es obligatorio')
+
+  const dismissedYm = calendarYmToday()
+  const existing = await RecurringPatternDismissal.findOne({ where: { userId, patternKey } })
+  if (existing) await existing.update({ dismissedYm })
+  else await RecurringPatternDismissal.create({ userId, patternKey, dismissedYm })
+}
+
 /**
  * Payload dedicado a la vista Estadísticas: barras anuales, desglose del mes (gasto/presupuesto/ingreso por categoría) y totales.
  * No depende de que existan filas de `Budget` por categoría: el gasto viene de transacciones del mes.
@@ -45,13 +226,16 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const year = parseInt(yStr, 10)
   const selectedMm = mStr
 
-  const [summaryRows, expenseRows, incomeRows, allCategories, budgets] = await Promise.all([
-    transactionService.monthlySummary(userId, year),
-    transactionService.categoryBreakdown(userId, month),
-    transactionService.categoryIncomeBreakdownMonth(userId, month),
-    Category.findAll({ where: { userId }, order: [['name', 'ASC']] }),
-    Budget.findAll({ where: { userId, month } }),
-  ])
+  const [summaryRows, expenseRows, incomeRows, allCategories, budgets, yearAvgs, recurringExpenses] =
+    await Promise.all([
+      transactionService.monthlySummary(userId, year),
+      transactionService.categoryBreakdown(userId, month),
+      transactionService.categoryIncomeBreakdownMonth(userId, month),
+      Category.findAll({ where: { userId }, order: [['name', 'ASC']] }),
+      Budget.findAll({ where: { userId, month } }),
+      transactionService.fiscalYearAvgByCategoryAndSubcategory(userId, year),
+      findRecurringExpensePatterns(userId),
+    ])
 
   const expenseMap = new Map<string, number>()
   const expenseMeta = new Map<string, { name: string; icon: string; color: string }>()
@@ -126,8 +310,15 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   }))
 
   let sumExp = 0
-  for (const row of summaryRows) sumExp += row.expenses
-  const yearlyAverageExpense = roundMoney2(sumExp / 12)
+  let sumInc = 0
+  for (const row of summaryRows) {
+    sumExp += row.expenses
+    sumInc += row.income
+  }
+  const yearExpenseTotal = roundMoney2(sumExp)
+  const yearIncomeTotal = roundMoney2(sumInc)
+  const yearlyAverageExpense = roundMoney2(sumExp / Math.max(1, yearAvgs.expenseMonthsDivisor))
+  const yearIncomeAvgPerMonth = roundMoney2(sumInc / Math.max(1, yearAvgs.incomeMonthsDivisor))
 
   let bestIdx = 0
   let bestVal = Infinity
@@ -153,7 +344,15 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
       yearlyAverageExpense,
       bestMonthLabel: monthLabelEs(bestRow.month),
       bestMonthAmount: bestRow.expenses,
+      yearExpenseTotal,
+      yearIncomeTotal,
+      yearIncomeAvgPerMonth,
     },
+    expenseCategoryYearAvg: yearAvgs.expenseCategories,
+    expenseSubcategoryYearAvg: yearAvgs.expenseSubcategories,
+    incomeCategoryYearAvg: yearAvgs.incomeCategories,
+    incomeSubcategoryYearAvg: yearAvgs.incomeSubcategories,
+    recurringExpenses,
   }
 }
 

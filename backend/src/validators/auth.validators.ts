@@ -42,4 +42,17 @@ export const updateProfileRules = [
     .isInt({ min: 1, max: 31 })
     .withMessage('monthCycleEndDay must be between 1 and 31'),
   body('monthCycleAnchor').optional().isIn(['previous', 'current']).withMessage('monthCycleAnchor must be previous or current'),
+  body('recurringExcludedCategoryIds')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('recurringExcludedCategoryIds must be an array'),
+  body('recurringExcludedCategoryIds.*').optional().isUUID().withMessage('Each recurringExcludedCategoryIds entry must be a UUID'),
+  body('recurringExcludedSubcategoryIds')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('recurringExcludedSubcategoryIds must be an array'),
+  body('recurringExcludedSubcategoryIds.*')
+    .optional()
+    .isUUID()
+    .withMessage('Each recurringExcludedSubcategoryIds entry must be a UUID'),
 ]

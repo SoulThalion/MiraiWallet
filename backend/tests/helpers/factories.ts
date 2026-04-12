@@ -1,4 +1,4 @@
-import { User, Account, Category, Transaction, Alert, Budget } from '../../src/models'
+import { User, Account, Category, Subcategory, Transaction, Alert, Budget } from '../../src/models'
 import { AlertAction } from '../../src/models/Alert'
 
 let _counter = 0
@@ -32,11 +32,30 @@ export async function createCategory(userId: string, overrides: Partial<{
   })
 }
 
+export async function createSubcategory(
+  userId: string,
+  categoryId: string,
+  overrides: Partial<{ name: string; icon: string; color: string }> = {},
+): Promise<Subcategory> {
+  return Subcategory.create({
+    userId,
+    categoryId,
+    name: `Sub-${uid()}`,
+    icon: '📁',
+    color: '#2EC776',
+    ...overrides,
+  })
+}
+
 export async function createTransaction(
   userId: string, accountId: string, categoryId: string,
   overrides: Partial<{
-    description: string; amount: number; type: 'income'|'expense'|'transfer'; date: string
-  }> = {}
+    description: string
+    amount: number
+    type: 'income'|'expense'|'transfer'
+    date: string
+    subcategoryId: string | null
+  }> = {},
 ): Promise<Transaction> {
   return Transaction.create({
     userId, accountId, categoryId,

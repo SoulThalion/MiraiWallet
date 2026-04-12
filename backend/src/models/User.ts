@@ -24,6 +24,10 @@ export class User extends Model<
   declare monthCycleEndDay: CreationOptional<number>
   /** `previous` = inicio en mes anterior al etiquetado; `current` = anclado al mes etiquetado (o cruza al siguiente si inicio > fin). */
   declare monthCycleAnchor: CreationOptional<'previous' | 'current'>
+  /** UUIDs de categorías excluidas del detector de gastos recurrentes (JSON array). */
+  declare recurringExcludedCategoryIds: CreationOptional<string[] | null>
+  /** UUIDs de subcategorías excluidas del detector de gastos recurrentes (JSON array). */
+  declare recurringExcludedSubcategoryIds: CreationOptional<string[] | null>
   declare createdAt:    CreationOptional<Date>
   declare updatedAt:    CreationOptional<Date>
 
@@ -69,6 +73,16 @@ export function initUser(sequelize: Sequelize): void {
         type: DataTypes.ENUM('previous', 'current'),
         allowNull: false,
         defaultValue: 'previous',
+      },
+      recurringExcludedCategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      recurringExcludedSubcategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
       },
       createdAt:    DataTypes.DATE,
       updatedAt:    DataTypes.DATE,

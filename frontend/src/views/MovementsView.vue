@@ -166,6 +166,35 @@
                 </tr>
               </template>
             </tbody>
+            <tfoot v-if="rows.length">
+              <tr
+                class="border-t-2 border-brand-blue/20 bg-light-card font-semibold dark:border-white/[0.12] dark:bg-dark-card dark:text-dark-txt text-light-txt"
+              >
+                <td class="py-2.5 px-2 align-top whitespace-nowrap text-xs">Totales</td>
+                <td class="py-2.5 px-2 align-top text-[10px] font-normal leading-snug dark:text-dark-txt2 text-light-txt2">
+                  {{ rows.length }} {{ rows.length === 1 ? 'fila cargada' : 'filas cargadas'
+                  }}<span v-if="hasMore"> · desplázate para sumar más</span>
+                </td>
+                <td class="hidden py-2.5 px-2 sm:table-cell"></td>
+                <td class="hidden py-2.5 px-2 md:table-cell"></td>
+                <td class="hidden py-2.5 px-2 lg:table-cell"></td>
+                <td class="py-2.5 px-2 text-right align-top text-xs tabular-nums">
+                  <div v-if="totals.income > 0" class="text-emerald-500">+€{{ fmtEur(totals.income) }}</div>
+                  <div v-if="totals.expense > 0" class="text-red-400">−€{{ fmtEur(totals.expense) }}</div>
+                  <div v-if="totals.transfer > 0" class="font-medium dark:text-dark-txt2 text-light-txt2">
+                    Traspasos €{{ fmtEur(totals.transfer) }}
+                  </div>
+                  <div
+                    v-if="totals.income > 0 || totals.expense > 0"
+                    class="mt-1 border-t border-brand-blue/10 pt-1 text-[11px] dark:border-white/[0.08]"
+                    :class="totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'"
+                  >
+                    Saldo (ing − gas) {{ totals.net >= 0 ? '+' : '−' }}€{{ fmtEur(Math.abs(totals.net)) }}
+                  </div>
+                </td>
+                <td class="py-2.5 px-2"></td>
+              </tr>
+            </tfoot>
           </table>
 
           <div v-if="loadingMore" class="py-3 text-center text-xs dark:text-dark-txt2 text-light-txt2">
@@ -357,6 +386,24 @@ const incomeCategories = computed<Category[]>(() =>
 )
 
 const allCategories = computed(() => store.categories.filter(c => Boolean(c.id)))
+
+const totals = computed(() => {
+  let income = 0
+  let expense = 0
+  let transfer = 0
+  for (const tx of rows.value) {
+    const a = Math.abs(Number(tx.amount))
+    if (!Number.isFinite(a)) continue
+    if (tx.type === 'income') income += a
+    else if (tx.type === 'expense') expense += a
+    else transfer += a
+  }
+  return { income, expense, transfer, net: income - expense }
+})
+
+function fmtEur(n: number): string {
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 const selectedEditCategory = computed(() =>
   store.categories.find(c => c.id === editForm.value.categoryId)
