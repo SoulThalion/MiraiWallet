@@ -58,6 +58,16 @@ export async function create(userId: string, data: CreateTransactionDto): Promis
 export async function update(id: string, userId: string, data: UpdateTransactionDto): Promise<Transaction> {
   const tx = await findById(id, userId)
 
+  if (tx.importSource !== 'manual') {
+    throw ApiError.forbidden('Solo se pueden editar movimientos creados manualmente')
+  }
+
+  const nextType       = data.type ?? tx.type
+  const nextCategoryId = data.categoryId !== undefined ? data.categoryId : tx.categoryId
+  if (nextType === 'expense' && !nextCategoryId) {
+    throw ApiError.badRequest('La categoría es obligatoria para un gasto')
+  }
+
   if (data.amount !== undefined || data.type !== undefined) {
     const account   = await Account.findByPk(tx.accountId)
     if (!account) throw ApiError.notFound('Account')

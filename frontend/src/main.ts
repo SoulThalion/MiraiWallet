@@ -13,12 +13,14 @@ import OnboardingView from './views/OnboardingView.vue'
 import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
 import ImportView from './views/ImportView.vue'
+import MovementsView from './views/MovementsView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'onboarding', component: OnboardingView, meta: { bare: true } },
   { path: '/login', name: 'login', component: LoginView, meta: { bare: true } },
   { path: '/register', name: 'register', component: RegisterView, meta: { bare: true } },
   { path: '/home', name: 'home', component: HomeView, meta: { requiresAuth: true } },
+  { path: '/movements', name: 'movements', component: MovementsView, meta: { requiresAuth: true, fullHeight: true } },
   { path: '/stats', name: 'stats', component: StatsView, meta: { requiresAuth: true } },
   { path: '/alerts', name: 'alerts', component: AlertsView, meta: { requiresAuth: true } },
   { path: '/add', name: 'add', component: AddView, meta: { requiresAuth: true } },

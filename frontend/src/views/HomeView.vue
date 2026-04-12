@@ -61,7 +61,7 @@
       <div class="mw-card md:col-span-2 lg:col-span-2">
         <div class="flex justify-between items-center mb-4">
           <p class="font-display font-extrabold text-sm dark:text-dark-txt text-light-txt">Últimos movimientos</p>
-          <span class="text-xs text-brand-blue cursor-pointer">Ver todos →</span>
+          <RouterLink to="/movements" class="text-xs text-brand-blue">Ver todos →</RouterLink>
         </div>
         <!-- On lg show more transactions in a 2-column grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">

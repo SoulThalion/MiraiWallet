@@ -8,6 +8,9 @@ export interface ApiTransaction {
   amount: number
   type: 'income' | 'expense' | 'transfer'
   date: string
+  /** Origen del movimiento; solo `manual` es editable vía API. */
+  importSource?: 'manual' | 'csv' | 'bank_api'
+  notes?: string | null
   category?: {
     id: string
     name: string
@@ -271,6 +274,22 @@ class ApiClient {
     importSource?: 'manual' | 'csv' | 'bank_api'
   }): Promise<ApiTransaction> {
     const response = await this.client.post<ApiSuccessBody<ApiTransaction>>('/transactions', data)
+    return response.data.data
+  }
+
+  async updateTransaction(
+    id: string,
+    data: {
+      description?: string
+      amount?: number
+      type?: 'income' | 'expense' | 'transfer'
+      date?: string
+      categoryId?: string | null
+      subcategoryId?: string | null
+      notes?: string | null
+    }
+  ): Promise<ApiTransaction> {
+    const response = await this.client.patch<ApiSuccessBody<ApiTransaction>>(`/transactions/${id}`, data)
     return response.data.data
   }
 

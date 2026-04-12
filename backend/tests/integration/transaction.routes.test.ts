@@ -118,6 +118,12 @@ describe('PATCH /transactions/:id', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.description).toBe('Updated')
   })
+
+  it('403 — no se puede editar un movimiento importado (csv)', async () => {
+    const tx = await createTransaction(user.id, account.id, category.id, { importSource: 'csv' })
+    const res = await request(app).patch(`${BASE}/${tx.id}`).set(auth(token)).send({ description: 'X' })
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('DELETE /transactions/:id', () => {

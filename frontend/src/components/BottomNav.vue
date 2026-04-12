@@ -30,11 +30,11 @@ interface NavItem {
 
 const navItemsLeft: NavItem[] = [
   { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
-  { name: 'stats', to: '/stats', icon: '📊', label: 'Stats' },
+  { name: 'movements', to: '/movements', icon: '📋', label: 'Movs' },
 ]
 const navItemsRight: NavItem[] = [
+  { name: 'stats', to: '/stats', icon: '📊', label: 'Stats' },
   { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
-  { name: 'import', to: '/import', icon: '📥', label: 'Import' },
   { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
 ]
 </script>

@@ -45,9 +45,16 @@
       </div>
     </aside>
 
-    <div :class="['flex flex-col min-h-screen transition-all duration-200', 'md:pl-16', sidebarExpanded ? 'lg:pl-56' : 'lg:pl-16']">
+    <div
+      :class="[
+        'flex flex-col transition-all duration-200',
+        'md:pl-16',
+        sidebarExpanded ? 'lg:pl-56' : 'lg:pl-16',
+        route.meta.fullHeight ? 'h-dvh min-h-0 overflow-hidden' : 'min-h-screen',
+      ]"
+    >
 
-      <header class="hidden md:flex items-center justify-between px-6 py-3 border-b sticky top-0 z-20 dark:bg-dark-card/95 dark:border-white/[0.07] bg-light-card/95 border-brand-blue/10 backdrop-blur-sm">
+      <header class="hidden md:flex flex-shrink-0 items-center justify-between px-6 py-3 border-b sticky top-0 z-20 dark:bg-dark-card/95 dark:border-white/[0.07] bg-light-card/95 border-brand-blue/10 backdrop-blur-sm">
         <div>
           <h1 class="font-display font-black text-xl dark:text-dark-txt text-light-txt">{{ currentPageTitle }}</h1>
           <p class="text-xs mt-0.5 dark:text-dark-txt2 text-light-txt2 capitalize">{{ headerDate }}</p>
@@ -69,10 +76,18 @@
         </div>
       </header>
 
-      <main class="flex-1 pb-20 md:pb-0">
+      <main
+        :class="[
+          'flex-1',
+          route.meta.fullHeight ? 'flex min-h-0 flex-col overflow-hidden pb-20 md:pb-0' : 'pb-20 md:pb-0',
+        ]"
+      >
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <component
+              :is="Component"
+              :class="route.meta.fullHeight ? 'flex min-h-0 min-w-0 flex-1 flex-col' : undefined"
+            />
           </transition>
         </router-view>
       </main>
@@ -127,6 +142,7 @@ watch(
 
 const navItems: NavItem[] = [
   { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
+  { name: 'movements', to: '/movements', icon: '📋', label: 'Movimientos' },
   { name: 'stats', to: '/stats', icon: '📊', label: 'Estadísticas' },
   { name: 'add', to: '/add', icon: '➕', label: 'Añadir gasto' },
   { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
@@ -136,6 +152,7 @@ const navItems: NavItem[] = [
 
 const pageTitles: Record<string, string> = {
   home: 'Inicio',
+  movements: 'Movimientos',
   stats: 'Estadísticas',
   add: 'Añadir gasto',
   alerts: 'Alertas',

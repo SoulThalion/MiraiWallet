@@ -78,6 +78,13 @@ describe('update', () => {
     await expect(txService.update(tx.id, user.id, { description: 'hack' }))
       .rejects.toMatchObject({ statusCode: 404 })
   })
+
+  it('throws 403 for non-manual importSource', async () => {
+    const cat = await createCategory(user.id)
+    const tx  = await createTransaction(user.id, account.id, cat.id, { importSource: 'csv' })
+    await expect(txService.update(tx.id, user.id, { description: 'nope' }))
+      .rejects.toMatchObject({ statusCode: 403 })
+  })
 })
 
 describe('remove', () => {

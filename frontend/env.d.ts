@@ -13,6 +13,8 @@ declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
     bare?: boolean
+    /** La vista llena el alto útil (flex + scroll interno), p. ej. tabla de movimientos. */
+    fullHeight?: boolean
   }
 }
 
