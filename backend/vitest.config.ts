@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    setupFiles:  ['tests/helpers/load-test-env.ts'],
     globals:     true,
     environment: 'node',
     // Sequential — prevents concurrent DDL conflicts on shared MySQL test DB

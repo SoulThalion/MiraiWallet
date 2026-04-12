@@ -1,9 +1,19 @@
-import { Category }              from '../models'
+import { Category, Subcategory } from '../models'
 import { ApiError }              from '../utils/ApiError'
 import { CreateCategoryDto }     from '../types'
 
 export async function list(userId: string): Promise<Category[]> {
-  return Category.findAll({ where: { userId }, order: [['name', 'ASC']] })
+  return Category.findAll({
+    where: { userId },
+    order: [['name', 'ASC']],
+    include: [{
+      model:      Subcategory,
+      as:         'subcategories',
+      attributes: ['id', 'name', 'icon', 'color'],
+      separate:   true,
+      order:      [['name', 'ASC']],
+    }],
+  })
 }
 
 export async function findById(id: string, userId: string): Promise<Category> {

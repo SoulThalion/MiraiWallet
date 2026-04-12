@@ -6,6 +6,7 @@ import { User }          from '../models'
 export const dashboard = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = (req as Request & { user: User }).user.id
-    ApiResponse.success(res, await statsService.dashboard(userId))
+    const month = typeof req.query.month === 'string' ? req.query.month : undefined
+    ApiResponse.success(res, await statsService.dashboard(userId, month))
   } catch (e) { next(e) }
 }

@@ -17,6 +17,12 @@ export class Account extends Model<
   declare institution: CreationOptional<string | null>
   declare color:       CreationOptional<string>
   declare isActive:    CreationOptional<boolean>
+  /** Saldo inicial del periodo del último Excel ING (estimado: saldo tras 1.ª fila − importe de esa fila). */
+  declare statementOpeningSaldo: CreationOptional<number | null>
+  /** Saldo final según última fila «Saldo» del último Excel importado en esta cuenta. */
+  declare statementClosingSaldo: CreationOptional<number | null>
+  declare statementPeriodFirstDate: CreationOptional<string | null>
+  declare statementPeriodLastDate:  CreationOptional<string | null>
   declare createdAt:   CreationOptional<Date>
   declare updatedAt:   CreationOptional<Date>
 }
@@ -36,6 +42,22 @@ export function initAccount(sequelize: Sequelize): void {
       institution: { type: DataTypes.STRING(100), allowNull: true },
       color:       { type: DataTypes.STRING(7),   defaultValue: '#1A8CFF' },
       isActive:    { type: DataTypes.BOOLEAN,      defaultValue: true },
+      statementOpeningSaldo: {
+        type: DataTypes.DECIMAL(14, 2), allowNull: true,
+        get() {
+          const v = this.getDataValue('statementOpeningSaldo') as unknown
+          return v == null ? null : parseFloat(String(v))
+        },
+      },
+      statementClosingSaldo: {
+        type: DataTypes.DECIMAL(14, 2), allowNull: true,
+        get() {
+          const v = this.getDataValue('statementClosingSaldo') as unknown
+          return v == null ? null : parseFloat(String(v))
+        },
+      },
+      statementPeriodFirstDate: { type: DataTypes.DATEONLY, allowNull: true },
+      statementPeriodLastDate:  { type: DataTypes.DATEONLY, allowNull: true },
       createdAt:   DataTypes.DATE,
       updatedAt:   DataTypes.DATE,
     },

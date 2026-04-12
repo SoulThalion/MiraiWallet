@@ -1,7 +1,7 @@
 <template>
   <router-view v-if="isBare" />
 
-  <div v-else class="min-h-screen transition-colors duration-200 dark bg-dark-bg bg-light-bg">
+  <div v-else class="min-h-screen bg-light-bg text-light-txt transition-colors duration-200 dark:bg-dark-bg dark:text-dark-txt">
 
     <aside :class="[
       'hidden md:flex flex-col fixed top-0 left-0 h-screen z-30 transition-all duration-200 border-r',
@@ -33,7 +33,10 @@
       <div class="px-2 py-3 border-t flex flex-col gap-1 dark:border-white/[0.07] border-brand-blue/10">
         <button class="flex items-center gap-3 rounded-xl px-3 py-2.5 w-full transition-colors dark:text-dark-txt2 dark:hover:bg-white/5 text-light-txt2 hover:bg-brand-blue/5" @click="store.toggleDark">
           <span class="text-lg flex-shrink-0">{{ store.darkMode ? '🌙' : '☀️' }}</span>
-          <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap dark:hidden">Modo claro</span>
+          <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">
+            <span class="hidden dark:inline">Modo claro</span>
+            <span class="dark:hidden">Modo oscuro</span>
+          </span>
         </button>
         <button class="flex items-center gap-3 rounded-xl px-3 py-2.5 w-full transition-colors dark:text-dark-txt2 dark:hover:bg-white/5 text-light-txt2 hover:bg-brand-blue/5" @click="sidebarExpanded = !sidebarExpanded">
           <span class="text-lg flex-shrink-0 leading-none">{{ sidebarExpanded ? '◀' : '▶' }}</span>
@@ -80,11 +83,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
+import { useTheme } from '@/composables/useTheme'
 import MwLogo from '@/components/MwLogo.vue'
 import BottomNav from '@/components/BottomNav.vue'
+
+/** Sincroniza `store.darkMode` con la clase `dark` en `<html>` (necesario para Tailwind). */
+useTheme()
 
 interface NavItem {
   name: string
@@ -103,19 +110,27 @@ const headerDate = computed<string>(() =>
   new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 )
 
-function bootstrapIfNeeded(): void {
-  if (route.meta.requiresAuth && localStorage.getItem('token')) {
-    void store.initialize()
-  }
-}
-
-onMounted(bootstrapIfNeeded)
+/**
+ * Carga datos del API al entrar en cualquier vista con `requiresAuth`.
+ * Solo `onMounted` fallaba: si la primera ruta era `/` o `/login`, al ir a `/home`
+ * el layout ya estaba montado y no se volvía a llamar a `initialize()`.
+ */
+watch(
+  () => route.fullPath,
+  () => {
+    if (route.meta.requiresAuth && localStorage.getItem('token')) {
+      void store.initialize()
+    }
+  },
+  { immediate: true }
+)
 
 const navItems: NavItem[] = [
   { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
   { name: 'stats', to: '/stats', icon: '📊', label: 'Estadísticas' },
   { name: 'add', to: '/add', icon: '➕', label: 'Añadir gasto' },
   { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
+  { name: 'import', to: '/import', icon: '📥', label: 'Importar' },
   { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
 ]
 
@@ -125,6 +140,7 @@ const pageTitles: Record<string, string> = {
   add: 'Añadir gasto',
   alerts: 'Alertas',
   settings: 'Ajustes',
+  import: 'Importar Excel',
   onboarding: 'Bienvenido',
   login: 'Acceso',
   register: 'Registro'

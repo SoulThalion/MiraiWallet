@@ -14,7 +14,10 @@
             {{ store.userDisplayName }} 👋
           </p>
           <p class="text-xs mt-1 dark:text-dark-txt2 text-light-txt2">
-            Aquí tienes el resumen de este mes
+            Acumulado en todas las fechas: importes positivos como ingresos, negativos como gastos (incluye traspasos a ahorro).
+          </p>
+          <p v-if="statementCaption" class="text-xs mt-1.5 dark:text-dark-txt2/90 text-light-txt2 leading-snug max-w-xl">
+            {{ statementCaption }}
           </p>
         </div>
         <!-- Balance (always visible, large on md+) -->
@@ -22,13 +25,13 @@
           <p class="text-[10px] uppercase tracking-widest mb-1 dark:text-dark-txt2 text-light-txt2">Saldo total</p>
           <p class="font-display font-black text-3xl md:text-4xl tracking-tight dark:text-dark-txt text-light-txt">
             <span class="text-lg font-semibold mr-0.5 dark:text-dark-txt2 text-light-txt2">€</span>
-            {{ intPart }}<span class="text-lg font-semibold dark:text-dark-txt2 text-light-txt2">,{{ decPart }}</span>
+            {{ balanceParts.intPart }}<span class="text-lg font-semibold dark:text-dark-txt2 text-light-txt2">,{{ balanceParts.decPart }}</span>
           </p>
         </div>
       </div>
 
       <!-- Stats row -->
-      <div class="grid grid-cols-3 gap-2 md:gap-3 mt-4 relative z-10">
+      <div class="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 mt-4 relative z-10">
         <div v-for="stat in balanceStats" :key="stat.label"
              class="rounded-xl p-3 dark:bg-dark-surf bg-white/70 border border-brand-blue/10 dark:border-0">
           <p class="text-[10px] md:text-xs dark:text-dark-txt2 text-light-txt2">{{ stat.label }}</p>
@@ -52,7 +55,7 @@
                class="flex-shrink-0 md:flex-shrink rounded-2xl p-3 flex flex-col items-center gap-1.5 cursor-pointer border transition-colors hover:border-brand-blue/30 text-center dark:bg-dark-surf dark:border-white/[0.05] bg-light-surf border-brand-blue/5">
             <span class="text-2xl">{{ cat.icon }}</span>
             <span class="text-[10px] font-semibold dark:text-dark-txt2 text-light-txt2">{{ cat.name }}</span>
-            <span class="text-xs font-bold dark:text-dark-txt text-light-txt">€{{ cat.spent }}</span>
+            <span class="text-xs font-bold dark:text-dark-txt text-light-txt">{{ categoryMoneyLabel(cat) }}</span>
           </div>
         </div>
       </div>
@@ -108,15 +111,51 @@ interface BalanceStat {
 }
 
 const store = useWalletStore()
-const { formatEuro } = useCurrency()
+const { formatEuro, formatDateOnlyEs, roundMoney } = useCurrency()
 
-const [intStr, decStr] = store.balance.toFixed(2).split('.')
-const intPart = parseInt(intStr).toLocaleString('es-ES')
-const decPart = decStr
+/** Gasto e ingreso por categoría (2 decimales); solo gastos en desglose mostraba 0 en nómina. */
+function categoryMoneyLabel(cat: { spent: number; incomeInCategory?: number }): string {
+  const g = roundMoney(cat.spent)
+  const inc = roundMoney(cat.incomeInCategory ?? 0)
+  const parts: string[] = []
+  if (g > 0) parts.push(formatEuro(g, false))
+  if (inc > 0) parts.push(formatEuro(inc, true))
+  if (parts.length === 0) return formatEuro(0, false)
+  return parts.join(' · ')
+}
 
-const balanceStats = computed<BalanceStat[]>(() => [
-  { label: 'Ingresos', value: formatEuro(store.totalIncome, true), color: 'text-brand-green' },
-  { label: 'Gastos', value: formatEuro(-store.totalExpenses, true), color: 'text-red-400' },
-  { label: 'Ahorrado', value: formatEuro(store.saved, true), color: 'text-brand-green' },
-])
+/** Debe ser reactivo: el saldo llega asíncrono tras `initialize()`. */
+const balanceParts = computed(() => {
+  const [intStr, decStr] = store.balance.toFixed(2).split('.')
+  return {
+    intPart: parseInt(intStr, 10).toLocaleString('es-ES'),
+    decPart: decStr,
+  }
+})
+
+/** Texto del último extracto ING guardado al importar (no es el mismo alcance que los KPI acumulados). */
+const statementCaption = computed(() => {
+  const s = store.statementSnapshot
+  if (!s) return ''
+  const df = formatDateOnlyEs(s.firstDate)
+  const dt = formatDateOnlyEs(s.lastDate)
+  const range = df && dt ? `${df} – ${dt}` : ''
+  const head = range
+    ? `Último Excel importado (${range})`
+    : 'Último Excel importado'
+  return `${head}: ${formatEuro(s.openingSaldo, true)} → ${formatEuro(s.closingSaldo, true)}; variación del extracto ${formatEuro(s.delta, true)}. Los cuatro recuadros son totales históricos en la app; para cuadrar con el banco, suma solo los movimientos del mismo periodo del fichero.`
+})
+
+const balanceStats = computed<BalanceStat[]>(() => {
+  const net = store.monthNetCashflow
+  return [
+    { label: 'Ingresos', value: formatEuro(store.monthIncome, true), color: 'text-brand-green' },
+    { label: 'Gastos', value: formatEuro(-store.monthExpenses, true), color: 'text-red-400' },
+    {
+      label: 'Resultado neto',
+      value: formatEuro(net, true),
+      color: net >= 0 ? 'text-brand-green' : 'text-red-400',
+    },
+  ]
+})
 </script>

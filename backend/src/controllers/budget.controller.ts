@@ -6,9 +6,14 @@ import { User }           from '../models'
 type AuthReq = Request & { user: User }
 const uid = (req: Request) => (req as AuthReq).user.id
 
+function currentMonthLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export const list = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const month = (req.query.month as string) ?? new Date().toISOString().slice(0, 7)
+    const month = (req.query.month as string) ?? currentMonthLocal()
     ApiResponse.success(res, await budgetService.listWithSpending(uid(req), month))
   } catch (e) { next(e) }
 }

@@ -1,5 +1,17 @@
 <template>
   <div class="p-4 md:p-6 lg:p-8 max-w-screen-xl mx-auto">
+    <RouterLink
+      to="/import"
+      class="mw-card mb-4 md:mb-6 flex items-center gap-4 border transition-colors hover:border-brand-blue/40 dark:hover:border-brand-blue/40"
+    >
+      <div class="w-12 h-12 rounded-2xl bg-brand-blue/15 flex items-center justify-center text-2xl flex-shrink-0">📥</div>
+      <div class="flex-1 min-w-0">
+        <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">Importar Excel ING</p>
+        <p class="text-xs mt-0.5 dark:text-dark-txt2 text-light-txt2">Sube el Excel «Movimientos de la Cuenta» de ING y guárdalo en la app</p>
+      </div>
+      <span class="text-lg dark:text-dark-txt3 text-light-txt3 flex-shrink-0">›</span>
+    </RouterLink>
+
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
 
       <!-- Profile card -->
@@ -64,18 +76,101 @@
         </div>
       </div>
 
+      <!-- Danger zone -->
+      <div class="mw-card md:col-span-2 lg:col-span-3 border border-red-400/30 dark:border-red-400/25">
+        <p class="font-display font-bold text-sm text-red-500 mb-1">Zona peligrosa</p>
+        <p class="text-xs dark:text-dark-txt2 text-light-txt2 mb-4 max-w-2xl">
+          Puedes eliminar de un solo golpe todos los movimientos importados o registrados, todas las categorías y subcategorías, y los presupuestos ligados a esas categorías. Tus cuentas se conservan con el saldo puesto a 0 €. Esta acción no se puede deshacer.
+        </p>
+        <button
+          type="button"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold border border-red-500/40 text-red-500 dark:bg-dark-surf bg-light-surf hover:bg-red-500/10 transition-colors"
+          @click="openWipeModal"
+        >
+          Borrar todos los movimientos
+        </button>
+      </div>
+
       <!-- Version -->
       <div class="md:col-span-2 lg:col-span-3 flex items-center justify-center gap-2 py-2 opacity-40">
         <span class="text-xs dark:text-dark-txt2 text-light-txt2">Mirai Wallet v2.1.0</span>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="showWipeModal"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/55 backdrop-blur-[2px]"
+        role="presentation"
+        @click.self="closeWipeModal"
+      >
+        <div
+          class="mw-card max-w-md w-full space-y-4 shadow-xl border border-red-400/20"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wipe-modal-title"
+          @click.stop
+        >
+          <div>
+            <h2 id="wipe-modal-title" class="font-display font-bold text-lg text-red-500">¿Borrar todos los datos financieros?</h2>
+            <p class="text-sm mt-2 dark:text-dark-txt2 text-light-txt2 leading-relaxed">
+              Se eliminarán <strong class="dark:text-dark-txt text-light-txt">todos los movimientos</strong>,
+              <strong class="dark:text-dark-txt text-light-txt">categorías</strong>,
+              <strong class="dark:text-dark-txt text-light-txt">subcategorías</strong> y
+              <strong class="dark:text-dark-txt text-light-txt">presupuestos</strong> de tu usuario.
+              Las cuentas quedarán con saldo 0 €. No hay forma de recuperar esta información.
+            </p>
+          </div>
+
+          <div>
+            <label for="wipe-password" class="block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2">
+              Escribe tu contraseña para confirmar
+            </label>
+            <div class="relative">
+              <input
+                id="wipe-password"
+                v-model="wipePassword"
+                :type="showWipePassword ? 'text' : 'password'"
+                autocomplete="current-password"
+                class="mw-input pr-11"
+                placeholder="Contraseña actual"
+                @keydown.enter="canConfirmWipe && confirmWipe()"
+              />
+              <PasswordRevealToggle v-model="showWipePassword" />
+            </div>
+            <p v-if="wipeError" class="mt-2 text-xs text-red-400">{{ wipeError }}</p>
+          </div>
+
+          <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-1">
+            <button
+              type="button"
+              class="px-4 py-2.5 rounded-xl text-sm font-semibold border dark:border-white/[0.12] border-brand-blue/15 dark:text-dark-txt2 text-light-txt2 hover:opacity-90"
+              :disabled="wipeSubmitting"
+              @click="closeWipeModal"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:pointer-events-none"
+              :disabled="!canConfirmWipe || wipeSubmitting"
+              @click="confirmWipe"
+            >
+              {{ wipeSubmitting ? 'Borrando…' : 'Sí, borrar todo' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
+import { api } from '@/services/api'
+import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
 
 interface Toggle {
   label: string
@@ -92,9 +187,48 @@ interface SettingItem {
 const store = useWalletStore()
 const router = useRouter()
 
+const showWipeModal = ref(false)
+const wipePassword = ref('')
+const wipeError = ref<string | null>(null)
+const wipeSubmitting = ref(false)
+const showWipePassword = ref(false)
+
+const canConfirmWipe = computed(() => wipePassword.value.trim().length > 0)
+
 async function onLogout(): Promise<void> {
   await store.logout()
   await router.replace({ name: 'login' })
+}
+
+function openWipeModal(): void {
+  wipePassword.value = ''
+  wipeError.value = null
+  showWipePassword.value = false
+  showWipeModal.value = true
+}
+
+function closeWipeModal(): void {
+  if (wipeSubmitting.value) return
+  showWipeModal.value = false
+  wipePassword.value = ''
+  wipeError.value = null
+}
+
+async function confirmWipe(): Promise<void> {
+  if (!canConfirmWipe.value || wipeSubmitting.value) return
+  wipeError.value = null
+  wipeSubmitting.value = true
+  try {
+    await api.wipeFinancialData(wipePassword.value)
+    showWipeModal.value = false
+    wipePassword.value = ''
+    await store.initialize()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: { message?: string } } } }
+    wipeError.value = ax.response?.data?.error?.message ?? 'No se pudo completar la operación.'
+  } finally {
+    wipeSubmitting.value = false
+  }
 }
 
 const toggles = reactive<Toggle[]>([
@@ -112,9 +246,9 @@ const settingItems: SettingItem[] = [
 ]
 
 const toggleMode = (mode: string): void => {
-  const isCurrentlyDark = document.documentElement.classList.contains('dark')
-  if ((mode === 'Oscuro') !== isCurrentlyDark) {
-    store.toggleDark();
+  const wantDark = mode === 'Oscuro'
+  if (wantDark !== store.darkMode) {
+    store.toggleDark()
   }
 }
 </script>

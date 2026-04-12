@@ -24,19 +24,22 @@
         <div class="mw-card">
           <div class="flex justify-between items-center mb-4">
             <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">Presupuesto mensual</p>
-            <p class="text-xs dark:text-dark-txt2 text-light-txt2">€{{ store.totalSpent }} / €{{ store.totalBudget }}</p>
+            <p class="text-xs dark:text-dark-txt2 text-light-txt2">€{{ store.totalBudgetedSpentThisMonth }} / €{{ store.totalBudget }}</p>
           </div>
           <!-- Overall progress -->
           <div class="mb-4">
             <div class="h-2 rounded-full overflow-hidden mb-1 dark:bg-dark-surf bg-light-surf">
               <div class="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-brand-blue-dark to-brand-blue"
-                   :style="{ width: Math.min(100, Math.round(store.totalSpent / store.totalBudget * 100)) + '%' }"></div>
+                   :style="{ width: budgetPct + '%' }"></div>
             </div>
             <p class="text-xs text-right dark:text-dark-txt2 text-light-txt2">
-              {{ Math.round(store.totalSpent / store.totalBudget * 100) }}% utilizado
+              {{ budgetPct }}% utilizado
             </p>
           </div>
-          <BudgetBar v-for="cat in store.categories" :key="cat.name" :category="cat" />
+          <BudgetBar
+            v-for="cat in store.categories.filter(c => c.budget > 0)"
+            :key="cat.name"
+            :category="cat" />
         </div>
 
         <!-- Tips card (desktop only) -->
@@ -53,11 +56,18 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useWalletStore } from '@/stores/wallet'
 import AlertCard from '@/components/AlertCard.vue'
 import BudgetBar from '@/components/BudgetBar.vue'
 
 const store = useWalletStore()
+
+const budgetPct = computed<number>(() => {
+  const b = store.totalBudget
+  if (b <= 0) return 0
+  return Math.min(100, Math.round((store.totalBudgetedSpentThisMonth / b) * 100))
+})
 
 async function handleAction({ alertId }: { alertId: number }): Promise<void> {
   await store.dismissAlert(alertId)

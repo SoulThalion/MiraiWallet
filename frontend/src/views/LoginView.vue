@@ -77,7 +77,6 @@ async function submit(): Promise<void> {
   try {
     const data = await api.login(email.value.trim(), password.value)
     store.applyAuth(data)
-    await store.initialize()
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
     await router.replace(redirect || '/home')
   } catch (e: unknown) {

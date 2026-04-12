@@ -1,5 +1,5 @@
 import { Op }                              from 'sequelize'
-import { Transaction, Account, Category }  from '../models'
+import { Transaction, Account, Category, Subcategory } from '../models'
 import { ApiError }                        from '../utils/ApiError'
 import { parsePagination, buildPaginationMeta } from '../utils/pagination'
 import {
@@ -7,9 +7,11 @@ import {
   TransactionQuery, PaginationMeta,
 } from '../types'
 
+/** `required: false` → LEFT JOIN: no se pierden movimientos sin categoría o con FK huérfana (el total de gastos debe cuadrar con la suma por categorías). */
 const WITH_RELATIONS = [
-  { model: Account,  as: 'account',  attributes: ['id', 'name', 'color'] },
-  { model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'] },
+  { model: Account,     as: 'account',     attributes: ['id', 'name', 'color'], required: false },
+  { model: Category,    as: 'category',    attributes: ['id', 'name', 'icon', 'color'], required: false },
+  { model: Subcategory, as: 'subcategory', attributes: ['id', 'name', 'icon', 'color'], required: false },
 ]
 
 export async function list(
@@ -79,6 +81,15 @@ export async function remove(id: string, userId: string): Promise<void> {
   await tx.destroy()
 }
 
+/** Mes 0–11 desde DATEONLY `YYYY-MM-DD` sin pasar por `Date` (evita desfases UTC). */
+function monthIndexFromDateOnly(dateVal: unknown): number {
+  const s = String(dateVal ?? '')
+  const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(s)
+  if (m) return parseInt(m[2], 10) - 1
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? 0 : d.getMonth()
+}
+
 export async function monthlySummary(userId: string, year: number) {
   const txs = await Transaction.findAll({
     where: { userId, date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
@@ -89,28 +100,47 @@ export async function monthlySummary(userId: string, year: number) {
     month:    String(i + 1).padStart(2, '0'),
     income:   0,
     expenses: 0,
-    net:      0,
   }))
 
   for (const tx of txs) {
-    const m = new Date(tx.date).getMonth()
-    if (tx.type === 'income')  months[m].income   += tx.amount
-    if (tx.type === 'expense') months[m].expenses += tx.amount
+    const m = monthIndexFromDateOnly(tx.date)
+    if (m < 0 || m > 11) continue
+    const amt = Number(tx.amount)
+    if (!Number.isFinite(amt)) continue
+    if (tx.type === 'income') months[m].income += amt
+    else months[m].expenses += amt
   }
-  return months.map(m => ({ ...m, net: m.income - m.expenses }))
+  return months.map(mo => {
+    const income = Math.round(mo.income * 100) / 100
+    const expenses = Math.round(mo.expenses * 100) / 100
+    const transfers = 0
+    const net = Math.round((income - expenses) * 100) / 100
+    return { month: mo.month, income, expenses, transfers, net }
+  })
 }
 
-export async function categoryBreakdown(userId: string, month: string) {
-  const [year, mon] = month.split('-')
-  const from = `${year}-${mon}-01`
-  const to   = new Date(parseInt(year), parseInt(mon), 0).toISOString().split('T')[0]
+/** Último día del mes `YYYY-MM` como `YYYY-MM-DD` en calendario local (evita `toISOString()` UTC). */
+function lastDateOfCalendarMonthYm(yearStr: string, monPadded: string): string {
+  const y = parseInt(yearStr, 10)
+  const m = parseInt(monPadded, 10)
+  const lastDay = new Date(y, m, 0).getDate()
+  return `${yearStr}-${monPadded}-${String(lastDay).padStart(2, '0')}`
+}
 
-  const txs = await Transaction.findAll({
-    where:   { userId, type: 'expense', date: { [Op.between]: [from, to] } },
-    include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'] }],
-  })
+export type CategoryBreakdownRow = {
+  categoryId: string | null
+  name: string
+  icon: string
+  color: string
+  total: number
+}
 
-  const map: Record<string, { categoryId: string | null; name: string; icon: string; color: string; total: number }> = {}
+function roundMoney2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+function aggregateAmountByCategory(txs: Transaction[]): CategoryBreakdownRow[] {
+  const map: Record<string, CategoryBreakdownRow> = {}
   for (const tx of txs) {
     const key = tx.categoryId ?? 'uncategorized'
     if (!map[key]) {
@@ -122,7 +152,45 @@ export async function categoryBreakdown(userId: string, month: string) {
         total:      0,
       }
     }
-    map[key].total += tx.amount
+    const amt = Number(tx.amount)
+    map[key].total = roundMoney2(map[key].total + (Number.isFinite(amt) ? amt : 0))
   }
-  return Object.values(map).sort((a, b) => b.total - a.total)
+  return Object.values(map)
+    .map((e) => ({ ...e, total: roundMoney2(e.total) }))
+    .sort((a, b) => b.total - a.total)
+}
+
+function aggregateExpenseByCategory(txs: Transaction[]): CategoryBreakdownRow[] {
+  return aggregateAmountByCategory(txs)
+}
+
+export async function categoryBreakdown(userId: string, month: string) {
+  const [year, mon] = month.split('-')
+  const from = `${year}-${mon}-01`
+  const to     = lastDateOfCalendarMonthYm(year, mon)
+
+  const txs = await Transaction.findAll({
+    where:   { userId, type: 'expense', date: { [Op.between]: [from, to] } },
+    include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
+  })
+
+  return aggregateExpenseByCategory(txs)
+}
+
+/** Gastos acumulados por categoría (sin filtro de fechas). */
+export async function categoryBreakdownAllTime(userId: string) {
+  const txs = await Transaction.findAll({
+    where:   { userId, type: 'expense' },
+    include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
+  })
+  return aggregateExpenseByCategory(txs)
+}
+
+/** Ingresos acumulados por categoría (sin filtro de fechas). */
+export async function categoryIncomeBreakdownAllTime(userId: string) {
+  const txs = await Transaction.findAll({
+    where:   { userId, type: 'income' },
+    include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
+  })
+  return aggregateAmountByCategory(txs)
 }

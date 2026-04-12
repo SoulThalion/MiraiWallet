@@ -52,11 +52,16 @@
           <div class="ff md:col-span-2">
             <label :class="fieldLabelClass">Importar desde banco</label>
             <div class="flex flex-col sm:flex-row gap-2 mt-1">
-              <button v-for="opt in importOptions" :key="opt.label"
-                      :class="['flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors',
-                               'dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:border-brand-green dark:hover:text-brand-green bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-green hover:text-brand-green']">
-                {{ opt.icon }} {{ opt.label }}
+              <button type="button" disabled
+                      class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium opacity-45 cursor-not-allowed
+                             dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt3 bg-light-surf border-brand-blue/10 text-light-txt3">
+                🏦 Conectar banco (pronto)
               </button>
+              <RouterLink to="/import"
+                          class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition-colors text-center
+                                 dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:border-brand-green dark:hover:text-brand-green bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-green hover:text-brand-green">
+                📄 Excel ING
+              </RouterLink>
             </div>
           </div>
         </div>
@@ -91,11 +96,6 @@ interface FormData {
   note: string
 }
 
-interface ImportOption {
-  icon: string
-  label: string
-}
-
 const store = useWalletStore()
 const router = useRouter()
 
@@ -104,8 +104,6 @@ const fieldLabelClass = 'block text-xs uppercase tracking-wider mb-1.5 font-semi
 const form = ref<FormData>({ description: '', amount: '', category: 'Hogar', date: new Date().toISOString().split('T')[0], note: '' })
 const displayAmount = computed<string>(() => form.value.amount ? parseFloat(form.value.amount).toFixed(2).replace('.', ',') : '')
 const isValid = computed<boolean>(() => form.value.description.trim().length > 0 && parseFloat(form.value.amount) > 0)
-const importOptions: ImportOption[] = [{ icon: '🏦', label: 'Conectar banco' }, { icon: '📄', label: 'Subir CSV / Excel' }]
-
 async function save(): Promise<void> {
   if (!isValid.value) return
   try {

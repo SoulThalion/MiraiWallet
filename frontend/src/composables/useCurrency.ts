@@ -4,6 +4,11 @@
  * @param showSign - Whether to prefix + for positive values
  */
 export function useCurrency() {
+  /** Evita artefactos de coma flotante (movimientos siempre ≤ 2 decimales). */
+  function roundMoney(value: number): number {
+    return Math.round(value * 100) / 100
+  }
+
   function formatEuro(value: number, showSign = false): string {
     const abs = Math.abs(value)
     const formatted = new Intl.NumberFormat('es-ES', {
@@ -28,5 +33,20 @@ export function useCurrency() {
     return `${Math.round(value)}%`
   }
 
-  return { formatEuro, amountColor, formatPct }
+  /**
+   * Fecha solo-día desde el API (`YYYY-MM-DD` o ISO completo). Evita Invalid Date al no concatenar otra hora a un ISO.
+   */
+  function formatDateOnlyEs(raw: string | null | undefined): string {
+    if (raw == null || raw === '') return ''
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(raw).trim())
+    if (!m) return ''
+    const y = Number(m[1])
+    const mo = Number(m[2])
+    const d = Number(m[3])
+    const date = new Date(y, mo - 1, d)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
+  return { formatEuro, amountColor, formatPct, formatDateOnlyEs, roundMoney }
 }

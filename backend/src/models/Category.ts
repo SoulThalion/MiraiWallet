@@ -18,6 +18,8 @@ export class Category extends Model<
   declare isDefault:     CreationOptional<boolean>
   declare createdAt:     CreationOptional<Date>
   declare updatedAt:     CreationOptional<Date>
+
+  declare subcategories?: import('./Subcategory').Subcategory[]
 }
 
 export function initCategory(sequelize: Sequelize): void {

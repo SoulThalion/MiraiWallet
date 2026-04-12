@@ -4,12 +4,15 @@ import { useWalletStore } from '@/stores/wallet'
 export function useTheme() {
   const store = useWalletStore()
 
-  // Watch darkMode and apply/remove 'dark' class from document
+  // Sincroniza <html>: Tailwind `dark:` usa `.dark`; estilos en main.css usan `.light` / `.dark` en ancestro.
   watchEffect(() => {
+    const root = document.documentElement
     if (store.darkMode) {
-      document.documentElement.classList.add('dark')
+      root.classList.add('dark')
+      root.classList.remove('light')
     } else {
-      document.documentElement.classList.remove('dark')
+      root.classList.remove('dark')
+      root.classList.add('light')
     }
   })
 

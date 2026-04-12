@@ -25,3 +25,7 @@ export const changePasswordRules = [
     .notEmpty().isLength({ min: 8 })
     .matches(/[A-Z]/).matches(/[0-9]/),
 ]
+
+export const wipeFinancialDataRules = [
+  body('password').notEmpty().withMessage('La contraseña es obligatoria'),
+]

@@ -12,6 +12,7 @@ export class Transaction extends Model<
   declare userId:          string
   declare accountId:       string
   declare categoryId:      CreationOptional<string | null>
+  declare subcategoryId:   CreationOptional<string | null>
   declare description:     string
   declare amount:          number
   declare type:            TransactionType
@@ -25,7 +26,8 @@ export class Transaction extends Model<
 
   // Populated by eager loading
   declare account?:  import('./Account').Account
-  declare category?: import('./Category').Category
+  declare category?:    import('./Category').Category
+  declare subcategory?: import('./Subcategory').Subcategory
 }
 
 export function initTransaction(sequelize: Sequelize): void {
@@ -34,7 +36,14 @@ export function initTransaction(sequelize: Sequelize): void {
       id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       userId:      { type: DataTypes.UUID, allowNull: false },
       accountId:   { type: DataTypes.UUID, allowNull: false },
-      categoryId:  { type: DataTypes.UUID, allowNull: true },
+      categoryId:    { type: DataTypes.UUID, allowNull: true },
+      subcategoryId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'subcategories', key: 'id' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+      },
       description: { type: DataTypes.STRING(200), allowNull: false },
       amount: {
         type: DataTypes.DECIMAL(14, 2), allowNull: false,
@@ -57,6 +66,7 @@ export function initTransaction(sequelize: Sequelize): void {
         { fields: ['userId'] },
         { fields: ['accountId'] },
         { fields: ['categoryId'] },
+        { fields: ['subcategoryId'] },
         { fields: ['userId', 'date'] },
       ],
     }

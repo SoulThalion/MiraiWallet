@@ -62,12 +62,12 @@
             <div class="flex justify-between mb-1.5">
               <span class="text-xs font-medium dark:text-dark-txt2 text-light-txt2">{{ cat.icon }} {{ cat.name }}</span>
               <span class="text-xs font-bold dark:text-dark-txt text-light-txt">
-                €{{ cat.spent }} <span class="font-normal dark:text-dark-txt2 text-light-txt2">/ €{{ cat.budget }}</span>
+                {{ categoryStatsLine(cat) }}
               </span>
             </div>
             <div class="h-1.5 rounded-full overflow-hidden dark:bg-dark-surf bg-light-surf">
               <div class="h-full rounded-full transition-all duration-500"
-                   :style="{ width: Math.min(100, Math.round(cat.spent / cat.budget * 100)) + '%', background: cat.color }"></div>
+                   :style="{ width: budgetBarWidth(cat), background: cat.color }"></div>
             </div>
           </div>
         </div>
@@ -80,8 +80,25 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useWalletStore } from '@/stores/wallet'
+import { useCurrency } from '@/composables/useCurrency'
 import DonutChart from '@/components/DonutChart.vue'
 import BarChart from '@/components/BarChart.vue'
+
+const { formatEuro, roundMoney } = useCurrency()
+
+function categoryStatsLine(cat: { spent: number; incomeInCategory?: number; budget: number }): string {
+  const g = roundMoney(cat.spent)
+  const inc = roundMoney(cat.incomeInCategory ?? 0)
+  const b = roundMoney(cat.budget)
+  const left = [g > 0 ? formatEuro(g, false) : null, inc > 0 ? formatEuro(inc, true) : null].filter(Boolean).join(' · ')
+  return `${left || formatEuro(0, false)} / ${formatEuro(b, false)}`
+}
+
+function budgetBarWidth(cat: { spent: number; budget: number }): string {
+  const b = roundMoney(cat.budget)
+  if (b <= 0) return '0%'
+  return `${Math.min(100, Math.round((roundMoney(cat.spent) / b) * 100))}%`
+}
 
 const store = useWalletStore()
 const months: string[] = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun']

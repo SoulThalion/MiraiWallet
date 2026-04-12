@@ -33,9 +33,12 @@ describe('GET /stats/dashboard', () => {
     expect(res.body.data).toHaveProperty('balance')
     expect(res.body.data).toHaveProperty('income')
     expect(res.body.data).toHaveProperty('expenses')
-    expect(res.body.data).toHaveProperty('saved')
+    expect(res.body.data).toHaveProperty('netCashflow')
+    expect(res.body.data).toHaveProperty('transfersToSavings')
     expect(res.body.data).toHaveProperty('categoryBreakdown')
+    expect(res.body.data).toHaveProperty('categoryIncomeBreakdown')
     expect(res.body.data).toHaveProperty('monthlySummary')
+    expect(res.body.data).toHaveProperty('statementSnapshot')
     expect(res.body.data.monthlySummary).toHaveLength(12)
   })
 
@@ -43,11 +46,14 @@ describe('GET /stats/dashboard', () => {
     expect((await request(app).get(URL)).status).toBe(401)
   })
 
-  it('saved = income - expenses', async () => {
+  it('netCashflow = income - expenses (traspasos cuentan como gasto)', async () => {
     await createTransaction(user.id, account.id, category.id, { type: 'income',  amount: 2000 })
     await createTransaction(user.id, account.id, category.id, { type: 'expense', amount: 300 })
+    await createTransaction(user.id, account.id, category.id, { type: 'transfer', amount: 150 })
     const res = await request(app).get(URL).set({ Authorization: `Bearer ${token}` })
-    const { income, expenses, saved } = res.body.data
-    expect(saved).toBeCloseTo(income - expenses)
+    const { income, expenses, netCashflow, transfersToSavings } = res.body.data
+    expect(transfersToSavings).toBe(0)
+    expect(expenses).toBeCloseTo(450)
+    expect(netCashflow).toBeCloseTo(income - expenses)
   })
 })

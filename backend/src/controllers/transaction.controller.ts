@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import * as txService   from '../services/transaction.service'
+import * as txImport    from '../services/transaction-import.service'
 import { ApiResponse }  from '../utils/ApiResponse'
 import { User }         from '../models'
 import { TransactionQuery } from '../types'
@@ -35,5 +36,41 @@ export const categoryBreakdown = async (req: Request, res: Response, next: NextF
   try {
     const month = (req.query.month as string) ?? new Date().toISOString().slice(0, 7)
     ApiResponse.success(res, await txService.categoryBreakdown(uid(req), month))
+  } catch (e) { next(e) }
+}
+
+type FileReq = Request & { file?: Express.Multer.File }
+
+export const importIngXlsx = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const f = (req as FileReq).file
+    if (!f?.buffer?.length) {
+      ApiResponse.error(res, 400, 'Adjunta un archivo Excel (.xlsx) con el campo «file».')
+      return
+    }
+    const accountId = String((req.body as { accountId?: string }).accountId ?? '').trim()
+    if (!accountId) {
+      ApiResponse.error(res, 400, 'Indica la cuenta destino (accountId).')
+      return
+    }
+    const data = await txImport.importIngMovementsXlsx(uid(req), accountId, f.buffer)
+    ApiResponse.success(res, data)
+  } catch (e) { next(e) }
+}
+
+export const syncBalanceIngXlsx = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const f = (req as FileReq).file
+    if (!f?.buffer?.length) {
+      ApiResponse.error(res, 400, 'Adjunta un archivo Excel (.xlsx) con el campo «file».')
+      return
+    }
+    const accountId = String((req.body as { accountId?: string }).accountId ?? '').trim()
+    if (!accountId) {
+      ApiResponse.error(res, 400, 'Indica la cuenta destino (accountId).')
+      return
+    }
+    const data = await txImport.syncBalanceFromIngXlsx(uid(req), accountId, f.buffer)
+    ApiResponse.success(res, data)
   } catch (e) { next(e) }
 }

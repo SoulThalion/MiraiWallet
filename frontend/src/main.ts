@@ -12,6 +12,7 @@ import SettingsView from './views/SettingsView.vue'
 import OnboardingView from './views/OnboardingView.vue'
 import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
+import ImportView from './views/ImportView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'onboarding', component: OnboardingView, meta: { bare: true } },
@@ -22,6 +23,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/alerts', name: 'alerts', component: AlertsView, meta: { requiresAuth: true } },
   { path: '/add', name: 'add', component: AddView, meta: { requiresAuth: true } },
   { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
+  { path: '/import', name: 'import', component: ImportView, meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({

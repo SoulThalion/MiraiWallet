@@ -1,4 +1,4 @@
-import { User, Category, Account } from '../models'
+import { User, Category, Account, Transaction as LedgerTransaction, Budget, Subcategory } from '../models'
 import { createTokenPair, verifyRefreshToken } from '../utils/jwt'
 import { ApiError }    from '../utils/ApiError'
 import { RegisterDto, LoginDto, ChangePasswordDto, TokenPair } from '../types'
@@ -75,4 +75,29 @@ export async function getProfile(userId: string): Promise<object> {
 export async function updateProfile(user: User, data: { name?: string }): Promise<object> {
   await user.update({ name: data.name })
   return user.toSafeJSON()
+}
+
+export interface WipeFinancialDataResult {
+  transactions:  number
+  budgets:       number
+  subcategories: number
+  categories:    number
+}
+
+/** Borra movimientos, presupuestos, subcategorías y categorías del usuario; pone saldos de cuentas a 0. */
+export async function wipeFinancialData(user: User, password: string): Promise<WipeFinancialDataResult> {
+  const valid = await user.comparePassword(password)
+  if (!valid) throw ApiError.badRequest('Contraseña incorrecta')
+
+  const sequelize = LedgerTransaction.sequelize
+  if (!sequelize) throw ApiError.internal('Database not configured')
+
+  return sequelize.transaction(async (trx) => {
+    const transactions = await LedgerTransaction.destroy({ where: { userId: user.id }, transaction: trx })
+    const budgets        = await Budget.destroy({ where: { userId: user.id }, transaction: trx })
+    const subcategories  = await Subcategory.destroy({ where: { userId: user.id }, transaction: trx })
+    const categories     = await Category.destroy({ where: { userId: user.id }, transaction: trx })
+    await Account.update({ balance: 0 }, { where: { userId: user.id }, transaction: trx })
+    return { transactions, budgets, subcategories, categories }
+  })
 }

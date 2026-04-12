@@ -125,11 +125,12 @@ describe('monthlySummary', () => {
     expect(r).toHaveLength(12)
   })
 
-  it('each month has income, expenses, net', async () => {
+  it('each month has income, expenses, transfers, net', async () => {
     const r = await txService.monthlySummary(user.id, new Date().getFullYear())
     r.forEach(m => {
       expect(m).toHaveProperty('income')
       expect(m).toHaveProperty('expenses')
+      expect(m).toHaveProperty('transfers')
       expect(m).toHaveProperty('net')
     })
   })

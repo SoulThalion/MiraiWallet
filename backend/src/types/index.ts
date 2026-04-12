@@ -43,6 +43,7 @@ export interface ChangePasswordDto {
 export interface CreateTransactionDto {
   accountId:       string
   categoryId?:     string
+  subcategoryId?:  string
   description:     string
   amount:          number
   type:            TransactionType
@@ -60,6 +61,7 @@ export interface UpdateTransactionDto {
   date?:           string
   notes?:          string
   categoryId?:     string
+  subcategoryId?:  string | null
   isRecurring?:    boolean
   recurringPeriod?: RecurringPeriod
 }

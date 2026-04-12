@@ -39,3 +39,10 @@ export const changePassword = async (req: Request, res: Response, next: NextFunc
   try { await authService.changePassword((req as AuthReq).user, req.body); ApiResponse.noContent(res) }
   catch (err) { next(err) }
 }
+
+export const wipeFinancialData = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    ApiResponse.success(res, await authService.wipeFinancialData((req as AuthReq).user, req.body.password))
+  }
+  catch (err) { next(err) }
+}

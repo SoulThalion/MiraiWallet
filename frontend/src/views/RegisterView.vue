@@ -282,7 +282,6 @@ async function onSubmit(): Promise<void> {
       password: password.value
     })
     store.applyAuth(data)
-    await store.initialize()
     await router.replace({ name: 'home' })
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: { message?: string } } } }

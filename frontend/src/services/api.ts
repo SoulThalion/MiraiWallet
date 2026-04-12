@@ -14,6 +14,12 @@ export interface ApiTransaction {
     icon: string
     color: string
   }
+  subcategory?: {
+    id: string
+    name: string
+    icon: string
+    color: string
+  }
   account?: {
     id: string
     name: string
@@ -28,9 +34,12 @@ export interface ApiCategory {
   name: string
   icon: string
   color: string
+  /** `income` = categoría de ingresos (nómina, etc.); `expense` = gastos. */
+  type?: 'income' | 'expense'
   monthlyBudget?: number
   budget?: number
   spent?: number
+  subcategories?: { id: string; name: string; icon: string; color: string }[]
 }
 
 export interface ApiAlertAction {
@@ -69,13 +78,36 @@ export interface ApiAccount {
   color?: string
 }
 
+/** Datos del último extracto ING guardados al importar (cuenta con columnas de saldo). */
+export interface StatementSnapshot {
+  openingSaldo: number
+  closingSaldo: number
+  /** Variación del periodo del extracto (cierre − apertura). */
+  delta: number
+  firstDate: string | null
+  lastDate: string | null
+}
+
 export interface DashboardData {
   balance: number
   month: string
   income: number
   expenses: number
-  saved: number
+  /** Ingresos − gastos (los gastos incluyen importes negativos del extracto, p. ej. ahorro). */
+  netCashflow: number
+  /** Reservado; siempre 0 (traspasos van dentro de gastos). */
+  transfersToSavings: number
+  /** Null si aún no has importado un Excel con columna Saldo en una cuenta. */
+  statementSnapshot: StatementSnapshot | null
   categoryBreakdown: {
+    categoryId: string | null
+    name: string
+    icon: string
+    color: string
+    total: number
+  }[]
+  /** Ingresos acumulados por categoría (misma forma que `categoryBreakdown`). */
+  categoryIncomeBreakdown: {
     categoryId: string | null
     name: string
     icon: string
@@ -86,6 +118,7 @@ export interface DashboardData {
     month: string
     income: number
     expenses: number
+    transfers: number
     net: number
   }[]
 }
@@ -109,6 +142,23 @@ export interface SessionUser {
   name: string
   email: string
   role?: string
+}
+
+export interface IngBankImportResult {
+  imported: number
+  /** Movimientos que ya existían (misma fecha, importe y concepto). */
+  skippedDuplicates: number
+  firstDateImported: string | null
+  lastDateImported: string | null
+  /** Saldo según la columna «Saldo» del último movimiento (si el Excel la traía). */
+  balanceFromStatement: number | null
+}
+
+export interface WipeFinancialDataResult {
+  transactions: number
+  budgets: number
+  subcategories: number
+  categories: number
 }
 
 export interface AuthTokens {
@@ -161,6 +211,9 @@ class ApiClient {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }
+      if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+        delete config.headers['Content-Type']
+      }
       return config
     })
 
@@ -186,8 +239,11 @@ class ApiClient {
     )
   }
 
-  async getDashboard(): Promise<DashboardData> {
-    const response = await this.client.get<ApiSuccessBody<DashboardData>>('/stats/dashboard')
+  /** @param month `YYYY-MM` del calendario del usuario (debe coincidir con presupuestos y copy «este mes»). */
+  async getDashboard(month?: string): Promise<DashboardData> {
+    const response = await this.client.get<ApiSuccessBody<DashboardData>>('/stats/dashboard', {
+      params: month ? { month } : {},
+    })
     return response.data.data
   }
 
@@ -270,6 +326,39 @@ class ApiClient {
 
   async logout(): Promise<void> {
     await this.client.post('/auth/logout')
+  }
+
+  /** Borra todos los movimientos, categorías, subcategorías y presupuestos del usuario (tras validar contraseña). */
+  async wipeFinancialData(password: string): Promise<WipeFinancialDataResult> {
+    const response = await this.client.post<ApiSuccessBody<WipeFinancialDataResult>>(
+      '/auth/me/wipe-financial-data',
+      { password }
+    )
+    return response.data.data
+  }
+
+  /** Excel export ING «Movimientos de la Cuenta» (.xlsx). Importa todas las filas válidas del archivo. */
+  async importIngBankXlsx(accountId: string, file: File): Promise<IngBankImportResult> {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('accountId', accountId)
+    const response = await this.client.post<ApiSuccessBody<IngBankImportResult>>(
+      '/transactions/import-ing-xlsx',
+      body
+    )
+    return response.data.data
+  }
+
+  /** Solo actualiza el saldo de la cuenta leyendo la columna «Saldo» del último movimiento (no crea filas). */
+  async syncBalanceIngBankXlsx(accountId: string, file: File): Promise<{ balance: number }> {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('accountId', accountId)
+    const response = await this.client.post<ApiSuccessBody<{ balance: number }>>(
+      '/transactions/sync-balance-ing-xlsx',
+      body
+    )
+    return response.data.data
   }
 }
 

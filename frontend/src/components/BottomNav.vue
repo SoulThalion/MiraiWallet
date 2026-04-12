@@ -34,6 +34,7 @@ const navItemsLeft: NavItem[] = [
 ]
 const navItemsRight: NavItem[] = [
   { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
+  { name: 'import', to: '/import', icon: '📥', label: 'Import' },
   { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
 ]
 </script>

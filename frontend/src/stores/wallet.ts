@@ -7,6 +7,7 @@ import {
   ApiAlert,
   ApiBudget,
   DashboardData,
+  StatementSnapshot,
   AuthResult,
   SessionUser,
 } from '@/services/api'
@@ -19,6 +20,8 @@ export interface Transaction {
   icon: string
   amount: number
   date: string
+  /** Tipo en API; `transfer` = datos antiguos (en import ING solo hay income/expense por signo). */
+  kind?: 'income' | 'expense' | 'transfer'
 }
 
 export interface Category {
@@ -26,7 +29,14 @@ export interface Category {
   name: string
   icon: string
   budget: number
+  /** Gasto acumulado en la categoría (desglose `categoryBreakdown`). */
   spent: number
+  /** Ingreso acumulado en la misma categoría (`categoryIncomeBreakdown`). */
+  incomeInCategory: number
+  /** Tipo en API; afecta cómo se muestra el importe en tarjetas. */
+  categoryType?: 'income' | 'expense'
+  /** Gasto del mes en categorías con presupuesto (API de presupuestos). */
+  spentThisMonth: number
   color: string
 }
 
@@ -76,23 +86,36 @@ export const useWalletStore = defineStore('wallet', () => {
   const defaultAccountId = ref<string | null>(null)
 
   const balance = ref<number>(0)
+  /** Totales acumulados (todas las fechas), desde `/stats/dashboard`. */
+  const monthIncome = ref<number>(0)
+  const monthExpenses = ref<number>(0)
+  const monthNetCashflow = ref<number>(0)
+  const monthTransfersToSavings = ref<number>(0)
+  /** Último extracto importado (ING) con saldos de periodo, si existe. */
+  const statementSnapshot = ref<StatementSnapshot | null>(null)
   const transactions = ref<Transaction[]>([])
   const categories = ref<Category[]>([])
   const alerts = ref<Alert[]>([])
   const monthlyData = ref<MonthlyData[]>([])
-  const monthlySummary = ref<{ month: string; income: number; expenses: number; net: number }[]>([])
+  const monthlySummary = ref<{ month: string; income: number; expenses: number; transfers: number; net: number }[]>([])
   const newExpense = ref<NewExpense>({ description: '', category: '', amount: '', date: '' })
 
   function mapApiTransaction(tx: ApiTransaction): Transaction {
     const signed =
       tx.type === 'income' ? tx.amount : tx.type === 'expense' ? -tx.amount : -tx.amount
+    const catLabel =
+      tx.subcategory?.name && tx.category?.name
+        ? `${tx.category.name} › ${tx.subcategory.name}`
+        : tx.category?.name || 'Sin categoría'
+    const isTransfer = tx.type === 'transfer'
     return {
       id: tx.id,
       name: tx.description,
-      category: tx.category?.name || 'Sin categoría',
-      icon: tx.category?.icon || '💸',
+      category: isTransfer ? `${catLabel} · Traspaso a ahorro` : catLabel,
+      icon: isTransfer ? '🏦' : (tx.subcategory?.icon ?? tx.category?.icon ?? '💸'),
       amount: signed,
-      date: new Date(tx.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      date: new Date(tx.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+      kind: tx.type,
     }
   }
 
@@ -104,7 +127,10 @@ export const useWalletStore = defineStore('wallet', () => {
       icon: cat.icon,
       color: cat.color,
       budget: budget?.amount ?? monthly,
-      spent: cat.spent ?? budget?.spent ?? 0
+      spent: cat.spent ?? budget?.spent ?? 0,
+      incomeInCategory: 0,
+      categoryType: cat.type ?? 'expense',
+      spentThisMonth: budget?.spent ?? 0
     }
   }
 
@@ -121,7 +147,9 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
-  function mapMonthlyData(summary: { month: string; income: number; expenses: number; net: number }[]): MonthlyData[] {
+  function mapMonthlyData(
+    summary: { month: string; income: number; expenses: number; transfers: number; net: number }[]
+  ): MonthlyData[] {
     const monthNames: Record<string, string> = {
       '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr', '05': 'May', '06': 'Jun',
       '07': 'Jul', '08': 'Ago', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic'
@@ -180,24 +208,77 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
-  async function loadDashboard(): Promise<void> {
+  function currentMonthYm(): string {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
+
+  function normNameKey(name: string): string {
+    return name.trim().toLowerCase()
+  }
+
+  async function loadDashboard(month?: string): Promise<void> {
     isLoading.value = true
     error.value = null
+    const ym = month ?? currentMonthYm()
     try {
-      const data: DashboardData = await api.getDashboard()
+      const data: DashboardData = await api.getDashboard(ym)
 
       balance.value = data.balance
+      monthIncome.value = data.income
+      monthExpenses.value = data.expenses
+      monthNetCashflow.value = data.netCashflow
+      monthTransfersToSavings.value = data.transfersToSavings
+      statementSnapshot.value = data.statementSnapshot ?? null
       monthlySummary.value = data.monthlySummary
       monthlyData.value = mapMonthlyData(data.monthlySummary)
 
-      categories.value = data.categoryBreakdown.map(cb => ({
-        id: cb.categoryId || 'uncategorized',
-        name: cb.name,
-        icon: cb.icon,
-        color: cb.color,
-        budget: 0,
-        spent: cb.total
-      }))
+      const byId = new Map<string, number>()
+      const byName = new Map<string, number>()
+      for (const cb of data.categoryBreakdown) {
+        const idKey = cb.categoryId ? String(cb.categoryId) : 'uncategorized'
+        byId.set(idKey, cb.total)
+        byName.set(normNameKey(cb.name), cb.total)
+      }
+
+      const byIdInc = new Map<string, number>()
+      const byNameInc = new Map<string, number>()
+      for (const cb of data.categoryIncomeBreakdown) {
+        const idKey = cb.categoryId ? String(cb.categoryId) : 'uncategorized'
+        byIdInc.set(idKey, cb.total)
+        byNameInc.set(normNameKey(cb.name), cb.total)
+      }
+
+      if (categories.value.length === 0) {
+        categories.value = data.categoryBreakdown.map(cb => ({
+          id: cb.categoryId || 'uncategorized',
+          name: cb.name,
+          icon: cb.icon,
+          color: cb.color,
+          budget: 0,
+          spent: cb.total,
+          incomeInCategory: byIdInc.get(cb.categoryId ? String(cb.categoryId) : 'uncategorized')
+            ?? byNameInc.get(normNameKey(cb.name))
+            ?? 0,
+          categoryType: 'expense',
+          spentThisMonth: 0
+        }))
+      } else {
+        categories.value = categories.value.map(cat => {
+          const idKey = cat.id ? String(cat.id) : ''
+          const vId = idKey ? byId.get(idKey) : undefined
+          const fromBreakdown =
+            vId !== undefined ? vId : (byName.get(normNameKey(cat.name)) ?? 0)
+          const vInc = idKey ? byIdInc.get(idKey) : undefined
+          const fromIncome =
+            vInc !== undefined ? vInc : (byNameInc.get(normNameKey(cat.name)) ?? 0)
+          return {
+            ...cat,
+            spent: fromBreakdown,
+            incomeInCategory: fromIncome,
+          }
+        })
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Error al cargar datos'
       console.error('Error loading dashboard:', err)
@@ -224,9 +305,13 @@ export const useWalletStore = defineStore('wallet', () => {
     try {
       const cats = await api.getCategories()
       const existingSpent = new Map(categories.value.map(c => [c.id, c.spent]))
+      const existingIncome = new Map(categories.value.map(c => [c.id, c.incomeInCategory]))
+      const existingMonth = new Map(categories.value.map(c => [c.id, c.spentThisMonth]))
       categories.value = cats.map(cat => mapApiCategory(cat, undefined)).map(cat => ({
         ...cat,
-        spent: existingSpent.get(cat.id) ?? cat.spent
+        spent: existingSpent.get(cat.id) ?? cat.spent,
+        incomeInCategory: existingIncome.get(cat.id) ?? cat.incomeInCategory,
+        spentThisMonth: existingMonth.get(cat.id) ?? cat.spentThisMonth
       }))
     } catch (err) {
       console.error('Error loading categories:', err)
@@ -235,13 +320,17 @@ export const useWalletStore = defineStore('wallet', () => {
 
   async function loadBudgets(month?: string): Promise<void> {
     try {
-      const budgets = await api.getBudgets(month)
+      const budgets = await api.getBudgets(month ?? currentMonthYm())
       categories.value = categories.value.map(cat => {
         const budget = budgets.find(b => b.categoryId === cat.id)
         if (budget) {
-          return { ...cat, budget: budget.amount, spent: budget.spent ?? cat.spent }
+          return {
+            ...cat,
+            budget: budget.amount,
+            spentThisMonth: budget.spent ?? 0
+          }
         }
-        return cat
+        return { ...cat, spentThisMonth: 0 }
       })
     } catch (err) {
       console.error('Error loading budgets:', err)
@@ -262,26 +351,16 @@ export const useWalletStore = defineStore('wallet', () => {
     if (!user.value) await loadUser()
     if (!user.value) return
     await loadAccounts()
+    const ym = currentMonthYm()
+    /** Lista de categorías desde el API antes del dashboard para fusionar bien los importes del desglose (ids / nombres). */
+    await loadCategories()
+    await loadDashboard(ym)
     await Promise.all([
-      loadDashboard(),
       loadTransactions(),
-      loadCategories(),
-      loadBudgets(),
+      loadBudgets(ym),
       loadAlerts()
     ])
   }
-
-  const totalIncome = computed<number>(() =>
-    monthlySummary.value.reduce((sum, m) => sum + m.income, 0)
-  )
-
-  const totalExpenses = computed<number>(() =>
-    monthlySummary.value.reduce((sum, m) => sum + m.expenses, 0)
-  )
-
-  const saved = computed<number>(() =>
-    monthlySummary.value.reduce((sum, m) => sum + m.net, 0)
-  )
 
   const monthlyAverage = computed<number>(() => {
     if (monthlyData.value.length === 0) return 0
@@ -299,6 +378,14 @@ export const useWalletStore = defineStore('wallet', () => {
 
   const totalSpent = computed<number>(() =>
     categories.value.reduce((s, c) => s + c.spent, 0)
+  )
+
+  /** Suma del gasto del mes solo en categorías con presupuesto (barra de alertas). */
+  const totalBudgetedSpentThisMonth = computed<number>(() =>
+    categories.value.reduce(
+      (s, c) => s + (c.budget > 0 ? c.spentThisMonth : 0),
+      0
+    )
   )
 
   const donutSegments = computed<DonutSegment[]>(() => {
@@ -397,13 +484,16 @@ export const useWalletStore = defineStore('wallet', () => {
     monthlySummary,
     newExpense,
 
-    totalIncome,
-    totalExpenses,
-    saved,
+    monthIncome,
+    monthExpenses,
+    monthNetCashflow,
+    monthTransfersToSavings,
+    statementSnapshot,
     monthlyAverage,
     bestMonth,
     totalBudget,
     totalSpent,
+    totalBudgetedSpentThisMonth,
     donutSegments,
     maxBar,
 
