@@ -1,33 +1,19 @@
 <template>
   <div class="p-4 md:p-6 lg:p-8 max-w-screen-xl mx-auto">
-    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
+    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0 flex-1">
         <h2 class="font-display font-extrabold text-lg dark:text-dark-txt text-light-txt">Estadísticas</h2>
         <p class="mt-0.5 text-xs dark:text-dark-txt2 text-light-txt2">
-          Elige el mes: un solo endpoint carga gasto por categoría, presupuestos del mes y las 12 barras del año.
+          Elige el periodo desde el calendario: un solo endpoint carga gasto por categoría, presupuestos del mes y las 12
+          barras del año.
         </p>
       </div>
-      <p v-if="statsError" class="rounded-xl border border-red-400/40 px-3 py-2 text-xs text-red-400 dark:bg-dark-surf">
-        {{ statsError }}
-      </p>
-    </div>
-
-    <!-- Meses recientes (scroll horizontal) -->
-    <div class="mb-6 flex gap-2 overflow-x-auto pb-1">
-      <button
-        v-for="chip in monthChips"
-        :key="chip.ym"
-        type="button"
-        :class="[
-          'flex-shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
-          selectedYm === chip.ym
-            ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
-            : 'border-brand-blue/10 bg-light-card text-light-txt2 dark:border-white/[0.07] dark:bg-dark-card dark:text-dark-txt2',
-        ]"
-        @click="selectedYm = chip.ym"
-      >
-        {{ chip.label }}
-      </button>
+      <div class="flex flex-shrink-0 flex-col items-stretch gap-2 sm:items-end">
+        <MwYearMonthPicker v-model="selectedYm" />
+        <p v-if="statsError" class="max-w-sm rounded-xl border border-red-400/40 px-3 py-2 text-xs text-red-400 dark:bg-dark-surf">
+          {{ statsError }}
+        </p>
+      </div>
     </div>
 
     <div
@@ -481,8 +467,10 @@ import {
 import { useCurrency } from '@/composables/useCurrency'
 import { useWalletStore, type DonutSegment, type MonthlyData } from '@/stores/wallet'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
+import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import DonutChart from '@/components/DonutChart.vue'
 import BarChart from '@/components/BarChart.vue'
+import MwYearMonthPicker from '@/components/MwYearMonthPicker.vue'
 
 const { formatEuro, roundMoney } = useCurrency()
 const wallet = useWalletStore()
@@ -491,24 +479,6 @@ function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
 }
 
-const monthShort = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] as const
-
-/** Últimos 18 meses, cronológicos (izquierda más antiguo). */
-function recentMonthChips(count: number): { ym: string; label: string }[] {
-  const now = new Date()
-  const arr: { ym: string; label: string }[] = []
-  for (let k = -(count - 1); k <= 0; k++) {
-    const x = new Date(now.getFullYear(), now.getMonth() + k, 1)
-    const ym = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`
-    arr.push({
-      ym,
-      label: `${monthShort[x.getMonth()]} ${x.getFullYear()}`,
-    })
-  }
-  return arr
-}
-
-const monthChips = recentMonthChips(18)
 const selectedYm = ref(defaultSelectedYm())
 
 const overview = ref<StatsMonthOverviewDto | null>(null)
@@ -556,10 +526,7 @@ onMounted(() => {
 
 const chartYear = computed(() => parseInt(selectedYm.value.split('-')[0]!, 10))
 
-const selectedMonthLabel = computed(() => {
-  const hit = monthChips.find(c => c.ym === selectedYm.value)
-  return hit?.label ?? selectedYm.value
-})
+const selectedMonthLabel = computed(() => formatYearMonthEs(selectedYm.value))
 
 const chartBars = computed<MonthlyData[]>(() => {
   const o = overview.value

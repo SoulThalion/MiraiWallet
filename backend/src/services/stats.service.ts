@@ -3,7 +3,7 @@ import { Account, Budget, Category, RecurringPatternDismissal, Subcategory, Tran
 import * as accountService     from './account.service'
 import * as transactionService from './transaction.service'
 import type { StatsMonthOverviewDto, StatsRecurringExpenseDto } from '../types'
-import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString } from '../utils/monthPeriod'
+import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds } from '../utils/monthPeriod'
 import { ApiError } from '../utils/ApiError'
 
 function isYm(s: string): boolean {
@@ -226,7 +226,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const year = parseInt(yStr, 10)
   const selectedMm = mStr
 
-  const [summaryRows, expenseRows, incomeRows, allCategories, budgets, yearAvgs, recurringExpenses] =
+  const [summaryRows, expenseRows, incomeRows, allCategories, budgets, yearAvgs, recurringExpenses, monthCycleCfg] =
     await Promise.all([
       transactionService.monthlySummary(userId, year),
       transactionService.categoryBreakdown(userId, month),
@@ -235,6 +235,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
       Budget.findAll({ where: { userId, month } }),
       transactionService.fiscalYearAvgByCategoryAndSubcategory(userId, year),
       findRecurringExpensePatterns(userId),
+      getMonthCycleConfigForUser(userId),
     ])
 
   const expenseMap = new Map<string, number>()
@@ -299,6 +300,33 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const now = new Date()
   const cy = now.getFullYear()
   const cm = String(now.getMonth() + 1).padStart(2, '0')
+  const todayYmd = `${cy}-${cm}-${pad2(now.getDate())}`
+
+  /** Meses del año fiscal ya iniciados (excluye meses futuros con gasto 0 artificial). */
+  const startedMonths = summaryRows.filter((row) => {
+    try {
+      const { from } = ymToDateBounds(`${year}-${row.month}`, monthCycleCfg)
+      return from <= todayYmd
+    } catch {
+      return true
+    }
+  })
+  /** Preferir meses con al menos un movimiento (gasto o ingreso); si no hay ninguno, usar solo «ya iniciados». */
+  const withMovement = startedMonths.filter((r) => r.expenses > 0 || r.income > 0)
+  const poolForBestMonth = withMovement.length > 0 ? withMovement : startedMonths
+
+  let bestRow = summaryRows[0]!
+  if (poolForBestMonth.length > 0) {
+    bestRow = poolForBestMonth[0]!
+    for (const row of poolForBestMonth.slice(1)) {
+      const m = parseInt(row.month, 10)
+      const bestM = parseInt(bestRow.month, 10)
+      if (row.expenses < bestRow.expenses || (row.expenses === bestRow.expenses && m < bestM)) {
+        bestRow = row
+      }
+    }
+  }
+
   const monthlyBars = summaryRows.map(row => ({
     month: row.month,
     label: monthLabelEs(row.month),
@@ -319,16 +347,6 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const yearIncomeTotal = roundMoney2(sumInc)
   const yearlyAverageExpense = roundMoney2(sumExp / Math.max(1, yearAvgs.expenseMonthsDivisor))
   const yearIncomeAvgPerMonth = roundMoney2(sumInc / Math.max(1, yearAvgs.incomeMonthsDivisor))
-
-  let bestIdx = 0
-  let bestVal = Infinity
-  summaryRows.forEach((row, i) => {
-    if (row.expenses < bestVal) {
-      bestVal = row.expenses
-      bestIdx = i
-    }
-  })
-  const bestRow = summaryRows[bestIdx]!
 
   const monthExpenseTotal = roundMoney2(expenseRows.reduce((s, r) => s + r.total, 0))
   const monthBudgetTotal = roundMoney2([...budgetMap.values()].reduce((s, v) => s + v, 0))
@@ -366,7 +384,7 @@ export async function dashboard(userId: string, monthOverride?: string) {
   const [yStr] = month.split('-')
   const y = parseInt(yStr, 10)
 
-  const [totalBalance, allTimeTxs, categoryBreakdown, categoryIncomeBreakdown, monthlySummary] =
+  const [totalBalance, allTimeTxs, categoryBreakdown, categoryIncomeBreakdown, monthlySummary, yearAvgs] =
     await Promise.all([
       accountService.totalBalance(userId),
       Transaction.findAll({
@@ -376,6 +394,7 @@ export async function dashboard(userId: string, monthOverride?: string) {
       transactionService.categoryBreakdownAllTime(userId),
       transactionService.categoryIncomeBreakdownAllTime(userId),
       transactionService.monthlySummary(userId, y),
+      transactionService.fiscalYearAvgByCategoryAndSubcategory(userId, y),
     ])
 
   let income = 0, expenses = 0
@@ -420,6 +439,16 @@ export async function dashboard(userId: string, monthOverride?: string) {
     }
   }
 
+  let sumYearExpenses = 0
+  for (const row of monthlySummary) {
+    sumYearExpenses += row.expenses
+  }
+  sumYearExpenses = roundMoney2(sumYearExpenses)
+  /** Misma fórmula que `monthOverview.totals.yearlyAverageExpense`: total gastos del año / meses con ≥1 gasto (sin meses futuros en el año en curso). */
+  const yearlyAverageExpense = roundMoney2(
+    sumYearExpenses / Math.max(1, yearAvgs.expenseMonthsDivisor),
+  )
+
   if (process.env.DEBUG_DASHBOARD === '1') {
     const uidShort = typeof userId === 'string' ? userId.slice(0, 8) : '?'
     console.log('[stats/dashboard]', {
@@ -447,5 +476,8 @@ export async function dashboard(userId: string, monthOverride?: string) {
     categoryBreakdown,
     categoryIncomeBreakdown,
     monthlySummary,
+    yearlyAverageExpense,
+    /** Meses fiscales del año con al menos un gasto (divisor de la media anterior). */
+    expenseMonthsWithData: yearAvgs.expenseMonthsDivisor,
   }
 }

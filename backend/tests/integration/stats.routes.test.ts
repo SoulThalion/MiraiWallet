@@ -46,11 +46,31 @@ describe('GET /stats/dashboard', () => {
     expect(res.body.data).toHaveProperty('categoryIncomeBreakdown')
     expect(res.body.data).toHaveProperty('monthlySummary')
     expect(res.body.data).toHaveProperty('statementSnapshot')
+    expect(res.body.data).toHaveProperty('yearlyAverageExpense')
+    expect(res.body.data).toHaveProperty('expenseMonthsWithData')
     expect(res.body.data.monthlySummary).toHaveLength(12)
+    const { yearlyAverageExpense, expenseMonthsWithData } = res.body.data
+    expect(expenseMonthsWithData).toBeGreaterThanOrEqual(1)
+    expect(yearlyAverageExpense).toBeCloseTo(500)
   })
 
   it('401 — no token', async () => {
     expect((await request(app).get(URL)).status).toBe(401)
+  })
+
+  it('yearlyAverageExpense — total año ÷ meses con ≥1 gasto (alineado con month-overview)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 5, 15))
+    try {
+      await createTransaction(user.id, account.id, category.id, { type: 'expense', amount: 100, date: '2026-01-10' })
+      await createTransaction(user.id, account.id, category.id, { type: 'expense', amount: 200, date: '2026-03-05' })
+      const res = await request(app).get(URL).query({ month: '2026-06' }).set({ Authorization: `Bearer ${token}` })
+      expect(res.status).toBe(200)
+      expect(res.body.data.expenseMonthsWithData).toBe(2)
+      expect(res.body.data.yearlyAverageExpense).toBeCloseTo(150)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('netCashflow = income - expenses (traspasos cuentan como gasto)', async () => {

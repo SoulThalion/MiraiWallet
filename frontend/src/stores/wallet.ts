@@ -97,9 +97,11 @@ export const useWalletStore = defineStore('wallet', () => {
   const defaultAccountId = ref<string | null>(null)
 
   const balance = ref<number>(0)
-  /** Totales acumulados (todas las fechas), desde `/stats/dashboard`. */
+  /** Ingresos del periodo fiscal cargado (`data.month`), misma fila que `monthlySummary` (no acumulado histórico). */
   const monthIncome = ref<number>(0)
+  /** Gastos del periodo fiscal cargado (positivos, como en `monthlySummary`). */
   const monthExpenses = ref<number>(0)
+  /** Neto del periodo fiscal cargado (`income − expenses` de esa fila). */
   const monthNetCashflow = ref<number>(0)
   const monthTransfersToSavings = ref<number>(0)
   /** Último extracto importado (ING) con saldos de periodo, si existe. */
@@ -109,6 +111,9 @@ export const useWalletStore = defineStore('wallet', () => {
   const alerts = ref<Alert[]>([])
   const monthlyData = ref<MonthlyData[]>([])
   const monthlySummary = ref<{ month: string; income: number; expenses: number; transfers: number; net: number }[]>([])
+  /** Media mensual de gasto: total año fiscal ÷ meses con ≥1 gasto (viene del dashboard; alineado con Estadísticas). */
+  const yearlyAverageExpense = ref<number>(0)
+  const expenseMonthsWithData = ref<number>(0)
   const newExpense = ref<NewExpense>({
     description: '',
     categoryId: '',
@@ -243,13 +248,20 @@ export const useWalletStore = defineStore('wallet', () => {
       const data: DashboardData = await api.getDashboard(ym)
 
       balance.value = data.balance
-      monthIncome.value = data.income
-      monthExpenses.value = data.expenses
-      monthNetCashflow.value = data.netCashflow
       monthTransfersToSavings.value = data.transfersToSavings
       statementSnapshot.value = data.statementSnapshot ?? null
       monthlySummary.value = data.monthlySummary
       monthlyData.value = mapMonthlyData(data.monthlySummary)
+      yearlyAverageExpense.value = Number(data.yearlyAverageExpense) || 0
+      expenseMonthsWithData.value = Number(data.expenseMonthsWithData) || 0
+
+      const periodYm = String(data.month ?? ym).trim()
+      const periodParts = /^(\d{4})-(\d{2})$/.exec(periodYm)
+      const periodMm = periodParts?.[2] ?? ym.split('-')[1] ?? '01'
+      const periodRow = data.monthlySummary.find(m => m.month === periodMm)
+      monthIncome.value = periodRow?.income ?? 0
+      monthExpenses.value = periodRow?.expenses ?? 0
+      monthNetCashflow.value = periodRow?.net ?? 0
 
       const byId = new Map<string, number>()
       const byName = new Map<string, number>()
@@ -381,12 +393,6 @@ export const useWalletStore = defineStore('wallet', () => {
     ])
   }
 
-  const monthlyAverage = computed<number>(() => {
-    if (monthlyData.value.length === 0) return 0
-    const totals = monthlyData.value.map(m => m.amount)
-    return Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)
-  })
-
   const bestMonth = computed<MonthlyData>(() =>
     monthlyData.value.reduce((min, m) => m.amount < min.amount ? m : min, monthlyData.value[0] || { month: '', amount: 0 })
   )
@@ -502,6 +508,8 @@ export const useWalletStore = defineStore('wallet', () => {
     alerts,
     monthlyData,
     monthlySummary,
+    yearlyAverageExpense,
+    expenseMonthsWithData,
     newExpense,
 
     monthIncome,
@@ -509,7 +517,6 @@ export const useWalletStore = defineStore('wallet', () => {
     monthNetCashflow,
     monthTransfersToSavings,
     statementSnapshot,
-    monthlyAverage,
     bestMonth,
     totalBudget,
     totalSpent,

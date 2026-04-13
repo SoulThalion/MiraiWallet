@@ -21,7 +21,7 @@
       <p class="text-[11px] mt-1 leading-relaxed dark:text-dark-txt2 text-light-txt2">
         {{ alert.body }}
       </p>
-      <p :class="['font-display font-extrabold text-sm mt-2', amountColor]">
+      <p v-if="alert.amount != null && alert.amount !== ''" :class="['font-display font-extrabold text-sm mt-2', amountColor]">
         {{ alert.amount }}
       </p>
 
@@ -57,8 +57,8 @@ interface TypeStyle {
 
 const props = defineProps<Props>()
 defineEmits<{
-  dismiss: [alertId: number]
-  action: [{ alertId: number, action: string }]
+  dismiss: [alertId: number | string]
+  action: [{ alertId: number | string, action: string }]
 }>()
 
 const typeMap: Record<string, TypeStyle> = {

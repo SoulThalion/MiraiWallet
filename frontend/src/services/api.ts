@@ -124,6 +124,13 @@ export interface DashboardData {
     transfers: number
     net: number
   }[]
+  /**
+   * Total gastos del año fiscal de `month` ÷ meses con ≥1 gasto (misma regla que Estadísticas / month-overview).
+   * No es la media de los 12 huecos ni el gasto del periodo actual.
+   */
+  yearlyAverageExpense: number
+  /** Cantidad de meses fiscales que entraron en el divisor (≥1 gasto cada uno). */
+  expenseMonthsWithData: number
 }
 
 /** `GET /stats/month-overview` — solo lo que consume la vista Estadísticas. */

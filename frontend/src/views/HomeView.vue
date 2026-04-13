@@ -145,10 +145,10 @@ const statementLine = computed(() => {
 const balanceStats = computed<BalanceStat[]>(() => {
   const net = store.monthNetCashflow
   return [
-    { label: 'Ingresos', value: formatEuro(store.monthIncome, true), color: 'text-brand-green' },
-    { label: 'Gastos', value: formatEuro(-store.monthExpenses, true), color: 'text-red-400' },
+    { label: 'Ingresos (periodo)', value: formatEuro(store.monthIncome, true), color: 'text-brand-green' },
+    { label: 'Gastos (periodo)', value: formatEuro(-store.monthExpenses, true), color: 'text-red-400' },
     {
-      label: 'Resultado neto',
+      label: 'Neto del periodo',
       value: formatEuro(net, true),
       color: net >= 0 ? 'text-brand-green' : 'text-red-400',
     },
