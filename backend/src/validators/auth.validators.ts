@@ -68,4 +68,29 @@ export const updateProfileRules = [
     .optional()
     .isUUID()
     .withMessage('Each budgetExcludedSubcategoryIds entry must be a UUID'),
+  body('recurringSavingsPatternKeys')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('recurringSavingsPatternKeys must be an array'),
+  body('recurringSavingsPatternKeys.*')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 400 })
+    .withMessage('Each recurringSavingsPatternKeys entry must be 1-400 chars'),
+  body('recurringSavingsCategoryIds')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('recurringSavingsCategoryIds must be an array'),
+  body('recurringSavingsCategoryIds.*')
+    .optional()
+    .isUUID()
+    .withMessage('Each recurringSavingsCategoryIds entry must be a UUID'),
+  body('recurringSavingsSubcategoryIds')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('recurringSavingsSubcategoryIds must be an array'),
+  body('recurringSavingsSubcategoryIds.*')
+    .optional()
+    .isUUID()
+    .withMessage('Each recurringSavingsSubcategoryIds entry must be a UUID'),
 ]

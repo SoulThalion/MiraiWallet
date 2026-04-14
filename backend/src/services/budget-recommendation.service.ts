@@ -12,6 +12,7 @@ interface SuggestionLine {
   color: string
   defaultMonthlyBudget: number
   currentBudget: number
+  monthlyAverageSpent: number
   suggestedBudget: number
   delta: number
   confidence: number
@@ -22,6 +23,7 @@ interface SuggestionLine {
     icon: string
     color: string
     currentBudget: number
+    monthlyAverageSpent: number
     suggestedBudget: number
     delta: number
     confidence: number
@@ -100,16 +102,22 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
     throw ApiError.badRequest(ERROR_CODES.BUDGET_RECOMMENDATION_MONTH_INVALID, 'Mes inválido para recomendaciones')
   }
 
-  const [categories, currentBudgets, currentSubBudgets, rolling] = await Promise.all([
+  const [categories, currentBudgets, currentSubBudgets] = await Promise.all([
     Category.findAll({
-      where: { userId: user.id, type: 'expense' },
+      where: { userId: user.id },
       include: [{ model: Subcategory, as: 'subcategories', attributes: ['id', 'name', 'icon', 'color'] }],
-      attributes: ['id', 'name', 'icon', 'color', 'monthlyBudget'],
+      attributes: ['id', 'name', 'icon', 'color', 'monthlyBudget', 'type'],
     }),
     Budget.findAll({ where: { userId: user.id, month: dto.month } }),
     SubcategoryBudget.findAll({ where: { userId: user.id, month: dto.month } }),
-    transactionService.rolling12ByCategoryAndSubcategory(user.id, dto.month),
   ])
+  const patternOverrides = transactionService.buildPatternCategoryOverrideMap(user.recurringPatternCategoryOverrides as unknown)
+  const rolling = await transactionService.rolling12ByCategoryAndSubcategory(user.id, dto.month, {
+    includeTransferPatternKeys: user.recurringSavingsPatternKeys ?? [],
+    includeTransferCategoryIds: user.recurringSavingsCategoryIds ?? [],
+    includeTransferSubcategoryIds: user.recurringSavingsSubcategoryIds ?? [],
+    patternCategoryOverrides: patternOverrides,
+  })
 
   const excludedCategoryIds = new Set(user.budgetExcludedCategoryIds ?? [])
   const excludedSubcategoryIds = new Set(user.budgetExcludedSubcategoryIds ?? [])
@@ -128,6 +136,7 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
   )
   const expenseAverageForExplain = outflowAverage
   const yearAvgByCategory = new Map(rolling.expenseCategories.map((r) => [r.categoryId, r]))
+  const yearAvgIncomeByCategory = new Map(rolling.incomeCategories.map((r) => [r.categoryId, r]))
   const yearAvgBySubcategory = new Map(
     rolling.expenseSubcategories
       .filter((r) => r.subcategoryId)
@@ -138,7 +147,14 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
   const budgetMap = new Map(currentBudgets.map((b) => [b.categoryId, Number(b.amount) || 0]))
   const subBudgetMap = new Map(currentSubBudgets.map((b) => [b.subcategoryId, Number(b.amount) || 0]))
 
-  const lines: SuggestionLine[] = categories.map((cat) => {
+  const categoriesForRecommendation = categories.filter((cat) => {
+    if ((cat as unknown as { type?: 'income' | 'expense' }).type !== 'income') return true
+    const expMean = Number(yearAvgByCategory.get(cat.id)?.avgPerMonth ?? 0) || 0
+    const incMean = Number(yearAvgIncomeByCategory.get(cat.id)?.avgPerMonth ?? 0) || 0
+    return expMean > incMean
+  })
+
+  const lines: SuggestionLine[] = categoriesForRecommendation.map((cat) => {
     const catId = cat.id
     const catRolling = yearAvgByCategory.get(catId)
     const mean = Number(catRolling?.avgPerMonth ?? 0) || 0
@@ -151,10 +167,10 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
     if (baseline <= 0) baseline = Number(cat.monthlyBudget ?? 0) || 0
 
     const weight = categoryWeightTotal > 0 ? (mean / categoryWeightTotal) : 0
-    const fallbackWeightBase = categories.reduce((s, c) => s + (Number(c.monthlyBudget ?? 0) || 0), 0)
+    const fallbackWeightBase = categoriesForRecommendation.reduce((s, c) => s + (Number(c.monthlyBudget ?? 0) || 0), 0)
     const fallbackWeight = fallbackWeightBase > 0
       ? (Number(cat.monthlyBudget ?? 0) || 0) / fallbackWeightBase
-      : 1 / Math.max(1, categories.length)
+      : 1 / Math.max(1, categoriesForRecommendation.length)
     const budgetByWeight = suggestedTotalBudget * (categoryWeightTotal > 0 ? weight : fallbackWeight)
     let suggested = round2(Math.max(baseline, budgetByWeight, budgetMap.get(catId) ?? 0))
     const reasons: string[] = []
@@ -191,6 +207,7 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
         icon: sub.icon,
         color: sub.color,
         currentBudget: round2(subBudgetMap.get(subId) ?? 0),
+        monthlyAverageSpent: round2(subMean),
         suggestedBudget: round2(subSuggested),
         delta: round2(subSuggested - (subBudgetMap.get(subId) ?? 0)),
         confidence: round2((subHasHistory ? 0.72 : 0.35) * 100),
@@ -205,6 +222,7 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
       color: cat.color,
       defaultMonthlyBudget: Number(cat.monthlyBudget ?? 0) || 0,
       currentBudget: round2(budgetMap.get(catId) ?? 0),
+      monthlyAverageSpent: round2(mean),
       suggestedBudget: suggested,
       delta: round2(suggested - (budgetMap.get(catId) ?? 0)),
       confidence: round2((hasHistory ? 0.78 : 0.35) * 100),

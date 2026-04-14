@@ -1,5 +1,5 @@
 import { Op } from 'sequelize'
-import { Account, Budget, Category, RecurringPatternDismissal, Subcategory, Transaction, User } from '../models'
+import { Account, Budget, Category, RecurringPatternDismissal, Subcategory, SubcategoryBudget, Transaction, User } from '../models'
 import * as accountService     from './account.service'
 import * as transactionService from './transaction.service'
 import type { StatsMonthOverviewDto, StatsRecurringExpenseDto } from '../types'
@@ -40,24 +40,6 @@ const RECURRING_LOOKBACK_MONTHS = 36
 const RECURRING_MAX_TX = 20000
 const RECURRING_MAX_RESULTS = 60
 
-function stripDiacritics(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-}
-
-/**
- * Clave estable para agrupar: quita prefijos típicos del banco («Pago en…»), puntuación y mayúsculas
- * para que «Pago en NETFLIX.COM» y variaciones parecidas coincidan.
- */
-function normalizeRecurringDescriptionKey(raw: string): string {
-  let s = stripDiacritics(raw.trim()).replace(/\s+/g, ' ').toLowerCase()
-  s = s.replace(
-    /^(pago en|pago a|pago por|compra en|compra a|compra con|cargo en|cargo de|transferencia a|bizum a|bizum de|recibo de|domiciliacion|domiciliación)\s+/i,
-    '',
-  )
-  s = s.replace(/[^a-z0-9]+/g, ' ')
-  return s.replace(/\s+/g, ' ').trim()
-}
-
 function calendarYmFromDateOnly(dateVal: unknown): string {
   const ymd = toDateOnlyString(dateVal)
   return ymd.length >= 7 ? ymd.slice(0, 7) : ''
@@ -71,16 +53,7 @@ function dayOfMonthFromDateOnly(dateVal: unknown): number {
 }
 
 function recurringExpenseGroupKey(tx: Transaction): string | null {
-  const catId = tx.categoryId ?? 'none'
-  const subId = tx.subcategoryId ?? 'none'
-  const rawAmt = Number(tx.amount)
-  if (!Number.isFinite(rawAmt)) return null
-  const amt = roundMoney2(Math.abs(rawAmt))
-  const day = dayOfMonthFromDateOnly(tx.date)
-  if (day < 1 || day > 31) return null
-  const desc = normalizeRecurringDescriptionKey(tx.description)
-  if (!desc) return null
-  return `${catId}\t${subId}\t${desc}\t${amt}\t${day}`
+  return transactionService.recurringPatternKeyFromTransaction(tx)
 }
 
 /**
@@ -176,7 +149,15 @@ async function bestMonthRolling(
 
 async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurringExpenseDto[]> {
   const user = await User.findByPk(userId, {
-    attributes: ['id', 'recurringExcludedCategoryIds', 'recurringExcludedSubcategoryIds'],
+    attributes: [
+      'id',
+      'recurringExcludedCategoryIds',
+      'recurringExcludedSubcategoryIds',
+      'recurringSavingsPatternKeys',
+      'recurringSavingsCategoryIds',
+      'recurringSavingsSubcategoryIds',
+      'recurringPatternCategoryOverrides',
+    ],
   })
   const rawExcludedCat = user?.recurringExcludedCategoryIds as unknown
   const excludedCategorySet = new Set<string>(
@@ -186,6 +167,25 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
   const excludedSubcategorySet = new Set<string>(
     Array.isArray(rawExcludedSub) ? rawExcludedSub.map(x => String(x)).filter(Boolean) : [],
   )
+  const rawSavingsPatterns = user?.recurringSavingsPatternKeys as unknown
+  const savingsPatternSet = new Set<string>(
+    Array.isArray(rawSavingsPatterns) ? rawSavingsPatterns.map(x => String(x)).filter(Boolean) : [],
+  )
+  const rawSavingsCategoryIds = user?.recurringSavingsCategoryIds as unknown
+  const savingsCategorySet = new Set<string>(
+    Array.isArray(rawSavingsCategoryIds) ? rawSavingsCategoryIds.map(x => String(x)).filter(Boolean) : [],
+  )
+  const rawSavingsSubcategoryIds = user?.recurringSavingsSubcategoryIds as unknown
+  const savingsSubcategorySet = new Set<string>(
+    Array.isArray(rawSavingsSubcategoryIds) ? rawSavingsSubcategoryIds.map(x => String(x)).filter(Boolean) : [],
+  )
+  const overrideMap = transactionService.buildPatternCategoryOverrideMap(user?.recurringPatternCategoryOverrides as unknown)
+  const [allCategories, allSubcategories] = await Promise.all([
+    Category.findAll({ where: { userId }, attributes: ['id', 'name', 'icon', 'color'] }),
+    Subcategory.findAll({ where: { userId }, attributes: ['id', 'name', 'icon', 'color', 'categoryId'] }),
+  ])
+  const catById = new Map(allCategories.map(c => [c.id, c]))
+  const subById = new Map(allSubcategories.map(s => [s.id, s]))
 
   const dismissRows = await RecurringPatternDismissal.findAll({
     where: { userId },
@@ -198,7 +198,7 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
   const fromYmd = `${since.getFullYear()}-${pad2(since.getMonth() + 1)}-${pad2(since.getDate())}`
 
   const txs = await Transaction.findAll({
-    where: { userId, isExcluded: false, type: 'expense', date: { [Op.gte]: fromYmd } },
+    where: { userId, isExcluded: false, type: { [Op.in]: ['expense', 'transfer'] }, date: { [Op.gte]: fromYmd } },
     include: [
       { model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false },
       { model: Subcategory, as: 'subcategory', attributes: ['id', 'name'], required: false },
@@ -236,13 +236,25 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
     const day = dayOfMonthFromDateOnly(first.date)
     const patternKey = recurringExpenseGroupKey(first)
     if (!patternKey) continue
+    const override = overrideMap.get(patternKey)
+    const effectiveCat = override?.categoryId ? catById.get(override.categoryId) : null
+    const effectiveSub = override?.subcategoryId ? subById.get(override.subcategoryId) : null
+    const effectiveCatFromSub = effectiveSub ? catById.get(effectiveSub.categoryId) : null
+    const categoryId = effectiveCatFromSub?.id ?? effectiveCat?.id ?? first.categoryId ?? null
+    const subcategoryId = effectiveSub?.id ?? (override && !override.subcategoryId ? null : (first.subcategoryId ?? null))
+    const categoryName = effectiveCatFromSub?.name ?? effectiveCat?.name ?? first.category?.name ?? 'Sin categoría'
+    const categoryIcon = effectiveCatFromSub?.icon ?? effectiveCat?.icon ?? first.category?.icon ?? '💸'
+    const categoryColor = effectiveCatFromSub?.color ?? effectiveCat?.color ?? first.category?.color ?? '#888'
+    const subcategoryName = effectiveSub?.name ?? (
+      subcategoryId ? (first.subcategory?.name ?? null) : null
+    )
     out.push({
-      categoryId:       first.categoryId ?? null,
-      subcategoryId:    first.subcategoryId ?? null,
-      categoryName:     first.category?.name ?? 'Sin categoría',
-      subcategoryName:  first.subcategory?.name ?? null,
-      categoryIcon:     first.category?.icon ?? '💸',
-      categoryColor:    first.category?.color ?? '#888',
+      categoryId,
+      subcategoryId,
+      categoryName,
+      subcategoryName,
+      categoryIcon,
+      categoryColor,
       description:      first.description.trim().replace(/\s+/g, ' '),
       amount:           roundMoney2(Math.abs(Number(first.amount))),
       dayOfMonth:       day,
@@ -251,6 +263,10 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
       firstDate,
       lastDate,
       patternKey,
+      isSavings:
+        savingsPatternSet.has(patternKey)
+        || (first.subcategoryId ? savingsSubcategorySet.has(first.subcategoryId) : false)
+        || (first.categoryId ? savingsCategorySet.has(first.categoryId) : false),
     })
   }
 
@@ -284,6 +300,50 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
   return visible.slice(0, RECURRING_MAX_RESULTS)
 }
 
+export async function setRecurringPatternSavings(userId: string, patternKeyRaw: string, isSavings: boolean): Promise<void> {
+  const patternKey = patternKeyRaw.trim().slice(0, 400)
+  if (!patternKey) throw ApiError.badRequest(ERROR_CODES.IMPORT_PATTERN_KEY_REQUIRED, 'patternKey es obligatorio')
+  const user = await User.findByPk(userId, { attributes: ['id', 'recurringSavingsPatternKeys'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  const current = new Set(Array.isArray(user.recurringSavingsPatternKeys) ? user.recurringSavingsPatternKeys : [])
+  if (isSavings) current.add(patternKey)
+  else current.delete(patternKey)
+  await user.update({ recurringSavingsPatternKeys: [...current] })
+}
+
+export async function setRecurringPatternCategory(
+  userId: string,
+  patternKeyRaw: string,
+  categoryId: string | null,
+  subcategoryId: string | null,
+): Promise<void> {
+  const patternKey = patternKeyRaw.trim().slice(0, 400)
+  if (!patternKey) throw ApiError.badRequest(ERROR_CODES.IMPORT_PATTERN_KEY_REQUIRED, 'patternKey es obligatorio')
+  const user = await User.findByPk(userId, { attributes: ['id', 'recurringPatternCategoryOverrides'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+
+  if (!categoryId) {
+    const current = transactionService.buildPatternCategoryOverrideMap(user.recurringPatternCategoryOverrides as unknown)
+    current.delete(patternKey)
+    await user.update({ recurringPatternCategoryOverrides: [...current.values()] })
+    return
+  }
+
+  const cat = await Category.findOne({ where: { id: categoryId, userId }, attributes: ['id'] })
+  if (!cat) throw ApiError.badRequest(ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoría inválida para reclasificación')
+  let nextSubcategoryId: string | null = null
+  if (subcategoryId) {
+    const sub = await Subcategory.findOne({ where: { id: subcategoryId, userId }, attributes: ['id', 'categoryId'] })
+    if (!sub || sub.categoryId !== categoryId) {
+      throw ApiError.badRequest(ERROR_CODES.CATEGORY_NOT_FOUND, 'Subcategoría inválida para la categoría seleccionada')
+    }
+    nextSubcategoryId = sub.id
+  }
+  const current = transactionService.buildPatternCategoryOverrideMap(user.recurringPatternCategoryOverrides as unknown)
+  current.set(patternKey, { patternKey, categoryId, subcategoryId: nextSubcategoryId })
+  await user.update({ recurringPatternCategoryOverrides: [...current.values()] })
+}
+
 /**
  * Oculta un patrón recurrente hasta que exista un movimiento en un mes natural **posterior**
  * al mes calendario en que se descartó (`dismissedYm`). No borra transacciones.
@@ -310,17 +370,48 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const year = parseInt(yStr, 10)
   const selectedMm = mStr
 
-  const [summaryRows, expenseRows, incomeRows, allCategories, budgets, yearAvgs, recurringExpenses, monthCycleCfg] =
+  const [summaryRows, allCategories, budgets, subBudgets, recurringExpenses, monthCycleCfg, userPrefs] =
     await Promise.all([
       transactionService.monthlySummary(userId, year),
-      transactionService.categoryBreakdown(userId, month),
-      transactionService.categoryIncomeBreakdownMonth(userId, month),
-      Category.findAll({ where: { userId }, order: [['name', 'ASC']] }),
+      Category.findAll({
+        where: { userId },
+        order: [['name', 'ASC']],
+        include: [{
+          model: Subcategory,
+          as: 'subcategories',
+          attributes: ['id', 'name', 'icon', 'color'],
+          required: false,
+        }],
+      }),
       Budget.findAll({ where: { userId, month } }),
-      transactionService.rolling12ByCategoryAndSubcategory(userId, month),
+      SubcategoryBudget.findAll({ where: { userId, month } }),
       findRecurringExpensePatterns(userId),
       getMonthCycleConfigForUser(userId),
+      User.findByPk(userId, {
+        attributes: [
+          'id',
+          'recurringSavingsPatternKeys',
+          'recurringSavingsCategoryIds',
+          'recurringSavingsSubcategoryIds',
+          'recurringPatternCategoryOverrides',
+        ],
+      }),
     ])
+  const patternCategoryOverrides = transactionService.buildPatternCategoryOverrideMap(
+    userPrefs?.recurringPatternCategoryOverrides as unknown
+  )
+  const [expenseRows, incomeRows, expenseSubRows, incomeSubRows, yearAvgs] = await Promise.all([
+    transactionService.categoryBreakdown(userId, month, { patternCategoryOverrides }),
+    transactionService.categoryIncomeBreakdownMonth(userId, month, { patternCategoryOverrides }),
+    transactionService.subcategoryBreakdownMonth(userId, month, 'expense', { patternCategoryOverrides }),
+    transactionService.subcategoryBreakdownMonth(userId, month, 'income', { patternCategoryOverrides }),
+    transactionService.rolling12ByCategoryAndSubcategory(userId, month, {
+      includeTransferPatternKeys: userPrefs?.recurringSavingsPatternKeys ?? [],
+      includeTransferCategoryIds: userPrefs?.recurringSavingsCategoryIds ?? [],
+      includeTransferSubcategoryIds: userPrefs?.recurringSavingsSubcategoryIds ?? [],
+      patternCategoryOverrides,
+    }),
+  ])
   const bestExpenseMonthRolling = await bestMonthRolling(userId, month, monthCycleCfg, 'expense')
   const bestIncomeMonthRolling = await bestMonthRolling(userId, month, monthCycleCfg, 'income')
 
@@ -339,6 +430,21 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const budgetMap = new Map<string, number>()
   for (const b of budgets) {
     budgetMap.set(b.categoryId, roundMoney2(Number(b.amount)))
+  }
+  const subBudgetMap = new Map<string, number>()
+  for (const b of subBudgets) {
+    subBudgetMap.set(b.subcategoryId, roundMoney2(Number(b.amount)))
+  }
+  const excludedSubcategorySet = new Set(userPrefs?.budgetExcludedSubcategoryIds ?? [])
+  const expSubByCat = new Map<string, typeof expenseSubRows>()
+  for (const r of expenseSubRows) {
+    const cid = r.categoryId ?? 'uncategorized'
+    expSubByCat.set(cid, [...(expSubByCat.get(cid) ?? []), r])
+  }
+  const incSubByCat = new Map<string, typeof incomeSubRows>()
+  for (const r of incomeSubRows) {
+    const cid = r.categoryId ?? 'uncategorized'
+    incSubByCat.set(cid, [...(incSubByCat.get(cid) ?? []), r])
   }
 
   const catById = new Map(allCategories.map(c => [c.id, c]))
@@ -363,6 +469,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
         spent,
         budget: 0,
         incomeInCategory: inc,
+        subcategories: [],
       })
       continue
     }
@@ -379,6 +486,58 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
       spent,
       budget: bud,
       incomeInCategory: inc,
+      subcategories: (() => {
+        const catSubs = (cat?.subcategories ?? []).filter((s) => !excludedSubcategorySet.has(s.id))
+        const expRows = expSubByCat.get(id) ?? []
+        const incRows = incSubByCat.get(id) ?? []
+        const byId = new Map<string, {
+          id: string
+          name: string
+          icon: string
+          color: string
+          spent: number
+          budget: number
+          incomeInCategory: number
+        }>()
+        for (const r of expRows) {
+          if (!r.subcategoryId) continue
+          byId.set(r.subcategoryId, {
+            id: r.subcategoryId,
+            name: r.name,
+            icon: r.icon,
+            color: r.color,
+            spent: roundMoney2(r.total),
+            budget: roundMoney2(subBudgetMap.get(r.subcategoryId) ?? 0),
+            incomeInCategory: 0,
+          })
+        }
+        for (const s of catSubs) {
+          if (byId.has(s.id)) continue
+          byId.set(s.id, {
+            id: s.id,
+            name: s.name,
+            icon: s.icon,
+            color: s.color,
+            spent: 0,
+            budget: roundMoney2(subBudgetMap.get(s.id) ?? 0),
+            incomeInCategory: 0,
+          })
+        }
+        for (const r of incRows) {
+          if (!r.subcategoryId) continue
+          const prev = byId.get(r.subcategoryId)
+          byId.set(r.subcategoryId, {
+            id: r.subcategoryId,
+            name: prev?.name ?? r.name,
+            icon: prev?.icon ?? r.icon,
+            color: prev?.color ?? r.color,
+            spent: prev?.spent ?? 0,
+            budget: prev?.budget ?? roundMoney2(subBudgetMap.get(r.subcategoryId) ?? 0),
+            incomeInCategory: roundMoney2(r.total),
+          })
+        }
+        return [...byId.values()].sort((a, b) => b.spent - a.spent || a.name.localeCompare(b.name))
+      })(),
     })
   }
   categories.sort((a, b) => b.spent - a.spent || a.name.localeCompare(b.name))
@@ -444,7 +603,7 @@ export async function dashboard(userId: string, monthOverride?: string) {
   const [yStr] = month.split('-')
   const y = parseInt(yStr, 10)
 
-  const [totalBalance, allTimeTxs, categoryBreakdown, categoryIncomeBreakdown, monthlySummary, yearAvgs] =
+  const [totalBalance, allTimeTxs, categoryBreakdown, categoryIncomeBreakdown, monthlySummary, userPrefs] =
     await Promise.all([
       accountService.totalBalance(userId),
       Transaction.findAll({
@@ -454,8 +613,22 @@ export async function dashboard(userId: string, monthOverride?: string) {
       transactionService.categoryBreakdownAllTime(userId),
       transactionService.categoryIncomeBreakdownAllTime(userId),
       transactionService.monthlySummary(userId, y),
-      transactionService.rolling12ByCategoryAndSubcategory(userId, month),
+      User.findByPk(userId, {
+        attributes: [
+          'id',
+          'recurringSavingsPatternKeys',
+          'recurringSavingsCategoryIds',
+          'recurringSavingsSubcategoryIds',
+          'recurringPatternCategoryOverrides',
+        ],
+      }),
     ])
+  const yearAvgs = await transactionService.rolling12ByCategoryAndSubcategory(userId, month, {
+    includeTransferPatternKeys: userPrefs?.recurringSavingsPatternKeys ?? [],
+    includeTransferCategoryIds: userPrefs?.recurringSavingsCategoryIds ?? [],
+    includeTransferSubcategoryIds: userPrefs?.recurringSavingsSubcategoryIds ?? [],
+    patternCategoryOverrides: transactionService.buildPatternCategoryOverrideMap(userPrefs?.recurringPatternCategoryOverrides as unknown),
+  })
 
   let income = 0, expenses = 0
   for (const tx of allTimeTxs) {

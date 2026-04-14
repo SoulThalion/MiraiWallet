@@ -157,6 +157,15 @@ export interface StatsMonthCategoryDto {
   spent: number
   budget: number
   incomeInCategory: number
+  subcategories?: Array<{
+    id: string
+    name: string
+    icon: string
+    color: string
+    spent: number
+    budget: number
+    incomeInCategory: number
+  }>
 }
 
 /**
@@ -202,6 +211,8 @@ export interface StatsRecurringExpenseDto {
   lastDate: string
   /** Clave interna del agrupado; sirve para ocultar el patrón hasta que haya un mes con movimiento posterior al cierre. */
   patternKey: string
+  /** Marcado por el usuario para considerar este patrón como ahorro en presupuestos/sugerencias. */
+  isSavings: boolean
 }
 
 export interface StatsMonthOverviewDto {

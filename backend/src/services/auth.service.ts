@@ -119,6 +119,9 @@ export async function updateProfile(
     recurringExcludedSubcategoryIds?: string[] | null
     budgetExcludedCategoryIds?: string[] | null
     budgetExcludedSubcategoryIds?: string[] | null
+    recurringSavingsPatternKeys?: string[] | null
+    recurringSavingsCategoryIds?: string[] | null
+    recurringSavingsSubcategoryIds?: string[] | null
   },
 ): Promise<object> {
   const patch: Partial<{
@@ -131,6 +134,9 @@ export async function updateProfile(
     recurringExcludedSubcategoryIds: string[]
     budgetExcludedCategoryIds: string[]
     budgetExcludedSubcategoryIds: string[]
+    recurringSavingsPatternKeys: string[]
+    recurringSavingsCategoryIds: string[]
+    recurringSavingsSubcategoryIds: string[]
   }> = {}
 
   if (typeof data.name === 'string') {
@@ -238,6 +244,66 @@ export async function updateProfile(
         if (!sub) throw ApiError.badRequest(ERROR_CODES.PROFILE_BUDGET_EXCLUDED_SUBCATEGORY_UNKNOWN, 'Subcategoría desconocida para exclusión de presupuestos')
       }
       patch.budgetExcludedSubcategoryIds = ids
+    }
+  }
+
+  if (data.recurringSavingsPatternKeys !== undefined) {
+    if (data.recurringSavingsPatternKeys === null) {
+      patch.recurringSavingsPatternKeys = []
+    } else if (!Array.isArray(data.recurringSavingsPatternKeys)) {
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_RECURRING_SAVINGS_PATTERN_KEYS_INVALID,
+        'recurringSavingsPatternKeys debe ser un array de patternKeys'
+      )
+    } else {
+      const keys = [...new Set(data.recurringSavingsPatternKeys.map(x => String(x).trim()).filter(Boolean))].slice(0, 200)
+      for (const key of keys) {
+        if (key.length > 400) {
+          throw ApiError.badRequest(
+            ERROR_CODES.PROFILE_RECURRING_SAVINGS_PATTERN_KEY_INVALID,
+            'Hay una patternKey de ahorro recurrente con formato inválido'
+          )
+        }
+      }
+      patch.recurringSavingsPatternKeys = keys
+    }
+  }
+
+  if (data.recurringSavingsCategoryIds !== undefined) {
+    if (data.recurringSavingsCategoryIds === null) {
+      patch.recurringSavingsCategoryIds = []
+    } else if (!Array.isArray(data.recurringSavingsCategoryIds)) {
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_RECURRING_SAVINGS_CATEGORY_IDS_INVALID,
+        'recurringSavingsCategoryIds debe ser un array de UUIDs de categoría'
+      )
+    } else {
+      const ids = [...new Set(data.recurringSavingsCategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 80)
+      for (const id of ids) {
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(ERROR_CODES.PROFILE_RECURRING_SAVINGS_CATEGORY_ID_INVALID, `ID de categoría inválido: ${id}`)
+        const cat = await Category.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
+        if (!cat) throw ApiError.badRequest(ERROR_CODES.PROFILE_RECURRING_SAVINGS_CATEGORY_UNKNOWN, 'Categoría desconocida para marcado de ahorro')
+      }
+      patch.recurringSavingsCategoryIds = ids
+    }
+  }
+
+  if (data.recurringSavingsSubcategoryIds !== undefined) {
+    if (data.recurringSavingsSubcategoryIds === null) {
+      patch.recurringSavingsSubcategoryIds = []
+    } else if (!Array.isArray(data.recurringSavingsSubcategoryIds)) {
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_RECURRING_SAVINGS_SUBCATEGORY_IDS_INVALID,
+        'recurringSavingsSubcategoryIds debe ser un array de UUIDs de subcategoría'
+      )
+    } else {
+      const ids = [...new Set(data.recurringSavingsSubcategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 120)
+      for (const id of ids) {
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(ERROR_CODES.PROFILE_RECURRING_SAVINGS_SUBCATEGORY_ID_INVALID, `ID de subcategoría inválido: ${id}`)
+        const sub = await Subcategory.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
+        if (!sub) throw ApiError.badRequest(ERROR_CODES.PROFILE_RECURRING_SAVINGS_SUBCATEGORY_UNKNOWN, 'Subcategoría desconocida para marcado de ahorro')
+      }
+      patch.recurringSavingsSubcategoryIds = ids
     }
   }
 

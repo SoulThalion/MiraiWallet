@@ -124,17 +124,44 @@
         </p>
         <div class="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2 lg:grid-cols-3">
           <div v-for="cat in categoriesForBreakdown" :key="cat.id">
-            <div class="mb-1.5 flex justify-between gap-2">
+            <button
+              type="button"
+              class="mb-1.5 flex w-full items-center justify-between gap-2 text-left"
+              @click="toggleBreakdownCategory(cat.id)"
+            >
               <span class="text-xs font-medium dark:text-dark-txt2 text-light-txt2">{{ cat.icon }} {{ cat.name }}</span>
-              <span class="text-xs font-bold tabular-nums dark:text-dark-txt text-light-txt">
-                {{ categoryStatsLine(cat) }}
+              <span class="flex items-center gap-2">
+                <span class="text-xs font-bold tabular-nums dark:text-dark-txt text-light-txt">
+                  {{ categoryStatsLine(cat) }}
+                </span>
+                <span
+                  v-if="cat.subcategories?.length"
+                  class="text-[10px] dark:text-dark-txt3 text-light-txt3"
+                >
+                  {{ breakdownCategoryExpanded(cat.id) ? '▼' : '▶' }}
+                </span>
               </span>
-            </div>
+            </button>
             <div class="h-1.5 overflow-hidden rounded-full dark:bg-dark-surf bg-light-surf">
               <div
                 class="h-full rounded-full transition-all duration-500"
                 :style="{ width: budgetBarWidth(cat), background: cat.color }"
               />
+            </div>
+            <div
+              v-if="cat.subcategories?.length && breakdownCategoryExpanded(cat.id)"
+              class="mt-2 space-y-1 rounded-lg border border-brand-blue/10 p-2 dark:border-white/[0.08]"
+            >
+              <div
+                v-for="sub in cat.subcategories"
+                :key="`break-sub-${cat.id}-${sub.id}`"
+                class="flex items-center justify-between gap-2 text-[11px]"
+              >
+                <span class="min-w-0 truncate dark:text-dark-txt2 text-light-txt2">{{ sub.icon }} {{ sub.name }}</span>
+                <span class="shrink-0 tabular-nums dark:text-dark-txt text-light-txt">
+                  {{ subcategoryStatsLine(sub) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -373,6 +400,74 @@
           <p v-if="excludeSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
           <p v-if="excludeError" class="mt-2 text-[10px] text-red-400">{{ excludeError }}</p>
         </details>
+        <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
+          <summary class="cursor-pointer select-none text-xs font-semibold text-brand-green hover:underline">
+            {{ t('stats.markSavingsByCategory') }}
+          </summary>
+          <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2">
+            {{ t('stats.markSavingsByCategoryHint') }}
+          </p>
+          <div v-if="!expenseCategoriesForRecurring.length" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
+            {{ t('stats.loadCategoriesHint') }}
+          </div>
+          <div v-else class="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+            <template v-for="c in expenseCategoriesForRecurring" :key="`sav-${c.id}`">
+              <label
+                v-if="!(c.subcategories?.length)"
+                class="flex cursor-pointer items-center gap-2 rounded-lg border border-brand-blue/10 px-2 py-2 text-xs dark:border-white/[0.06] dark:text-dark-txt2 text-light-txt2"
+              >
+                <input
+                  type="checkbox"
+                  class="rounded border-brand-blue/30"
+                  :checked="savingsCategoryIds.includes(c.id!)"
+                  :disabled="savingsSaving"
+                  @change="onToggleSavingsCategory(c.id!, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ c.icon }} {{ c.name }}</span>
+              </label>
+              <details
+                v-else
+                class="rounded-lg border border-brand-blue/10 open:border-brand-blue/20 dark:border-white/[0.07] dark:open:border-white/[0.12]"
+              >
+                <summary
+                  class="flex cursor-pointer list-none items-center gap-2 px-2 py-2 text-xs marker:content-none [&::-webkit-details-marker]:hidden"
+                >
+                  <span class="chevron-expand inline-flex w-4 shrink-0 justify-center font-mono text-[10px] text-brand-blue" aria-hidden="true">▶</span>
+                  <label class="flex cursor-pointer items-center gap-1.5" @click.stop>
+                    <input
+                      type="checkbox"
+                      class="rounded border-brand-blue/30"
+                      :checked="savingsCategoryIds.includes(c.id!)"
+                      :disabled="savingsSaving"
+                      @change="onToggleSavingsCategory(c.id!, ($event.target as HTMLInputElement).checked)"
+                    />
+                  </label>
+                  <span class="min-w-0 font-medium dark:text-dark-txt text-light-txt">
+                    <span class="mr-0.5">{{ c.icon }}</span>{{ c.name }}
+                  </span>
+                </summary>
+                <div class="space-y-1.5 border-t border-brand-blue/8 px-3 py-2.5 pl-9 dark:border-white/[0.06] dark:bg-white/[0.02]">
+                  <label
+                    v-for="s in c.subcategories"
+                    :key="`sav-sub-${s.id}`"
+                    class="flex cursor-pointer items-center gap-2 text-xs dark:text-dark-txt2 text-light-txt2"
+                  >
+                    <input
+                      type="checkbox"
+                      class="rounded border-brand-blue/30"
+                      :checked="savingsSubcategoryIds.includes(s.id)"
+                      :disabled="savingsSaving"
+                      @change="onToggleSavingsSubcategory(s.id, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ s.icon }} {{ s.name }}</span>
+                  </label>
+                </div>
+              </details>
+            </template>
+          </div>
+          <p v-if="savingsSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
+          <p v-if="savingsError" class="mt-2 text-[10px] text-red-400">{{ savingsError }}</p>
+        </details>
 
         <div v-if="recurringExpensesList.length === 0" class="py-8 text-center text-sm dark:text-dark-txt2 text-light-txt2">
           {{ t('stats.noRecurringPatterns') }}
@@ -411,13 +506,39 @@
                 <td class="px-3 py-2 tabular-nums dark:text-dark-txt2 text-light-txt2">{{ row.firstDate }}</td>
                 <td class="px-3 py-2 tabular-nums dark:text-dark-txt2 text-light-txt2">{{ row.lastDate }}</td>
                 <td class="px-3 py-2 text-center">
-                  <button
-                    type="button"
-                    class="text-xs font-semibold text-red-400 hover:underline"
-                    @click="openDismissRecurring(row)"
-                  >
-                    {{ t('stats.remove') }}
-                  </button>
+                  <div class="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-brand-blue transition-colors hover:bg-brand-blue/10 dark:border-brand-blue/35"
+                      :title="t('stats.recategorize')"
+                      :aria-label="t('stats.recategorize')"
+                      @click="openRecategorizeRecurring(row)"
+                    >
+                      🏷️
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
+                      :class="row.isSavings
+                        ? 'border-brand-green/40 text-brand-green hover:bg-brand-green/10'
+                        : 'border-brand-green/20 text-brand-green hover:bg-brand-green/10'"
+                      :title="row.isSavings ? t('stats.unmarkAsSavings') : t('stats.markAsSavings')"
+                      :aria-label="row.isSavings ? t('stats.unmarkAsSavings') : t('stats.markAsSavings')"
+                      :disabled="savingRecurringPatternKey === row.patternKey"
+                      @click="toggleRecurringSavings(row)"
+                    >
+                      <IconPigMoney :icon-class="row.isSavings ? 'h-4 w-4 opacity-100' : 'h-4 w-4 opacity-40'" />
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-400/35 text-red-400 transition-colors hover:bg-red-500/10"
+                      :title="t('stats.remove')"
+                      :aria-label="t('stats.remove')"
+                      @click="openDismissRecurring(row)"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -486,6 +607,62 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="recategorizeModalRow"
+        class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recurring-recategorize-title"
+        @click.self="recategorizeModalRow = null"
+      >
+        <div
+          class="w-full max-h-[90dvh] overflow-y-auto rounded-t-2xl border border-brand-blue/10 bg-light-card p-5 shadow-xl dark:border-white/[0.07] dark:bg-dark-card sm:max-w-md sm:rounded-2xl"
+          @click.stop
+        >
+          <p id="recurring-recategorize-title" class="font-display text-base font-bold dark:text-dark-txt text-light-txt">
+            {{ t('stats.recategorizeTitle') }}
+          </p>
+          <p class="mt-2 text-xs leading-relaxed dark:text-dark-txt2 text-light-txt2">
+            {{ t('stats.recategorizeHint') }}
+          </p>
+          <label class="mt-3 block">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.category') }}</span>
+            <select v-model="recategorizeCategoryId" class="mw-input w-full text-sm">
+              <option value="">{{ t('stats.noCategory') }}</option>
+              <option v-for="c in expenseCategoriesForRecurring" :key="`rc-${c.id}`" :value="c.id">{{ c.icon }} {{ c.name }}</option>
+            </select>
+          </label>
+          <label class="mt-3 block" v-if="recategorizeCategoryId">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.subcategory') }}</span>
+            <select v-model="recategorizeSubcategoryId" class="mw-input w-full text-sm">
+              <option value="">{{ t('stats.noSubcategories') }}</option>
+              <option v-for="s in recategorizeSubcategoryOptions" :key="`rs-${s.id}`" :value="s.id">{{ s.icon }} {{ s.name }}</option>
+            </select>
+          </label>
+          <p v-if="recategorizeError" class="mt-3 text-xs text-red-400">{{ recategorizeError }}</p>
+          <div class="mt-5 flex gap-2">
+            <button
+              type="button"
+              class="flex-1 rounded-xl border border-brand-blue/15 py-3 text-sm font-semibold dark:border-white/[0.08] dark:text-dark-txt2"
+              :disabled="recategorizeBusy"
+              @click="recategorizeModalRow = null"
+            >
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="flex-1 rounded-xl bg-brand-blue py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
+              :disabled="recategorizeBusy"
+              @click="confirmRecategorizeRecurring"
+            >
+              {{ recategorizeBusy ? t('stats.applying') : t('common.save') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -506,6 +683,7 @@ import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import DonutChart from '@/components/DonutChart.vue'
 import BarChart from '@/components/BarChart.vue'
 import MwMonthStepper from '@/components/MwMonthStepper.vue'
+import IconPigMoney from '@/icons/IconPigMoney.vue'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
 const { formatEuro, roundMoney } = useCurrency()
@@ -679,9 +857,10 @@ const donutCenterLabel = computed(() => {
 
 const categoriesForBreakdown = computed(() =>
   (overview.value?.categories ?? []).filter(
-    c => roundMoney(c.budget) > 0 || roundMoney(c.spent) > 0 || roundMoney(c.incomeInCategory) > 0
+    c => roundMoney(c.budget) > 0
   )
 )
+const breakdownExpanded = ref<Record<string, boolean>>({})
 
 const expenseCatYearAvg = computed(() => overview.value?.expenseCategoryYearAvg ?? [])
 const expenseSubYearAvg = computed(() => overview.value?.expenseSubcategoryYearAvg ?? [])
@@ -700,6 +879,10 @@ const excludedCategoryIds = ref<string[]>([])
 const excludedSubcategoryIds = ref<string[]>([])
 const excludeSaving = ref(false)
 const excludeError = ref('')
+const savingsCategoryIds = ref<string[]>([])
+const savingsSubcategoryIds = ref<string[]>([])
+const savingsSaving = ref(false)
+const savingsError = ref('')
 
 watch(
   () => wallet.user,
@@ -708,6 +891,8 @@ watch(
     excludedSubcategoryIds.value = Array.isArray(u?.recurringExcludedSubcategoryIds)
       ? [...u.recurringExcludedSubcategoryIds]
       : []
+    savingsCategoryIds.value = Array.isArray(u?.recurringSavingsCategoryIds) ? [...u.recurringSavingsCategoryIds] : []
+    savingsSubcategoryIds.value = Array.isArray(u?.recurringSavingsSubcategoryIds) ? [...u.recurringSavingsSubcategoryIds] : []
   },
   { immediate: true, deep: true }
 )
@@ -722,6 +907,12 @@ function revertExcludeStateFromUser(): void {
   excludedSubcategoryIds.value = Array.isArray(u?.recurringExcludedSubcategoryIds)
     ? [...u.recurringExcludedSubcategoryIds]
     : []
+}
+
+function revertSavingsStateFromUser(): void {
+  const u = wallet.user
+  savingsCategoryIds.value = Array.isArray(u?.recurringSavingsCategoryIds) ? [...u.recurringSavingsCategoryIds] : []
+  savingsSubcategoryIds.value = Array.isArray(u?.recurringSavingsSubcategoryIds) ? [...u.recurringSavingsSubcategoryIds] : []
 }
 
 async function onToggleExcludeCategory(categoryId: string, checked: boolean): Promise<void> {
@@ -740,6 +931,44 @@ async function onToggleExcludeCategory(categoryId: string, checked: boolean): Pr
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
+  }
+}
+
+async function onToggleSavingsCategory(categoryId: string, checked: boolean): Promise<void> {
+  savingsError.value = ''
+  const set = new Set(savingsCategoryIds.value)
+  if (checked) set.add(categoryId)
+  else set.delete(categoryId)
+  savingsCategoryIds.value = [...set]
+  savingsSaving.value = true
+  try {
+    const u = await api.updateProfile({ recurringSavingsCategoryIds: savingsCategoryIds.value })
+    wallet.user = u
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+  } catch (e: unknown) {
+    savingsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
+    revertSavingsStateFromUser()
+  } finally {
+    savingsSaving.value = false
+  }
+}
+
+async function onToggleSavingsSubcategory(subcategoryId: string, checked: boolean): Promise<void> {
+  savingsError.value = ''
+  const set = new Set(savingsSubcategoryIds.value)
+  if (checked) set.add(subcategoryId)
+  else set.delete(subcategoryId)
+  savingsSubcategoryIds.value = [...set]
+  savingsSaving.value = true
+  try {
+    const u = await api.updateProfile({ recurringSavingsSubcategoryIds: savingsSubcategoryIds.value })
+    wallet.user = u
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+  } catch (e: unknown) {
+    savingsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
+    revertSavingsStateFromUser()
+  } finally {
+    savingsSaving.value = false
   }
 }
 
@@ -765,6 +994,12 @@ async function onToggleExcludeSubcategory(subcategoryId: string, checked: boolea
 const dismissModalRow = ref<StatsRecurringExpenseDto | null>(null)
 const dismissBusy = ref(false)
 const dismissError = ref('')
+const savingRecurringPatternKey = ref<string | null>(null)
+const recategorizeModalRow = ref<StatsRecurringExpenseDto | null>(null)
+const recategorizeCategoryId = ref('')
+const recategorizeSubcategoryId = ref('')
+const recategorizeBusy = ref(false)
+const recategorizeError = ref('')
 
 function openDismissRecurring(row: StatsRecurringExpenseDto): void {
   dismissError.value = ''
@@ -784,6 +1019,65 @@ async function confirmDismissRecurring(): Promise<void> {
     dismissError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))
   } finally {
     dismissBusy.value = false
+  }
+}
+
+async function toggleRecurringSavings(row: StatsRecurringExpenseDto): Promise<void> {
+  if (!row.patternKey) return
+  savingRecurringPatternKey.value = row.patternKey
+  statsError.value = null
+  try {
+    await api.setRecurringPatternSavings(row.patternKey, !row.isSavings)
+    const nextKeys = new Set(Array.isArray(wallet.user?.recurringSavingsPatternKeys) ? wallet.user!.recurringSavingsPatternKeys : [])
+    if (!row.isSavings) nextKeys.add(row.patternKey)
+    else nextKeys.delete(row.patternKey)
+    wallet.user = await api.updateProfile({ recurringSavingsPatternKeys: [...nextKeys] })
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+  } catch (e: unknown) {
+    statsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
+  } finally {
+    savingRecurringPatternKey.value = null
+  }
+}
+
+const recategorizeSubcategoryOptions = computed(() => {
+  const category = expenseCategoriesForRecurring.value.find(c => c.id === recategorizeCategoryId.value)
+  return category?.subcategories ?? []
+})
+
+function openRecategorizeRecurring(row: StatsRecurringExpenseDto): void {
+  recategorizeError.value = ''
+  recategorizeModalRow.value = row
+  recategorizeCategoryId.value = row.categoryId ?? ''
+  recategorizeSubcategoryId.value = row.subcategoryId ?? ''
+}
+
+watch(recategorizeCategoryId, (id) => {
+  if (!id) {
+    recategorizeSubcategoryId.value = ''
+    return
+  }
+  const exists = recategorizeSubcategoryOptions.value.some(s => s.id === recategorizeSubcategoryId.value)
+  if (!exists) recategorizeSubcategoryId.value = ''
+})
+
+async function confirmRecategorizeRecurring(): Promise<void> {
+  const row = recategorizeModalRow.value
+  if (!row?.patternKey) return
+  recategorizeBusy.value = true
+  recategorizeError.value = ''
+  try {
+    await api.setRecurringPatternCategory(
+      row.patternKey,
+      recategorizeCategoryId.value || null,
+      recategorizeSubcategoryId.value || null
+    )
+    recategorizeModalRow.value = null
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+  } catch (e: unknown) {
+    recategorizeError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))
+  } finally {
+    recategorizeBusy.value = false
   }
 }
 
@@ -828,9 +1122,33 @@ function categoryStatsLine(cat: StatsMonthCategoryDto): string {
   const g = roundMoney(cat.spent)
   const inc = roundMoney(cat.incomeInCategory)
   const b = roundMoney(cat.budget)
-  const parts = [g > 0 ? formatEuro(g, false) : null, inc > 0 ? formatEuro(inc, true) : null].filter(Boolean)
-  const left = parts.length ? parts.join(' · ') : formatEuro(0, false)
+  const left = g > 0
+    ? formatEuro(Math.max(0, roundMoney(g - inc)), false)
+    : inc > 0
+      ? formatEuro(inc, true)
+      : formatEuro(0, false)
   return `${left} / ${formatEuro(b, false)}`
+}
+
+function subcategoryStatsLine(sub: NonNullable<StatsMonthCategoryDto['subcategories']>[number]): string {
+  const g = roundMoney(sub.spent)
+  const inc = roundMoney(sub.incomeInCategory)
+  const b = roundMoney(sub.budget)
+  const left = g > 0
+    ? formatEuro(Math.max(0, roundMoney(g - inc)), false)
+    : inc > 0
+      ? formatEuro(inc, true)
+      : formatEuro(0, false)
+  return `${left} / ${formatEuro(b, false)}`
+}
+
+function breakdownCategoryExpanded(categoryId: string): boolean {
+  return !!breakdownExpanded.value[categoryId]
+}
+
+function toggleBreakdownCategory(categoryId: string): void {
+  const current = !!breakdownExpanded.value[categoryId]
+  breakdownExpanded.value = { ...breakdownExpanded.value, [categoryId]: !current }
 }
 
 function budgetBarWidth(cat: StatsMonthCategoryDto): string {

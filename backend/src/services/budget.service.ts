@@ -1,28 +1,60 @@
 import { Op }                        from 'sequelize'
-import { Budget, Category, Subcategory, SubcategoryBudget, Transaction } from '../models'
+import { Budget, Category, Subcategory, SubcategoryBudget, Transaction, User } from '../models'
 import { ApiError }                   from '../utils/ApiError'
 import { UpsertBudgetDto, UpsertSubcategoryBudgetDto } from '../types'
 import { getMonthCycleConfigForUser, ymToDateBounds } from '../utils/monthPeriod'
 import { ERROR_CODES } from '../errors/error-codes'
+import { recurringPatternKeyFromTransaction } from './transaction.service'
+
+type SavingsPrefs = {
+  recurringSavingsPatternKeys?: string[] | null
+  recurringSavingsCategoryIds?: string[] | null
+  recurringSavingsSubcategoryIds?: string[] | null
+  recurringPatternCategoryOverrides?: Array<{
+    patternKey: string
+    categoryId: string
+    subcategoryId?: string | null
+  }> | null
+}
 
 export async function listWithSpending(userId: string, month: string) {
   const cfg = await getMonthCycleConfigForUser(userId)
   const { from, to } = ymToDateBounds(month, cfg)
 
-  const [budgets, txs] = await Promise.all([
+  const [budgets, txs, user] = await Promise.all([
     Budget.findAll({
       where:   { userId, month },
       include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'] }],
     }),
     Transaction.findAll({
-      where:      { userId, isExcluded: false, type: 'expense', date: { [Op.between]: [from, to] } },
-      attributes: ['categoryId', 'amount'],
+      where:      { userId, isExcluded: false, type: { [Op.in]: ['expense', 'transfer'] }, date: { [Op.between]: [from, to] } },
+      attributes: ['categoryId', 'subcategoryId', 'description', 'amount', 'date', 'type'],
     }),
+    User.findByPk(userId, { attributes: ['id', 'recurringSavingsPatternKeys', 'recurringSavingsCategoryIds', 'recurringSavingsSubcategoryIds', 'recurringPatternCategoryOverrides'] }),
   ])
+  const prefs = (user?.toJSON?.() ?? {}) as SavingsPrefs
+  const savingsPatterns = new Set(Array.isArray(prefs.recurringSavingsPatternKeys) ? prefs.recurringSavingsPatternKeys : [])
+  const savingsCategories = new Set(Array.isArray(prefs.recurringSavingsCategoryIds) ? prefs.recurringSavingsCategoryIds : [])
+  const savingsSubcategories = new Set(Array.isArray(prefs.recurringSavingsSubcategoryIds) ? prefs.recurringSavingsSubcategoryIds : [])
+  const patternOverrides = new Map(
+    (Array.isArray(prefs.recurringPatternCategoryOverrides) ? prefs.recurringPatternCategoryOverrides : []).map(o => [o.patternKey, o])
+  )
 
   const spentMap: Record<string, number> = {}
   for (const tx of txs) {
-    const k = tx.categoryId ?? 'none'
+    if (tx.type === 'transfer') {
+      if (tx.subcategoryId && savingsSubcategories.has(tx.subcategoryId)) {
+        // ok
+      } else if (tx.categoryId && savingsCategories.has(tx.categoryId)) {
+        // ok
+      } else {
+        const key = recurringPatternKeyFromTransaction(tx)
+        if (!key || !savingsPatterns.has(key)) continue
+      }
+    }
+    const pKey = recurringPatternKeyFromTransaction(tx)
+    const override = pKey ? patternOverrides.get(pKey) : undefined
+    const k = override?.categoryId ?? tx.categoryId ?? 'none'
     spentMap[k] = (spentMap[k] ?? 0) + tx.amount
   }
 
@@ -60,7 +92,7 @@ export async function listSubcategoryWithSpending(userId: string, month: string)
   const cfg = await getMonthCycleConfigForUser(userId)
   const { from, to } = ymToDateBounds(month, cfg)
 
-  const [budgets, txs] = await Promise.all([
+  const [budgets, txs, user] = await Promise.all([
     SubcategoryBudget.findAll({
       where: { userId, month },
       include: [{
@@ -71,14 +103,34 @@ export async function listSubcategoryWithSpending(userId: string, month: string)
       }],
     }),
     Transaction.findAll({
-      where: { userId, isExcluded: false, type: 'expense', date: { [Op.between]: [from, to] } },
-      attributes: ['subcategoryId', 'amount'],
+      where: { userId, isExcluded: false, type: { [Op.in]: ['expense', 'transfer'] }, date: { [Op.between]: [from, to] } },
+      attributes: ['categoryId', 'subcategoryId', 'description', 'amount', 'date', 'type'],
     }),
+    User.findByPk(userId, { attributes: ['id', 'recurringSavingsPatternKeys', 'recurringSavingsCategoryIds', 'recurringSavingsSubcategoryIds', 'recurringPatternCategoryOverrides'] }),
   ])
+  const prefs = (user?.toJSON?.() ?? {}) as SavingsPrefs
+  const savingsPatterns = new Set(Array.isArray(prefs.recurringSavingsPatternKeys) ? prefs.recurringSavingsPatternKeys : [])
+  const savingsCategories = new Set(Array.isArray(prefs.recurringSavingsCategoryIds) ? prefs.recurringSavingsCategoryIds : [])
+  const savingsSubcategories = new Set(Array.isArray(prefs.recurringSavingsSubcategoryIds) ? prefs.recurringSavingsSubcategoryIds : [])
+  const patternOverrides = new Map(
+    (Array.isArray(prefs.recurringPatternCategoryOverrides) ? prefs.recurringPatternCategoryOverrides : []).map(o => [o.patternKey, o])
+  )
 
   const spentMap: Record<string, number> = {}
   for (const tx of txs) {
-    const key = tx.subcategoryId ?? 'none'
+    if (tx.type === 'transfer') {
+      if (tx.subcategoryId && savingsSubcategories.has(tx.subcategoryId)) {
+        // ok
+      } else if (tx.categoryId && savingsCategories.has(tx.categoryId)) {
+        // ok
+      } else {
+        const key = recurringPatternKeyFromTransaction(tx)
+        if (!key || !savingsPatterns.has(key)) continue
+      }
+    }
+    const pKey = recurringPatternKeyFromTransaction(tx)
+    const override = pKey ? patternOverrides.get(pKey) : undefined
+    const key = override?.subcategoryId ?? tx.subcategoryId ?? 'none'
     spentMap[key] = (spentMap[key] ?? 0) + tx.amount
   }
 

@@ -61,5 +61,13 @@ Este documento define los `error.code` devueltos por la API para que frontend tr
 | `5010` | `PROFILE_EXCLUDED_SUBCATEGORY_IDS_INVALID` | 400 | recurringExcludedSubcategoryIds inválido | Config recurrentes |
 | `5011` | `PROFILE_EXCLUDED_SUBCATEGORY_ID_INVALID` | 400 | ID de subcategoría inválido | Config recurrentes |
 | `5012` | `PROFILE_EXCLUDED_SUBCATEGORY_UNKNOWN` | 400 | Subcategoría desconocida | Config recurrentes |
+| `5019` | `PROFILE_RECURRING_SAVINGS_PATTERN_KEYS_INVALID` | 400 | recurringSavingsPatternKeys inválido | Config ahorro recurrente |
+| `5020` | `PROFILE_RECURRING_SAVINGS_PATTERN_KEY_INVALID` | 400 | patternKey de ahorro inválido | Config ahorro recurrente |
+| `5021` | `PROFILE_RECURRING_SAVINGS_CATEGORY_IDS_INVALID` | 400 | recurringSavingsCategoryIds inválido | Config ahorro recurrente |
+| `5022` | `PROFILE_RECURRING_SAVINGS_CATEGORY_ID_INVALID` | 400 | ID de categoría de ahorro inválido | Config ahorro recurrente |
+| `5023` | `PROFILE_RECURRING_SAVINGS_CATEGORY_UNKNOWN` | 400 | Categoría de ahorro desconocida | Config ahorro recurrente |
+| `5024` | `PROFILE_RECURRING_SAVINGS_SUBCATEGORY_IDS_INVALID` | 400 | recurringSavingsSubcategoryIds inválido | Config ahorro recurrente |
+| `5025` | `PROFILE_RECURRING_SAVINGS_SUBCATEGORY_ID_INVALID` | 400 | ID de subcategoría de ahorro inválido | Config ahorro recurrente |
+| `5026` | `PROFILE_RECURRING_SAVINGS_SUBCATEGORY_UNKNOWN` | 400 | Subcategoría de ahorro desconocida | Config ahorro recurrente |
 | `9001` | `DB_NOT_CONFIGURED` | 500 | Base de datos no configurada | Entorno mal configurado |
 

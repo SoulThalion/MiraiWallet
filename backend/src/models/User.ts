@@ -32,6 +32,18 @@ export class User extends Model<
   declare budgetExcludedCategoryIds: CreationOptional<string[] | null>
   /** UUIDs de subcategorías excluidas del presupuesto (JSON array). */
   declare budgetExcludedSubcategoryIds: CreationOptional<string[] | null>
+  /** Claves de patrones recurrentes marcados como ahorro (JSON array). */
+  declare recurringSavingsPatternKeys: CreationOptional<string[] | null>
+  /** UUIDs de categorías marcadas globalmente como ahorro (JSON array). */
+  declare recurringSavingsCategoryIds: CreationOptional<string[] | null>
+  /** UUIDs de subcategorías marcadas globalmente como ahorro (JSON array). */
+  declare recurringSavingsSubcategoryIds: CreationOptional<string[] | null>
+  /** Overrides de clasificación por patrón recurrente (no muta transacciones). */
+  declare recurringPatternCategoryOverrides: CreationOptional<Array<{
+    patternKey: string
+    categoryId: string
+    subcategoryId?: string | null
+  }> | null>
   declare createdAt:    CreationOptional<Date>
   declare updatedAt:    CreationOptional<Date>
 
@@ -94,6 +106,26 @@ export function initUser(sequelize: Sequelize): void {
         defaultValue: [],
       },
       budgetExcludedSubcategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      recurringSavingsPatternKeys: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      recurringSavingsCategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      recurringSavingsSubcategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      recurringPatternCategoryOverrides: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],

@@ -125,10 +125,16 @@
               <option value="balanced">{{ t('budgets.recoProfileBalanced') }}</option>
               <option value="flexible">{{ t('budgets.recoProfileFlexible') }}</option>
             </select>
+            <p class="mt-1 text-[11px] leading-relaxed dark:text-dark-txt3 text-light-txt3">
+              {{ selectedProfileDescription }}
+            </p>
           </label>
           <label class="sm:col-span-1">
             <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.recoSavingsTarget') }}</span>
             <input v-model.number="recoTargetSavingsPct" type="number" min="5" max="60" step="1" class="mw-input w-full tabular-nums" />
+            <p class="mt-1 text-[11px] dark:text-dark-txt3 text-light-txt3">
+              {{ t('budgets.recoAutoTargetHint', { percent: recommendedSavingsTargetPct }) }}
+            </p>
           </label>
           <div class="sm:col-span-2 flex items-end justify-end gap-2">
             <button
@@ -164,7 +170,10 @@
               <div class="flex items-center gap-2">
                 <span>{{ line.icon }}</span>
                 <span class="flex-1 min-w-0 truncate text-sm font-semibold">{{ line.name }}</span>
-                <span class="text-xs dark:text-dark-txt2 text-light-txt2">{{ formatEuro(line.currentBudget, false) }} → {{ formatEuro(line.suggestedBudget, false) }}</span>
+                <span class="text-xs dark:text-dark-txt2 text-light-txt2">
+                  {{ formatEuro(line.currentBudget, false) }} → {{ formatEuro(line.suggestedBudget, false) }}
+                  {{ t('budgets.recoAvgMonthlyCategory', { amount: formatEuro(line.monthlyAverageSpent, false) }) }}
+                </span>
                 <button
                   type="button"
                   class="rounded-lg px-2 py-1 text-[11px] border dark:border-white/[0.12] border-brand-blue/15"
@@ -181,7 +190,10 @@
               </ul>
               <div v-if="line.subcategories.length" class="space-y-1 pt-1">
                 <div v-for="sub in line.subcategories" :key="sub.subcategoryId" class="flex items-center gap-2 text-xs">
-                  <span class="flex-1 min-w-0 truncate">{{ sub.icon }} {{ sub.name }} ({{ formatEuro(sub.currentBudget, false) }} → {{ formatEuro(sub.suggestedBudget, false) }})</span>
+                  <span class="flex-1 min-w-0 truncate">
+                    {{ sub.icon }} {{ sub.name }} ({{ formatEuro(sub.currentBudget, false) }} → {{ formatEuro(sub.suggestedBudget, false) }}
+                    {{ t('budgets.recoAvgMonthlySubcategory', { amount: formatEuro(sub.monthlyAverageSpent, false) }) }})
+                  </span>
                   <button
                     type="button"
                     class="rounded-lg px-2 py-1 border dark:border-white/[0.12] border-brand-blue/15"
@@ -234,10 +246,16 @@ const loadedExcludedCategoryIds = ref<Set<string>>(new Set())
 const loadedExcludedSubcategoryIds = ref<Set<string>>(new Set())
 
 const budgetMonth = computed(() => fiscalYmForDate(new Date(), monthCycleConfigFromSession(store.user)))
-const allExpenseCategories = computed(() =>
-  store.categories.filter(c => Boolean(c.id) && c.categoryType !== 'income')
+const allBudgetCategories = computed(() =>
+  store.categories.filter((c) => {
+    if (!c.id) return false
+    if (c.categoryType !== 'income') return true
+    const spent = Number(c.spent ?? 0)
+    const income = Number(c.incomeInCategory ?? 0)
+    return spent > income
+  })
 )
-const expenseCategories = computed(() => allExpenseCategories.value)
+const expenseCategories = computed(() => allBudgetCategories.value)
 const categoryBudgetSum = computed(() =>
   expenseCategories.value.reduce((sum, c) => sum + Math.max(0, Number(categoryBudgetDraft.value[c.id!] ?? 0)), 0)
 )
@@ -266,6 +284,17 @@ const excludeDirty = computed(() => {
   return false
 })
 const hasChanges = computed(() => budgetDirty.value || excludeDirty.value)
+const PROFILE_DEFAULT_TARGET_PCT: Record<BudgetRecommendationProfile, number> = {
+  conservative: 25,
+  balanced: 20,
+  flexible: 12,
+}
+const recommendedSavingsTargetPct = computed(() => PROFILE_DEFAULT_TARGET_PCT[recoProfile.value])
+const selectedProfileDescription = computed(() => {
+  if (recoProfile.value === 'conservative') return t('budgets.recoProfileConservativeDesc')
+  if (recoProfile.value === 'flexible') return t('budgets.recoProfileFlexibleDesc')
+  return t('budgets.recoProfileBalancedDesc')
+})
 
 function subcategorySum(categoryId: string): number {
   const row = subcategoryBudgetDraft.value[categoryId] ?? {}
@@ -307,7 +336,7 @@ async function reloadBudgets(): Promise<void> {
   budgetError.value = null
   budgetMsg.value = ''
   try {
-    if (!store.categories.length) await store.loadCategories()
+    await store.loadCategories()
     excludedCategoryIds.value = new Set(store.user?.budgetExcludedCategoryIds ?? [])
     excludedSubcategoryIds.value = new Set(store.user?.budgetExcludedSubcategoryIds ?? [])
     loadedExcludedCategoryIds.value = new Set(excludedCategoryIds.value)
@@ -363,7 +392,7 @@ async function saveBudgets(): Promise<void> {
 
     const payloadsCategory: Array<{ categoryId: string; amount: number; month: string }> = []
     const payloadsSubcategory: Array<{ subcategoryId: string; amount: number; month: string }> = []
-    for (const cat of allExpenseCategories.value) {
+    for (const cat of allBudgetCategories.value) {
       const categoryId = cat.id!
       if (excludedCategoryIds.value.has(categoryId)) {
         payloadsCategory.push({ categoryId, amount: 0, month: budgetMonth.value })
@@ -502,6 +531,14 @@ watch(
   () => {
     void reloadBudgets()
     if (recommendations.value) void loadRecommendations()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => recoProfile.value,
+  (profile) => {
+    recoTargetSavingsPct.value = PROFILE_DEFAULT_TARGET_PCT[profile]
   },
   { immediate: true }
 )

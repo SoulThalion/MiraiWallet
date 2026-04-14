@@ -104,6 +104,7 @@ export interface BudgetRecommendationSubLine {
   icon: string
   color: string
   currentBudget: number
+  monthlyAverageSpent: number
   suggestedBudget: number
   delta: number
   confidence: number
@@ -116,6 +117,7 @@ export interface BudgetRecommendationLine {
   icon: string
   color: string
   currentBudget: number
+  monthlyAverageSpent: number
   suggestedBudget: number
   delta: number
   confidence: number
@@ -214,6 +216,15 @@ export interface StatsMonthCategoryDto {
   spent: number
   budget: number
   incomeInCategory: number
+  subcategories?: Array<{
+    id: string
+    name: string
+    icon: string
+    color: string
+    spent: number
+    budget: number
+    incomeInCategory: number
+  }>
 }
 
 export interface StatsYearAvgCategoryDto {
@@ -251,6 +262,13 @@ export interface StatsRecurringExpenseDto {
   firstDate: string
   lastDate: string
   patternKey: string
+  isSavings: boolean
+}
+
+export interface RecurringPatternCategoryOverride {
+  patternKey: string
+  categoryId: string
+  subcategoryId?: string | null
 }
 
 export interface StatsMonthOverviewDto {
@@ -317,6 +335,13 @@ export interface SessionUser {
   budgetExcludedCategoryIds?: string[]
   /** Subcategorías excluidas de presupuestos. */
   budgetExcludedSubcategoryIds?: string[]
+  /** Pattern keys recurrentes marcados como ahorro. */
+  recurringSavingsPatternKeys?: string[]
+  /** Categorías marcadas globalmente como ahorro. */
+  recurringSavingsCategoryIds?: string[]
+  /** Subcategorías marcadas globalmente como ahorro. */
+  recurringSavingsSubcategoryIds?: string[]
+  recurringPatternCategoryOverrides?: RecurringPatternCategoryOverride[]
 }
 
 export interface IngBankImportResult {
@@ -441,6 +466,14 @@ class ApiClient {
   /** Oculta un patrón recurrente hasta que haya un cargo en un mes natural posterior al mes del descarte. */
   async dismissRecurringPattern(patternKey: string): Promise<void> {
     await this.client.post('/stats/recurring-dismiss', { patternKey })
+  }
+
+  async setRecurringPatternSavings(patternKey: string, isSavings: boolean): Promise<void> {
+    await this.client.post('/stats/recurring-savings', { patternKey, isSavings })
+  }
+
+  async setRecurringPatternCategory(patternKey: string, categoryId: string | null, subcategoryId: string | null): Promise<void> {
+    await this.client.post('/stats/recurring-category', { patternKey, categoryId, subcategoryId })
   }
 
   async getTransactions(params?: {
@@ -608,6 +641,9 @@ class ApiClient {
     recurringExcludedSubcategoryIds?: string[] | null
     budgetExcludedCategoryIds?: string[] | null
     budgetExcludedSubcategoryIds?: string[] | null
+    recurringSavingsPatternKeys?: string[] | null
+    recurringSavingsCategoryIds?: string[] | null
+    recurringSavingsSubcategoryIds?: string[] | null
   }): Promise<SessionUser> {
     const response = await this.client.patch<ApiSuccessBody<SessionUser>>('/auth/me', payload)
     return response.data.data
