@@ -23,3 +23,18 @@ export const upsert = async (req: Request, res: Response, next: NextFunction) =>
 export const remove = async (req: Request, res: Response, next: NextFunction) => {
   try { await budgetService.remove(req.params.id, uid(req)); ApiResponse.noContent(res) } catch (e) { next(e) }
 }
+
+export const listSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const month = (req.query.month as string) ?? currentMonthLocal()
+    ApiResponse.success(res, await budgetService.listSubcategoryWithSpending(uid(req), month))
+  } catch (e) { next(e) }
+}
+
+export const upsertSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+  try { ApiResponse.success(res, await budgetService.upsertSubcategory(uid(req), req.body)) } catch (e) { next(e) }
+}
+
+export const removeSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+  try { await budgetService.removeSubcategory(req.params.id, uid(req)); ApiResponse.noContent(res) } catch (e) { next(e) }
+}

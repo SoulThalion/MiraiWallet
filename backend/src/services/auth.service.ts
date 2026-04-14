@@ -1,6 +1,6 @@
 import {
   User, Category, Account, Transaction as LedgerTransaction, Budget, Subcategory,
-  RecurringPatternDismissal,
+  RecurringPatternDismissal, SubcategoryBudget,
 } from '../models'
 import { createTokenPair, verifyRefreshToken } from '../utils/jwt'
 import { ApiError }    from '../utils/ApiError'
@@ -231,7 +231,9 @@ export async function wipeFinancialData(user: User, password: string): Promise<W
   return sequelize.transaction(async (trx) => {
     await RecurringPatternDismissal.destroy({ where: { userId: user.id }, transaction: trx })
     const transactions = await LedgerTransaction.destroy({ where: { userId: user.id }, transaction: trx })
-    const budgets        = await Budget.destroy({ where: { userId: user.id }, transaction: trx })
+    const budgetsCategory = await Budget.destroy({ where: { userId: user.id }, transaction: trx })
+    const budgetsSubcategory = await SubcategoryBudget.destroy({ where: { userId: user.id }, transaction: trx })
+    const budgets = budgetsCategory + budgetsSubcategory
     const subcategories  = await Subcategory.destroy({ where: { userId: user.id }, transaction: trx })
     const categories     = await Category.destroy({ where: { userId: user.id }, transaction: trx })
     await Account.update({ balance: 0 }, { where: { userId: user.id }, transaction: trx })

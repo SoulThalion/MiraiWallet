@@ -1,6 +1,18 @@
 <template>
   <div class="p-4 md:p-6 lg:p-8 max-w-screen-xl mx-auto">
     <RouterLink
+      to="/budgets"
+      class="mw-card mb-4 md:mb-6 flex items-center gap-4 border transition-colors hover:border-brand-blue/40 dark:hover:border-brand-blue/40"
+    >
+      <div class="w-12 h-12 rounded-2xl bg-brand-green/15 flex items-center justify-center text-2xl flex-shrink-0">🎯</div>
+      <div class="flex-1 min-w-0">
+        <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('budgets.title') }}</p>
+        <p class="text-xs mt-0.5 dark:text-dark-txt2 text-light-txt2">{{ t('settings.budgetsShortcutDesc') }}</p>
+      </div>
+      <span class="text-lg dark:text-dark-txt3 text-light-txt3 flex-shrink-0">›</span>
+    </RouterLink>
+
+    <RouterLink
       to="/import"
       class="mw-card mb-4 md:mb-6 flex items-center gap-4 border transition-colors hover:border-brand-blue/40 dark:hover:border-brand-blue/40"
     >

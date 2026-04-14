@@ -9,6 +9,7 @@ import HomeView from './views/HomeView.vue'
 import StatsView from './views/StatsView.vue'
 import AlertsView from './views/AlertsView.vue'
 import AddView from './views/AddView.vue'
+import BudgetsView from './views/BudgetsView.vue'
 import SettingsView from './views/SettingsView.vue'
 import OnboardingView from './views/OnboardingView.vue'
 import LoginView from './views/LoginView.vue'
@@ -25,6 +26,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/stats', name: 'stats', component: StatsView, meta: { requiresAuth: true } },
   { path: '/alerts', name: 'alerts', component: AlertsView, meta: { requiresAuth: true } },
   { path: '/add', name: 'add', component: AddView, meta: { requiresAuth: true } },
+  { path: '/budgets', name: 'budgets', component: BudgetsView, meta: { requiresAuth: true } },
   { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
   { path: '/import', name: 'import', component: ImportView, meta: { requiresAuth: true } },
 ]

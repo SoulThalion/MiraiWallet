@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import * as ctrl  from '../controllers/budget.controller'
-import { upsertBudgetRules } from '../validators/budget.validators'
+import { upsertBudgetRules, upsertSubcategoryBudgetRules } from '../validators/budget.validators'
 import { validate }     from '../middlewares/validate.middleware'
 import { authenticate } from '../middlewares/auth.middleware'
 
@@ -10,5 +10,8 @@ router.use(authenticate)
 router.get   ('/',    ctrl.list)
 router.put   ('/',    upsertBudgetRules, validate, ctrl.upsert)
 router.delete('/:id', ctrl.remove)
+router.get('/subcategories', ctrl.listSubcategory)
+router.put('/subcategories', upsertSubcategoryBudgetRules, validate, ctrl.upsertSubcategory)
+router.delete('/subcategories/:id', ctrl.removeSubcategory)
 
 export default router

@@ -6,6 +6,7 @@ import { Subcategory, initSubcategory } from './Subcategory'
 import { Transaction, initTransaction } from './Transaction'
 import { Alert,       initAlert }       from './Alert'
 import { Budget,      initBudget }      from './Budget'
+import { SubcategoryBudget, initSubcategoryBudget } from './SubcategoryBudget'
 import { RecurringPatternDismissal, initRecurringPatternDismissal } from './RecurringPatternDismissal'
 
 // ── Init ─────────────────────────────────────────────────
@@ -16,6 +17,7 @@ initSubcategory(sequelize)
 initTransaction(sequelize)
 initAlert(sequelize)
 initBudget(sequelize)
+initSubcategoryBudget(sequelize)
 initRecurringPatternDismissal(sequelize)
 
 // ── Associations ─────────────────────────────────────────
@@ -50,7 +52,13 @@ Budget.belongsTo(User,     { foreignKey: 'userId', as: 'user' })
 Category.hasMany(Budget,   { foreignKey: 'categoryId', as: 'budgets' })
 Budget.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' })
 
+User.hasMany(SubcategoryBudget, { foreignKey: 'userId', as: 'subcategoryBudgets', onDelete: 'CASCADE' })
+SubcategoryBudget.belongsTo(User, { foreignKey: 'userId', as: 'user' })
+
+Subcategory.hasMany(SubcategoryBudget, { foreignKey: 'subcategoryId', as: 'budgets' })
+SubcategoryBudget.belongsTo(Subcategory, { foreignKey: 'subcategoryId', as: 'subcategory' })
+
 User.hasMany(RecurringPatternDismissal, { foreignKey: 'userId', as: 'recurringPatternDismissals', onDelete: 'CASCADE' })
 RecurringPatternDismissal.belongsTo(User, { foreignKey: 'userId', as: 'user' })
 
-export { sequelize, User, Account, Category, Subcategory, Transaction, Alert, Budget, RecurringPatternDismissal }
+export { sequelize, User, Account, Category, Subcategory, Transaction, Alert, Budget, SubcategoryBudget, RecurringPatternDismissal }

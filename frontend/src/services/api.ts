@@ -70,8 +70,30 @@ export interface ApiBudget {
   categoryId: string
   month: string
   amount: number
+  notes?: string | null
   category?: ApiCategory
   spent?: number
+}
+
+export interface ApiSubcategoryBudget {
+  id: string
+  subcategoryId: string
+  month: string
+  amount: number
+  spent?: number
+  subcategory?: {
+    id: string
+    name: string
+    icon: string
+    color: string
+    categoryId: string
+    category?: {
+      id: string
+      name: string
+      icon: string
+      color: string
+    }
+  }
 }
 
 export interface ApiAccount {
@@ -445,6 +467,30 @@ class ApiClient {
 
   async getBudgets(month?: string): Promise<ApiBudget[]> {
     const response = await this.client.get<ApiSuccessBody<ApiBudget[]>>('/budgets', { params: { month } })
+    return response.data.data
+  }
+
+  async upsertBudget(data: {
+    categoryId: string
+    amount: number
+    month: string
+    notes?: string
+  }): Promise<ApiBudget> {
+    const response = await this.client.put<ApiSuccessBody<ApiBudget>>('/budgets', data)
+    return response.data.data
+  }
+
+  async getSubcategoryBudgets(month?: string): Promise<ApiSubcategoryBudget[]> {
+    const response = await this.client.get<ApiSuccessBody<ApiSubcategoryBudget[]>>('/budgets/subcategories', { params: { month } })
+    return response.data.data
+  }
+
+  async upsertSubcategoryBudget(data: {
+    subcategoryId: string
+    amount: number
+    month: string
+  }): Promise<ApiSubcategoryBudget> {
+    const response = await this.client.put<ApiSuccessBody<ApiSubcategoryBudget>>('/budgets/subcategories', data)
     return response.data.data
   }
 

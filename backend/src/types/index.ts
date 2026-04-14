@@ -116,6 +116,12 @@ export interface UpsertBudgetDto {
   notes?:     string
 }
 
+export interface UpsertSubcategoryBudgetDto {
+  subcategoryId: string
+  amount: number
+  month: string
+}
+
 /** Respuesta de `GET /stats/month-overview` (solo datos para la vista Estadísticas). */
 export interface StatsMonthBarDto {
   month: string
