@@ -9,7 +9,7 @@
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
         <!-- Greeting -->
         <div>
-          <p class="text-sm dark:text-dark-txt2 text-light-txt2">Bienvenido de vuelta</p>
+          <p class="text-sm dark:text-dark-txt2 text-light-txt2">{{ t('home.welcomeBack') }}</p>
           <p class="font-display font-black text-2xl md:text-3xl mt-0.5 dark:text-dark-txt text-light-txt">
             {{ store.userDisplayName }} 👋
           </p>
@@ -19,7 +19,7 @@
         </div>
         <!-- Balance (always visible, large on md+) -->
         <div class="rounded-2xl p-4 md:p-5 min-w-[200px] relative overflow-hidden dark:bg-dark-surf bg-white/80 border border-brand-blue/10 dark:border-0">
-          <p class="text-[10px] uppercase tracking-widest mb-1 dark:text-dark-txt2 text-light-txt2">Saldo total</p>
+          <p class="text-[10px] uppercase tracking-widest mb-1 dark:text-dark-txt2 text-light-txt2">{{ t('home.totalBalance') }}</p>
           <p class="font-display font-black text-3xl md:text-4xl tracking-tight dark:text-dark-txt text-light-txt">
             <span class="text-lg font-semibold mr-0.5 dark:text-dark-txt2 text-light-txt2">€</span>
             {{ balanceParts.intPart }}<span class="text-lg font-semibold dark:text-dark-txt2 text-light-txt2">,{{ balanceParts.decPart }}</span>
@@ -43,8 +43,8 @@
       <!-- Categories card -->
       <div :class="['mw-card lg:col-span-1']">
         <div class="flex justify-between items-center mb-4">
-          <p class="font-display font-extrabold text-sm dark:text-dark-txt text-light-txt">Categorías</p>
-          <RouterLink to="/stats" class="text-xs text-brand-blue">Ver todo →</RouterLink>
+          <p class="font-display font-extrabold text-sm dark:text-dark-txt text-light-txt">{{ t('home.categories') }}</p>
+          <RouterLink to="/stats" class="text-xs text-brand-blue">{{ t('home.viewAll') }} →</RouterLink>
         </div>
         <!-- Mobile: horizontal scroll; md+: grid -->
         <div class="flex gap-2 overflow-x-auto md:overflow-visible md:grid md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 pb-1 md:pb-0">
@@ -60,8 +60,8 @@
       <!-- Recent transactions — spans 2 cols on lg -->
       <div class="mw-card md:col-span-2 lg:col-span-2">
         <div class="flex justify-between items-center mb-4">
-          <p class="font-display font-extrabold text-sm dark:text-dark-txt text-light-txt">Últimos movimientos</p>
-          <RouterLink to="/movements" class="text-xs text-brand-blue">Ver todos →</RouterLink>
+          <p class="font-display font-extrabold text-sm dark:text-dark-txt text-light-txt">{{ t('home.latestMovements') }}</p>
+          <RouterLink to="/movements" class="text-xs text-brand-blue">{{ t('home.viewAllPlural') }} →</RouterLink>
         </div>
         <!-- On lg show more transactions in a 2-column grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -71,21 +71,21 @@
 
       <!-- Quick actions (md+) — visible on tablet/desktop only -->
       <div :class="['mw-card hidden md:block lg:col-span-1']">
-        <p class="font-display font-extrabold text-sm mb-4 dark:text-dark-txt text-light-txt">Acciones rápidas</p>
+        <p class="font-display font-extrabold text-sm mb-4 dark:text-dark-txt text-light-txt">{{ t('home.quickActions') }}</p>
         <div class="flex flex-col gap-2">
           <RouterLink to="/add">
             <button class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white text-sm font-semibold transition-opacity hover:opacity-90">
-              <span>➕</span> Añadir gasto
+              <span>➕</span> {{ t('nav.addExpense') }}
             </button>
           </RouterLink>
           <RouterLink to="/stats">
             <button class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold border transition-colors dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt dark:hover:border-brand-blue/30 bg-light-surf border-brand-blue/10 text-light-txt hover:border-brand-blue/30">
-              <span>📊</span> Ver estadísticas
+              <span>📊</span> {{ t('home.viewStats') }}
             </button>
           </RouterLink>
           <RouterLink to="/alerts">
             <button class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold border transition-colors dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt dark:hover:border-brand-blue/30 bg-light-surf border-brand-blue/10 text-light-txt hover:border-brand-blue/30">
-              <span>🔔</span> Alertas <span class="ml-auto bg-red-400/15 text-red-400 text-[9px] font-bold px-2 py-0.5 rounded">{{ store.alerts.length }}</span>
+              <span>🔔</span> {{ t('nav.alerts') }} <span class="ml-auto bg-red-400/15 text-red-400 text-[9px] font-bold px-2 py-0.5 rounded">{{ store.alerts.length }}</span>
             </button>
           </RouterLink>
         </div>
@@ -97,6 +97,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
 import { useCurrency } from '@/composables/useCurrency'
 import TransactionItem from '@/components/TransactionItem.vue'
@@ -108,6 +109,7 @@ interface BalanceStat {
 }
 
 const store = useWalletStore()
+const { t, locale } = useI18n()
 const { formatEuro, formatDateOnlyEs, roundMoney } = useCurrency()
 
 /** Gasto e ingreso por categoría (2 decimales); solo gastos en desglose mostraba 0 en nómina. */
@@ -124,8 +126,9 @@ function categoryMoneyLabel(cat: { spent: number; incomeInCategory?: number }): 
 /** Debe ser reactivo: el saldo llega asíncrono tras `initialize()`. */
 const balanceParts = computed(() => {
   const [intStr, decStr] = store.balance.toFixed(2).split('.')
+  const numberLocale = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
   return {
-    intPart: parseInt(intStr, 10).toLocaleString('es-ES'),
+    intPart: parseInt(intStr, 10).toLocaleString(numberLocale),
     decPart: decStr,
   }
 })
@@ -138,17 +141,17 @@ const statementLine = computed(() => {
   const dt = formatDateOnlyEs(s.lastDate)
   const range = df && dt ? `${df} – ${dt}` : ''
   return range
-    ? `Último extracto (${range}): ${formatEuro(s.delta, true)}`
-    : `Último extracto: ${formatEuro(s.delta, true)}`
+    ? t('home.lastStatementWithRange', { range, amount: formatEuro(s.delta, true) })
+    : t('home.lastStatement', { amount: formatEuro(s.delta, true) })
 })
 
 const balanceStats = computed<BalanceStat[]>(() => {
   const net = store.monthNetCashflow
   return [
-    { label: 'Ingresos (periodo)', value: formatEuro(store.monthIncome, true), color: 'text-brand-green' },
-    { label: 'Gastos (periodo)', value: formatEuro(-store.monthExpenses, true), color: 'text-red-400' },
+    { label: t('home.periodIncome'), value: formatEuro(store.monthIncome, true), color: 'text-brand-green' },
+    { label: t('home.periodExpenses'), value: formatEuro(-store.monthExpenses, true), color: 'text-red-400' },
     {
-      label: 'Neto del periodo',
+      label: t('home.periodNet'),
       value: formatEuro(net, true),
       color: net >= 0 ? 'text-brand-green' : 'text-red-400',
     },

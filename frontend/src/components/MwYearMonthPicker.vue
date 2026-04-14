@@ -42,7 +42,7 @@
               class="rounded-lg px-2 py-1 text-xs font-semibold text-brand-blue hover:underline"
               @click="close"
             >
-              Cerrar
+              {{ t('common.close') }}
             </button>
           </div>
           <div class="p-4">
@@ -52,7 +52,7 @@
                 class="rounded-lg border border-brand-blue/15 px-3 py-2 text-sm font-semibold dark:border-white/[0.1] dark:text-dark-txt"
                 :disabled="pickerYear <= minYearClamped"
                 :class="pickerYear <= minYearClamped ? 'cursor-not-allowed opacity-35' : 'hover:bg-brand-blue/[0.08]'"
-                aria-label="Año anterior"
+                :aria-label="t('yearMonthPicker.prevYear')"
                 @click="stepYear(-1)"
               >
                 ◀
@@ -65,7 +65,7 @@
                 class="rounded-lg border border-brand-blue/15 px-3 py-2 text-sm font-semibold dark:border-white/[0.1] dark:text-dark-txt"
                 :disabled="pickerYear >= maxYearClamped"
                 :class="pickerYear >= maxYearClamped ? 'cursor-not-allowed opacity-35' : 'hover:bg-brand-blue/[0.08]'"
-                aria-label="Año siguiente"
+                :aria-label="t('yearMonthPicker.nextYear')"
                 @click="stepYear(1)"
               >
                 ▶
@@ -103,6 +103,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { formatYearMonthEs, ymKeyFromParts } from '@/utils/yearMonthDisplay'
 
 const props = withDefaults(
@@ -138,10 +139,24 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+const { t } = useI18n()
 
 const titleId = `mw-ym-picker-${Math.random().toString(36).slice(2, 9)}`
 
-const monthShort = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] as const
+const monthShort = computed(() => [
+  t('months.short.jan'),
+  t('months.short.feb'),
+  t('months.short.mar'),
+  t('months.short.apr'),
+  t('months.short.may'),
+  t('months.short.jun'),
+  t('months.short.jul'),
+  t('months.short.aug'),
+  t('months.short.sep'),
+  t('months.short.oct'),
+  t('months.short.nov'),
+  t('months.short.dec'),
+])
 const monthNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const
 
 const open = ref(false)

@@ -22,38 +22,38 @@
         class="fixed z-[100] w-[min(100vw-1.5rem,18.5rem)] rounded-2xl border p-3 shadow-xl dark:border-white/[0.07] dark:bg-dark-card bg-light-card border-brand-blue/15"
         :style="panelStyle"
         role="dialog"
-        aria-label="Seleccionar rango de importe"
+        :aria-label="t('amountRange.dialogAria')"
         @click.stop
       >
-        <p class="mb-2 text-xs font-bold dark:text-dark-txt text-light-txt">Rango (€)</p>
+        <p class="mb-2 text-xs font-bold dark:text-dark-txt text-light-txt">{{ t('amountRange.title') }}</p>
 
         <div class="flex flex-col gap-2">
           <div>
-            <label class="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">Mínimo</label>
+            <label class="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">{{ t('amountRange.min') }}</label>
             <input
               v-model="draftMin"
               type="text"
               inputmode="decimal"
               autocomplete="off"
-              placeholder="Ej. 10"
+              :placeholder="t('amountRange.exampleMin')"
               :class="filterInputClass"
             />
           </div>
           <div>
-            <label class="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">Máximo</label>
+            <label class="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">{{ t('amountRange.max') }}</label>
             <input
               v-model="draftMax"
               type="text"
               inputmode="decimal"
               autocomplete="off"
-              placeholder="Ej. 500"
+              :placeholder="t('amountRange.exampleMax')"
               :class="filterInputClass"
             />
           </div>
         </div>
 
         <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt3 text-light-txt3">
-          Usa coma o punto decimal. Si solo indicas un extremo, el otro queda sin límite. «Listo» aplica el filtro.
+          {{ t('amountRange.hint') }}
         </p>
 
         <div class="mt-3 flex gap-2 border-t border-brand-blue/10 pt-3 dark:border-white/[0.07]">
@@ -62,14 +62,14 @@
             class="flex-1 rounded-xl border py-2 text-xs font-semibold transition-colors dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:bg-white/5"
             @click="clearRange"
           >
-            Borrar rango
+            {{ t('amountRange.clear') }}
           </button>
           <button
             type="button"
             class="flex-1 rounded-xl bg-gradient-to-br from-brand-blue-dark to-brand-blue py-2 text-xs font-semibold text-white shadow-glow hover:opacity-90"
             @click="applyAndClose"
           >
-            Listo
+            {{ t('amountRange.done') }}
           </button>
         </div>
       </div>
@@ -79,6 +79,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 export interface AmountRangeValue {
   /** Número como texto (p. ej. `12.5` o vacío). */
@@ -93,6 +94,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: AmountRangeValue]
 }>()
+const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
 const panelRef = ref<HTMLElement | null>(null)
@@ -126,7 +128,7 @@ function parseEuro(s: string): number | undefined {
 const summaryLabel = computed(() => {
   const minS = props.modelValue.min.trim()
   const maxS = props.modelValue.max.trim()
-  if (!minS && !maxS) return 'Importe'
+  if (!minS && !maxS) return t('amountRange.placeholder')
   const minN = parseEuro(minS)
   const maxN = parseEuro(maxS)
   if (minN !== undefined && maxN !== undefined) {
@@ -135,7 +137,7 @@ const summaryLabel = computed(() => {
   }
   if (minN !== undefined) return `≥ ${formatEuroLabel(minN)}`
   if (maxN !== undefined) return `≤ ${formatEuroLabel(maxN)}`
-  return 'Importe'
+  return t('amountRange.placeholder')
 })
 
 const panelStyle = computed(() => ({

@@ -177,15 +177,12 @@ export const useWalletStore = defineStore('wallet', () => {
   function mapMonthlyData(
     summary: { month: string; income: number; expenses: number; transfers: number; net: number }[]
   ): MonthlyData[] {
-    const monthNames: Record<string, string> = {
-      '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr', '05': 'May', '06': 'Jun',
-      '07': 'Jul', '08': 'Ago', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic'
-    }
+    const localeTag = getCurrentLocale() === 'en' ? 'en-US' : getCurrentLocale() === 'de' ? 'de-DE' : 'es-ES'
     const now = new Date()
     const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
 
     return summary.map(m => ({
-      month: monthNames[m.month] || m.month,
+      month: new Date(now.getFullYear(), Math.max(0, Number(m.month) - 1), 1).toLocaleDateString(localeTag, { month: 'short' }),
       amount: m.expenses,
       current: m.month === currentMonth
     }))

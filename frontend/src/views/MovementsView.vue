@@ -2,15 +2,15 @@
   <div class="mx-auto flex w-full max-w-screen-xl min-h-0 flex-1 flex-col gap-3 px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
     <div class="flex flex-shrink-0 flex-wrap items-end justify-between gap-2">
       <p class="text-xs dark:text-dark-txt2 text-light-txt2 md:hidden">
-        Desplázate hacia abajo para cargar más (20 por página).
+        {{ t('movements.scrollHint') }}
       </p>
       <div v-if="!initialLoading" class="ml-auto flex items-end gap-3 md:ml-0">
         <div class="min-w-[180px]">
-          <label class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">Estado</label>
+          <label class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.status') }}</label>
           <select v-model="filters.excludeState" :class="filterInputClass">
-            <option value="">Todos</option>
-            <option value="false">Activos</option>
-            <option value="true">Excluidos</option>
+            <option value="">{{ t('movements.all') }}</option>
+            <option value="false">{{ t('movements.active') }}</option>
+            <option value="true">{{ t('movements.excludedPlural') }}</option>
           </select>
         </div>
         <button
@@ -18,7 +18,7 @@
           class="mb-1 text-xs font-semibold text-brand-blue hover:underline"
           @click="resetFiltersAndSort"
         >
-          Limpiar filtros y orden
+          {{ t('movements.clearFiltersSort') }}
         </button>
       </div>
     </div>
@@ -34,7 +34,7 @@
         @scroll.passive="onScroll"
       >
         <div v-if="initialLoading" class="py-12 text-center text-sm dark:text-dark-txt2 text-light-txt2">
-          Cargando movimientos…
+          {{ t('movements.loadingMovements') }}
         </div>
         <div
           v-else
@@ -50,7 +50,7 @@
                     class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
                     @click="setSort('date')"
                   >
-                    Fecha <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('date') }}</span>
+                    {{ t('movements.date') }} <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('date') }}</span>
                   </button>
                   <MwDateRangePicker v-model="dateRangeFilter" />
                 </th>
@@ -60,12 +60,12 @@
                     class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
                     @click="setSort('description')"
                   >
-                    Concepto <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('description') }}</span>
+                    {{ t('movements.description') }} <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('description') }}</span>
                   </button>
                   <input
                     v-model="filters.description"
                     type="search"
-                    placeholder="Contiene…"
+                    :placeholder="t('movements.contains')"
                     :class="filterInputClass"
                   />
                 </th>
@@ -75,10 +75,10 @@
                     class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
                     @click="setSort('category')"
                   >
-                    Categoría <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('category') }}</span>
+                    {{ t('movements.category') }} <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('category') }}</span>
                   </button>
                   <select v-model="filters.categoryId" :class="filterInputClass">
-                    <option value="">Todas</option>
+                    <option value="">{{ t('movements.allFemale') }}</option>
                     <option v-for="c in allCategories" :key="c.id" :value="c.id">{{ c.icon }} {{ c.name }}</option>
                   </select>
                 </th>
@@ -88,13 +88,13 @@
                     class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
                     @click="setSort('type')"
                   >
-                    Tipo <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('type') }}</span>
+                    {{ t('movements.type') }} <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('type') }}</span>
                   </button>
                   <select v-model="filters.type" :class="filterInputClass">
-                    <option value="">Todos</option>
-                    <option value="income">Ingreso</option>
-                    <option value="expense">Gasto</option>
-                    <option value="transfer">Traspaso</option>
+                    <option value="">{{ t('movements.all') }}</option>
+                    <option value="income">{{ t('movements.income') }}</option>
+                    <option value="expense">{{ t('movements.expense') }}</option>
+                    <option value="transfer">{{ t('movements.transfer') }}</option>
                   </select>
                 </th>
                 <th :class="[thSticky, 'hidden min-w-[108px] align-top text-left lg:table-cell']">
@@ -103,13 +103,13 @@
                     class="mb-1 flex w-full items-center gap-1 text-left text-xs font-semibold hover:text-brand-blue"
                     @click="setSort('importSource')"
                   >
-                    Origen <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('importSource') }}</span>
+                    {{ t('movements.source') }} <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('importSource') }}</span>
                   </button>
                   <select v-model="filters.importSource" :class="filterInputClass">
-                    <option value="">Todos</option>
-                    <option value="manual">Manual</option>
-                    <option value="csv">Import Excel</option>
-                    <option value="bank_api">Banco</option>
+                    <option value="">{{ t('movements.all') }}</option>
+                    <option value="manual">{{ t('movements.manual') }}</option>
+                    <option value="csv">{{ t('movements.importExcel') }}</option>
+                    <option value="bank_api">{{ t('movements.bank') }}</option>
                   </select>
                 </th>
                 <th :class="[thSticky, 'min-w-[100px] align-top text-right']">
@@ -118,12 +118,12 @@
                     class="mb-1 flex w-full items-center justify-end gap-1 text-xs font-semibold hover:text-brand-blue"
                     @click="setSort('amount')"
                   >
-                    Importe <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('amount') }}</span>
+                    {{ t('movements.amount') }} <span class="font-mono text-[10px] opacity-70">{{ sortGlyph('amount') }}</span>
                   </button>
                   <MwAmountRangePicker v-model="amountRangeFilter" />
                 </th>
                 <th :class="[thSticky, 'w-24 min-w-[4.5rem] align-top text-center text-xs font-semibold']">
-                  Acción
+                  {{ t('movements.action') }}
                   <p class="mt-6 text-[10px] font-normal opacity-60">—</p>
                 </th>
               </tr>
@@ -132,7 +132,7 @@
               <template v-if="!rows.length">
                 <tr>
                   <td colspan="7" class="py-10 text-center text-sm dark:text-dark-txt2 text-light-txt2">
-                    No hay movimientos con estos criterios.
+                    {{ t('movements.noMovementsForCriteria') }}
                   </td>
                 </tr>
               </template>
@@ -152,9 +152,9 @@
                       <span
                         v-if="tx.isExcluded"
                         class="shrink-0 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500"
-                        title="No se borra; se ignora en estadísticas, alertas y cálculos."
+                        :title="t('movements.excludedHint')"
                       >
-                        Excluido
+                        {{ t('movements.excluded') }}
                       </span>
                     </div>
                   </td>
@@ -182,7 +182,7 @@
                         :disabled="Boolean(excludingTx[String(tx.id)])"
                         @click="openEdit(tx)"
                       >
-                        Editar
+                        {{ t('movements.edit') }}
                       </button>
                       <button
                         type="button"
@@ -193,10 +193,10 @@
                       >
                         {{
                           excludingTx[String(tx.id)]
-                            ? 'Guardando…'
+                            ? t('movements.saving')
                             : tx.isExcluded
-                              ? 'Restaurar'
-                              : 'Excluir'
+                              ? t('movements.restore')
+                              : t('movements.exclude')
                         }}
                       </button>
                     </div>
@@ -208,10 +208,10 @@
               <tr
                 class="border-t-2 border-brand-blue/20 bg-light-card font-semibold dark:border-white/[0.12] dark:bg-dark-card dark:text-dark-txt text-light-txt"
               >
-                <td class="py-2.5 px-2 align-top whitespace-nowrap text-xs">Totales</td>
+                <td class="py-2.5 px-2 align-top whitespace-nowrap text-xs">{{ t('movements.totals') }}</td>
                 <td class="py-2.5 px-2 align-top text-[10px] font-normal leading-snug dark:text-dark-txt2 text-light-txt2">
-                  {{ rows.length }} {{ rows.length === 1 ? 'fila cargada' : 'filas cargadas'
-                  }}<span v-if="hasMore"> · desplázate para sumar más</span>
+                  {{ rows.length }} {{ rows.length === 1 ? t('movements.loadedRow') : t('movements.loadedRows')
+                  }}<span v-if="hasMore"> · {{ t('movements.scrollToLoadMore') }}</span>
                 </td>
                 <td class="hidden py-2.5 px-2 sm:table-cell"></td>
                 <td class="hidden py-2.5 px-2 md:table-cell"></td>
@@ -220,14 +220,14 @@
                   <div v-if="totals.income > 0" class="text-emerald-500">+€{{ fmtEur(totals.income) }}</div>
                   <div v-if="totals.expense > 0" class="text-red-400">−€{{ fmtEur(totals.expense) }}</div>
                   <div v-if="totals.transfer > 0" class="font-medium dark:text-dark-txt2 text-light-txt2">
-                    Traspasos €{{ fmtEur(totals.transfer) }}
+                    {{ t('movements.transfers') }} €{{ fmtEur(totals.transfer) }}
                   </div>
                   <div
                     v-if="totals.income > 0 || totals.expense > 0"
                     class="mt-1 border-t border-brand-blue/10 pt-1 text-[11px] dark:border-white/[0.08]"
                     :class="totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'"
                   >
-                    Saldo (ing − gas) {{ totals.net >= 0 ? '+' : '−' }}€{{ fmtEur(Math.abs(totals.net)) }}
+                    {{ t('movements.balanceIncomeExpense') }} {{ totals.net >= 0 ? '+' : '−' }}€{{ fmtEur(Math.abs(totals.net)) }}
                   </div>
                 </td>
                 <td class="py-2.5 px-2"></td>
@@ -236,13 +236,13 @@
           </table>
 
           <div v-if="loadingMore" class="py-3 text-center text-xs dark:text-dark-txt2 text-light-txt2">
-            Cargando más…
+            {{ t('movements.loadingMore') }}
           </div>
           <div
             v-else-if="rows.length && !hasMore"
             class="py-3 text-center text-[10px] dark:text-dark-txt3 text-light-txt3"
           >
-            Fin del listado
+            {{ t('movements.endOfList') }}
           </div>
         </div>
       </div>
@@ -284,60 +284,60 @@
           @click.stop
         >
           <div class="flex items-center justify-between gap-2 mb-4">
-            <p class="font-display font-bold text-base dark:text-dark-txt text-light-txt">Editar movimiento</p>
+            <p class="font-display font-bold text-base dark:text-dark-txt text-light-txt">{{ t('movements.editMovement') }}</p>
             <button type="button" class="text-sm dark:text-dark-txt2 text-light-txt2 hover:text-brand-blue" @click="closeEdit">
-              Cerrar
+              {{ t('common.close') }}
             </button>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div class="sm:col-span-2">
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Tipo</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.type') }}</label>
               <select v-model="editForm.type" class="mw-input w-full">
-                <option value="expense">Gasto</option>
-                <option value="income">Ingreso</option>
-                <option value="transfer">Traspaso</option>
+                <option value="expense">{{ t('movements.expense') }}</option>
+                <option value="income">{{ t('movements.income') }}</option>
+                <option value="transfer">{{ t('movements.transfer') }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Fecha</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.date') }}</label>
               <input v-model="editForm.date" type="date" class="mw-input w-full" />
             </div>
             <div>
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Importe (€)</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.amount') }}</label>
               <input v-model="editForm.amount" type="number" step="0.01" min="0.01" class="mw-input w-full" />
             </div>
             <div class="sm:col-span-2" v-if="editForm.type === 'expense'">
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Categoría</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.category') }}</label>
               <select v-model="editForm.categoryId" class="mw-input w-full">
-                <option value="" disabled>Selecciona categoría</option>
+                <option value="" disabled>{{ t('movements.selectCategory') }}</option>
                 <option v-for="c in expenseCategories" :key="c.id" :value="c.id">{{ c.icon }} {{ c.name }}</option>
               </select>
             </div>
             <div class="sm:col-span-2" v-if="editForm.type === 'income'">
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Categoría</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.category') }}</label>
               <select v-model="editForm.categoryId" class="mw-input w-full">
-                <option value="">Sin categoría</option>
+                <option value="">{{ t('movements.noCategory') }}</option>
                 <option v-for="c in incomeCategories" :key="c.id" :value="c.id">{{ c.icon }} {{ c.name }}</option>
               </select>
             </div>
             <p v-if="editForm.type === 'transfer'" class="sm:col-span-2 text-xs dark:text-dark-txt2 text-light-txt2">
-              Los traspasos no llevan categoría en esta pantalla.
+              {{ t('movements.transferNoCategoryHint') }}
             </p>
             <div class="sm:col-span-2" v-if="editForm.type === 'expense' && subcategoryOptions.length">
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Subcategoría</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.subcategory') }}</label>
               <select v-model="editForm.subcategoryId" class="mw-input w-full">
-                <option value="">Selecciona subcategoría</option>
+                <option value="">{{ t('movements.selectSubcategory') }}</option>
                 <option v-for="s in subcategoryOptions" :key="s.id" :value="s.id">{{ s.icon }} {{ s.name }}</option>
               </select>
             </div>
             <div class="sm:col-span-2">
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Descripción</label>
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.description') }}</label>
               <input v-model="editForm.description" maxlength="200" class="mw-input w-full" />
             </div>
             <div class="sm:col-span-2">
-              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">Comentario</label>
-              <input v-model="editForm.notes" maxlength="1000" class="mw-input w-full" placeholder="Opcional" />
+              <label class="block text-xs uppercase tracking-wider mb-1 font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('movements.comment') }}</label>
+              <input v-model="editForm.notes" maxlength="1000" class="mw-input w-full" :placeholder="t('movements.optional')" />
             </div>
           </div>
 
@@ -345,7 +345,7 @@
 
           <div class="flex gap-2 mt-5">
             <button type="button" class="flex-1 py-3 rounded-xl text-sm font-semibold border dark:border-white/[0.07] dark:text-dark-txt2" @click="closeEdit">
-              Cancelar
+              {{ t('common.cancel') }}
             </button>
             <button
               type="button"
@@ -354,7 +354,7 @@
               :class="{ 'opacity-40 cursor-not-allowed': !editValid || savingEdit }"
               @click="saveEdit"
             >
-              {{ savingEdit ? 'Guardando…' : 'Guardar' }}
+              {{ savingEdit ? t('movements.saving') : t('common.save') }}
             </button>
           </div>
         </div>
@@ -365,6 +365,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useWalletStore, type Category, type Alert } from '@/stores/wallet'
 import { api, type ApiTransaction } from '@/services/api'
 import MwDateRangePicker from '@/components/MwDateRangePicker.vue'
@@ -374,6 +375,7 @@ import AlertCard from '@/components/AlertCard.vue'
 type SortColumn = 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
 
 const store = useWalletStore()
+const { t, locale } = useI18n()
 
 /** Fondo opaco alineado con `.mw-card` y sticky por `<th>` (el encabezado queda por encima del scroll del cuerpo). */
 const thSticky =
@@ -467,7 +469,8 @@ const totals = computed(() => {
 })
 
 function fmtEur(n: number): string {
-  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const numberLocale = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
+  return n.toLocaleString(numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const selectedEditCategory = computed(() =>
@@ -506,7 +509,8 @@ watch(
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+    const dateLocale = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
+    return new Date(iso).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })
   } catch {
     return iso
   }
@@ -517,20 +521,21 @@ function categoryLabel(tx: ApiTransaction): string {
   return tx.category?.name ?? '—'
 }
 
-function typeLabel(t: ApiTransaction['type']): string {
-  if (t === 'income') return 'Ingreso'
-  if (t === 'transfer') return 'Traspaso'
-  return 'Gasto'
+function typeLabel(kind: ApiTransaction['type']): string {
+  if (kind === 'income') return t('movements.income')
+  if (kind === 'transfer') return t('movements.transfer')
+  return t('movements.expense')
 }
 
 function sourceLabel(s: ApiTransaction['importSource'] | undefined): string {
-  if (s === 'csv') return 'Import Excel'
-  if (s === 'bank_api') return 'Banco'
-  return 'Manual'
+  if (s === 'csv') return t('movements.importExcel')
+  if (s === 'bank_api') return t('movements.bank')
+  return t('movements.manual')
 }
 
 function amountCell(tx: ApiTransaction): string {
-  const abs = Math.abs(tx.amount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const numberLocale = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
+  const abs = Math.abs(tx.amount).toLocaleString(numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   if (tx.type === 'income') return `+€${abs}`
   if (tx.type === 'expense') return `-€${abs}`
   return `€${abs}`
@@ -713,7 +718,7 @@ async function saveEdit(): Promise<void> {
     editError.value =
       typeof ax.response?.data?.error?.message === 'string'
         ? ax.response.data.error.message
-        : 'No se pudo guardar'
+        : t('movements.couldNotSave')
   } finally {
     savingEdit.value = false
   }
@@ -743,30 +748,30 @@ const excludeConfirmAlert = computed<Alert>(() => {
     return {
       id: 'exclude-confirm-empty',
       type: 'info',
-      badge: 'Confirmación',
-      title: 'Confirmar acción',
+      badge: t('movements.confirmation'),
+      title: t('movements.confirmAction'),
       body: '',
       amount: null,
       actions: [
-        { label: 'Confirmar', style: 'primary' },
-        { label: 'Cancelar', style: 'secondary' },
+        { label: t('movements.confirm'), style: 'primary' },
+        { label: t('common.cancel'), style: 'secondary' },
       ],
     }
   }
-  const title = p.toExcluded ? '¿Excluir este movimiento?' : '¿Restaurar este movimiento?'
+  const title = p.toExcluded ? t('movements.excludeQuestion') : t('movements.restoreQuestion')
   const body = p.toExcluded
-    ? 'No se borrará. Se mantendrá para deduplicar futuras importaciones, pero dejará de contar en estadísticas, alertas, presupuestos y demás cálculos.'
-    : 'Volverá a contar en estadísticas, alertas, presupuestos y demás cálculos. El movimiento seguirá existiendo igual en tu historial.'
+    ? t('movements.excludeBody')
+    : t('movements.restoreBody')
   return {
     id: `exclude-confirm-${String(p.tx.id)}`,
     type: p.toExcluded ? 'warning' : 'success',
-    badge: 'Confirmación',
+    badge: t('movements.confirmation'),
     title,
     body,
     amount: null,
     actions: [
-      { label: p.toExcluded ? 'Sí, excluir' : 'Sí, restaurar', style: p.toExcluded ? 'gold' : 'success' },
-      { label: 'Cancelar', style: 'secondary' },
+      { label: p.toExcluded ? t('movements.yesExclude') : t('movements.yesRestore'), style: p.toExcluded ? 'gold' : 'success' },
+      { label: t('common.cancel'), style: 'secondary' },
     ],
   }
 })

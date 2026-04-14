@@ -25,6 +25,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
 import { useWalletStore } from '@/stores/wallet'
@@ -51,6 +52,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string | number]
 }>()
+const { t } = useI18n()
 
 const wallet = useWalletStore()
 

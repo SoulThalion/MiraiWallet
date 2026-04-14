@@ -4,7 +4,7 @@
     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
       <div>
         <p class="text-sm dark:text-dark-txt2 text-light-txt2">
-          Periodo fiscal: <span class="font-semibold dark:text-dark-txt text-light-txt">{{ periodLabel }}</span>
+          {{ t('alerts.fiscalPeriod') }}: <span class="font-semibold dark:text-dark-txt text-light-txt">{{ periodLabel }}</span>
         </p>
       </div>
       <button
@@ -12,7 +12,7 @@
         class="self-start sm:self-auto text-xs font-semibold px-4 py-2 rounded-xl border dark:border-white/10 dark:text-dark-txt2 text-light-txt2 dark:hover:bg-dark-surf hover:bg-light-surf transition-colors disabled:opacity-50"
         :disabled="refreshing"
         @click="refresh">
-        {{ refreshing ? 'Actualizando…' : 'Actualizar datos' }}
+        {{ refreshing ? t('alerts.refreshing') : t('alerts.refreshData') }}
       </button>
     </div>
 
@@ -32,19 +32,21 @@
       <div class="lg:col-span-2 flex flex-col gap-4">
         <section>
           <div class="flex items-center justify-between mb-2">
-            <h2 class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">Detectado automáticamente</h2>
-            <RouterLink to="/stats" class="text-xs text-brand-blue font-semibold">Estadísticas →</RouterLink>
+            <h2 class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.autoDetected') }}</h2>
+            <RouterLink to="/stats" class="text-xs text-brand-blue font-semibold">{{ t('alerts.goToStats') }} →</RouterLink>
           </div>
           <p class="text-xs dark:text-dark-txt2 text-light-txt2 mb-3">
-            Presupuestos del periodo; gasto e ingresos del <span class="font-medium dark:text-dark-txt text-light-txt">mismo periodo fiscal</span>.
-            La media de gasto es la de <span class="font-medium dark:text-dark-txt text-light-txt">Estadísticas</span>: total de gastos de los últimos 12 meses con datos ÷ meses con gasto en esa ventana.
+            {{ t('alerts.autoDetectedIntroStart') }}
+            <span class="font-medium dark:text-dark-txt text-light-txt">{{ t('alerts.sameFiscalPeriod') }}</span>.
+            {{ t('alerts.autoDetectedIntroMiddle') }}
+            <span class="font-medium dark:text-dark-txt text-light-txt">{{ t('alerts.statsName') }}</span>: {{ t('alerts.autoDetectedIntroEnd') }}
           </p>
 
           <div v-if="derivedInsights.length === 0" class="mw-card text-center py-8 px-4">
             <p class="text-2xl mb-2">✅</p>
-            <p class="text-sm font-semibold dark:text-dark-txt text-light-txt">Todo en orden</p>
+            <p class="text-sm font-semibold dark:text-dark-txt text-light-txt">{{ t('alerts.allGood') }}</p>
             <p class="text-xs mt-1 dark:text-dark-txt2 text-light-txt2">
-              No hay desviaciones claras respecto a presupuestos o a tu media de gasto.
+              {{ t('alerts.allGoodHint') }}
             </p>
           </div>
 
@@ -73,13 +75,13 @@
 
         <section>
           <div class="flex items-center gap-3 mb-2">
-            <h2 class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">Notificaciones</h2>
+            <h2 class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.notifications') }}</h2>
             <span v-if="store.alerts.length" class="bg-red-400/15 text-red-400 text-xs font-bold px-2.5 py-1 rounded-lg">
               {{ store.alerts.length }}
             </span>
           </div>
           <p v-if="!store.alerts.length" class="text-sm dark:text-dark-txt2 text-light-txt2 mb-3">
-            Sin avisos del sistema. Las notificaciones guardadas aparecerán aquí.
+            {{ t('alerts.noSystemAlerts') }}
           </p>
           <div class="flex flex-col gap-3">
             <AlertCard
@@ -96,7 +98,7 @@
       <div class="lg:col-span-1 flex flex-col gap-4">
         <div class="mw-card">
           <div class="flex justify-between items-center mb-4">
-            <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">Presupuesto del periodo</p>
+            <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.periodBudget') }}</p>
             <p class="text-xs dark:text-dark-txt2 text-light-txt2 tabular-nums">
               {{ formatEuro(store.totalBudgetedSpentThisMonth) }} / {{ formatEuro(store.totalBudget) }}
             </p>
@@ -108,7 +110,7 @@
                 :style="{ width: budgetPct + '%' }" />
             </div>
             <p class="text-xs text-right dark:text-dark-txt2 text-light-txt2">
-              {{ budgetPct }}% utilizado del total presupuestado
+              {{ t('alerts.usedBudgetPercent', { pct: budgetPct }) }}
             </p>
           </div>
           <div class="max-h-[min(52vh,28rem)] overflow-y-auto pr-1 -mr-1">
@@ -117,18 +119,18 @@
               :key="cat.id ?? cat.name"
               :category="cat" />
             <p v-if="categoriesWithBudget.length === 0" class="text-xs dark:text-dark-txt2 text-light-txt2">
-              No hay categorías con tope mensual. Puedes definirlos desde presupuestos o ajustes.
+              {{ t('alerts.noBudgetCategories') }}
             </p>
           </div>
           <RouterLink
             to="/add"
             class="mt-4 block text-center text-xs font-semibold py-2.5 rounded-xl bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white">
-            Registrar movimiento
+            {{ t('alerts.registerMovement') }}
           </RouterLink>
         </div>
 
         <div class="mw-card">
-          <p class="font-display font-bold text-sm mb-3 dark:text-dark-txt text-light-txt">💡 Consejo según tus datos</p>
+          <p class="font-display font-bold text-sm mb-3 dark:text-dark-txt text-light-txt">💡 {{ t('alerts.tipTitle') }}</p>
           <p class="text-xs leading-relaxed dark:text-dark-txt2 text-light-txt2">
             {{ dynamicTip }}
           </p>
@@ -141,6 +143,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
 import { useCurrency } from '@/composables/useCurrency'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
@@ -150,6 +153,7 @@ import BudgetBar from '@/components/BudgetBar.vue'
 
 const store = useWalletStore()
 const { formatEuro, formatPct } = useCurrency()
+const { t } = useI18n()
 
 const refreshing = ref(false)
 
@@ -219,22 +223,22 @@ const budgetPct = computed<number>(() => {
 
 const kpiRow = computed(() => [
   {
-    label: 'Saldo total',
+    label: t('alerts.kpi.balanceTotal'),
     value: formatEuro(store.balance),
     colorClass: store.balance >= 0 ? 'dark:text-dark-txt text-light-txt' : 'text-red-400',
   },
   {
-    label: 'Ingresos (periodo)',
+    label: t('alerts.kpi.incomePeriod'),
     value: formatEuro(store.monthIncome),
     colorClass: 'text-brand-green',
   },
   {
-    label: 'Gastos (periodo)',
+    label: t('alerts.kpi.expensesPeriod'),
     value: formatEuro(store.monthExpenses),
     colorClass: 'dark:text-dark-txt text-light-txt',
   },
   {
-    label: 'Flujo neto',
+    label: t('alerts.kpi.netFlow'),
     value: formatEuro(store.monthNetCashflow, true),
     colorClass: store.monthNetCashflow >= 0 ? 'text-brand-green' : 'text-red-400',
   },
@@ -251,7 +255,10 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     const excess = over.reduce((s, c) => s + Math.max(0, c.spentThisMonth - c.budget), 0)
     const body =
       over.length === 1
-        ? `Gasto ${formatEuro(over[0]!.spentThisMonth)} frente a ${formatEuro(over[0]!.budget)} asignados.`
+        ? t('alerts.derived.overBudgetSingleBody', {
+          spent: formatEuro(over[0]!.spentThisMonth),
+          budget: formatEuro(over[0]!.budget),
+        })
         : over
             .slice(0, 4)
             .map(c => `${c.icon} ${c.name}: +${formatEuro(c.spentThisMonth - c.budget)}`)
@@ -259,13 +266,13 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     out.push({
       key: 'over-budget',
       type: 'danger',
-      badge: 'Presupuesto',
+      badge: t('alerts.badge.budget'),
       title:
         over.length === 1
-          ? `${over[0]!.icon} ${over[0]!.name} supera el tope`
-          : `${over.length} categorías por encima del presupuesto`,
+          ? t('alerts.derived.overBudgetSingleTitle', { icon: over[0]!.icon, name: over[0]!.name })
+          : t('alerts.derived.overBudgetMultiTitle', { count: over.length }),
       body: over.length > 4 ? `${body}…` : body,
-      amount: `Exceso acumulado ${formatEuro(excess)}`,
+      amount: t('alerts.derived.overBudgetAmount', { amount: formatEuro(excess) }),
     })
   }
 
@@ -279,8 +286,8 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     out.push({
       key: 'near-limit',
       type: 'warning',
-      badge: 'Límite',
-      title: `${near.length} categoría(s) al 85% o más del tope`,
+      badge: t('alerts.badge.limit'),
+      title: t('alerts.derived.nearLimitTitle', { count: near.length }),
       body: near
         .slice(0, 5)
         .map(c => `${c.icon} ${c.name} (${formatPct((100 * c.spentThisMonth) / c.budget)})`)
@@ -295,23 +302,33 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
   if (avg >= 0.01 && cur > 0 && monthsWithExpense >= 1) {
     const ratio = cur / avg
     if (ratio >= 1.12) {
-      const mesesLabel = monthsWithExpense === 1 ? '1 mes con gasto' : `${monthsWithExpense} meses con gasto`
+      const monthsLabel = monthsWithExpense === 1
+        ? t('alerts.derived.oneExpenseMonth')
+        : t('alerts.derived.manyExpenseMonths', { count: monthsWithExpense })
       out.push({
         key: 'above-avg',
         type: 'warning',
-        badge: 'Tendencia',
-        title: 'Gasto del periodo por encima de tu media',
-        body: `Este periodo llevas ${formatEuro(cur)}. Tu media mensual de gasto en la ventana móvil es ${formatEuro(avg)} (${mesesLabel}, misma regla que en Estadísticas).`,
-        amount: `+${formatPct((ratio - 1) * 100)} vs media`,
+        badge: t('alerts.badge.trend'),
+        title: t('alerts.derived.aboveAvgTitle'),
+        body: t('alerts.derived.aboveAvgBody', {
+          current: formatEuro(cur),
+          avg: formatEuro(avg),
+          monthsLabel,
+        }),
+        amount: t('alerts.derived.aboveAvgAmount', { pct: formatPct((ratio - 1) * 100) }),
       })
     } else if (ratio <= 0.88) {
       out.push({
         key: 'below-avg',
         type: 'success',
-        badge: 'Control',
-        title: 'Gasto contenido respecto a la media',
-        body: `Has registrado ${formatEuro(cur)} frente a la media de ${formatEuro(avg)} (${monthsWithExpense} mes${monthsWithExpense === 1 ? '' : 'es'} con gasto en la ventana móvil).`,
-        amount: `${formatPct((1 - ratio) * 100)} por debajo`,
+        badge: t('alerts.badge.control'),
+        title: t('alerts.derived.belowAvgTitle'),
+        body: t('alerts.derived.belowAvgBody', {
+          current: formatEuro(cur),
+          avg: formatEuro(avg),
+          count: monthsWithExpense,
+        }),
+        amount: t('alerts.derived.belowAvgAmount', { pct: formatPct((1 - ratio) * 100) }),
       })
     }
   }
@@ -320,9 +337,12 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     out.push({
       key: 'negative-net',
       type: 'warning',
-      badge: 'Flujo',
-      title: 'Flujo neto negativo en este periodo',
-      body: `Ingresos ${formatEuro(store.monthIncome)} y gastos ${formatEuro(store.monthExpenses)}.`,
+      badge: t('alerts.badge.flow'),
+      title: t('alerts.derived.negativeNetTitle'),
+      body: t('alerts.derived.negativeNetBody', {
+        income: formatEuro(store.monthIncome),
+        expenses: formatEuro(store.monthExpenses),
+      }),
       amount: formatEuro(store.monthNetCashflow, true),
     })
   }
@@ -332,9 +352,12 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     out.push({
       key: 'statement',
       type: 'info',
-      badge: 'Extracto',
-      title: 'Último extracto importado',
-      body: `Saldo de ${formatEuro(snap.openingSaldo)} a ${formatEuro(snap.closingSaldo)} en el periodo del Excel.`,
+      badge: t('alerts.badge.statement'),
+      title: t('alerts.derived.statementTitle'),
+      body: t('alerts.derived.statementBody', {
+        opening: formatEuro(snap.openingSaldo),
+        closing: formatEuro(snap.closingSaldo),
+      }),
       amount: formatEuro(snap.delta, true),
     })
   }
@@ -343,9 +366,9 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     out.unshift({
       key: 'balance-negative',
       type: 'danger',
-      badge: 'Saldo',
-      title: 'Saldo agregado negativo',
-      body: 'Revisa cuentas y movimientos pendientes de categorizar o importar.',
+      badge: t('alerts.badge.balance'),
+      title: t('alerts.derived.balanceNegativeTitle'),
+      body: t('alerts.derived.balanceNegativeBody'),
       amount: formatEuro(store.balance, true),
     })
   }
@@ -359,9 +382,9 @@ const dynamicTip = computed(() => {
     const names = over
       .slice(0, 2)
       .map(c => c.name)
-      .join(' y ')
-    const extra = over.length > 2 ? ` (+${over.length - 2})` : ''
-    return `Prioriza recortar o replanificar ${names}${extra}. Ajusta el tope solo si el gasto fue necesario y recurrente.`
+      .join(` ${t('alerts.common.and')} `)
+    const extra = over.length > 2 ? t('alerts.tip.extraCount', { count: over.length - 2 }) : ''
+    return t('alerts.tip.overBudget', { names, extra })
   }
 
   const near = store.categories.filter(c => {
@@ -370,25 +393,25 @@ const dynamicTip = computed(() => {
     return c.spentThisMonth / c.budget >= 0.85
   })
   if (near.length) {
-    return `Varias categorías rozan el límite. Un repaso de fin de semana en movimientos suele evitar sorpresas de cierre de mes.`
+    return t('alerts.tip.nearLimit')
   }
 
   const avg = store.yearlyAverageExpense
   const cur = store.monthExpenses
   const mwd = store.expenseMonthsWithData
   if (avg >= 0.01 && cur > 0 && mwd >= 1 && cur / avg >= 1.12) {
-    return `Vas por encima de tu media de gasto (últimos 12 meses con datos): fija un tope semanal o aplaza compras no urgentes hasta ver el cierre del periodo.`
+    return t('alerts.tip.aboveAverage')
   }
 
   if (store.monthNetCashflow < 0) {
-    return `El neto del periodo es negativo: equilibra con más ingresos o menos gasto variable antes de que cierre el ciclo fiscal.`
+    return t('alerts.tip.negativeNet')
   }
 
   if (avg >= 0.01 && cur > 0 && mwd >= 1 && cur / avg <= 0.88) {
-    return `Por debajo de tu media: buen momento para asignar un colchón o un objetivo de ahorro explícito.`
+    return t('alerts.tip.belowAverage')
   }
 
-  return 'Presupuestos y flujo se ven equilibrados. Sigue revisando movimientos con regularidad para mantener la tendencia.'
+  return t('alerts.tip.balanced')
 })
 
 async function refresh(): Promise<void> {

@@ -22,14 +22,14 @@
         class="fixed z-[100] w-[min(100vw-1.5rem,18.5rem)] rounded-2xl border p-3 shadow-xl dark:border-white/[0.07] dark:bg-dark-card bg-light-card border-brand-blue/15"
         :style="panelStyle"
         role="dialog"
-        aria-label="Seleccionar rango de fechas"
+        :aria-label="t('dateRange.dialogAria')"
         @click.stop
       >
         <div class="mb-2 flex items-center justify-between gap-2">
           <button
             type="button"
             class="rounded-lg px-2 py-1 text-sm font-semibold transition-colors hover:bg-brand-blue/10 dark:hover:bg-white/5"
-            aria-label="Mes anterior"
+            :aria-label="t('dateRange.prevMonth')"
             :disabled="!canGoPrevMonth"
             :class="{ 'cursor-not-allowed opacity-30': !canGoPrevMonth }"
             @click="prevMonth"
@@ -42,7 +42,7 @@
           <button
             type="button"
             class="rounded-lg px-2 py-1 text-sm font-semibold transition-colors hover:bg-brand-blue/10 dark:hover:bg-white/5"
-            aria-label="Mes siguiente"
+            :aria-label="t('dateRange.nextMonth')"
             :disabled="!canGoNextMonth"
             :class="{ 'cursor-not-allowed opacity-30': !canGoNextMonth }"
             @click="nextMonth"
@@ -78,14 +78,14 @@
             class="flex-1 rounded-xl border py-2 text-xs font-semibold transition-colors dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:bg-white/5"
             @click="clearRange"
           >
-            Borrar rango
+            {{ t('dateRange.clear') }}
           </button>
           <button
             type="button"
             class="flex-1 rounded-xl bg-gradient-to-br from-brand-blue-dark to-brand-blue py-2 text-xs font-semibold text-white shadow-glow hover:opacity-90"
             @click="close"
           >
-            Listo
+            {{ t('dateRange.done') }}
           </button>
         </div>
       </div>
@@ -95,6 +95,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 export interface DateRangeValue {
   /** `YYYY-MM-DD` o cadena vacía */
@@ -120,6 +121,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: DateRangeValue]
 }>()
+const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
 const panelRef = ref<HTMLElement | null>(null)
@@ -131,12 +133,15 @@ const viewYear = ref(0)
 const viewMonth = ref(0)
 const pendingFrom = ref<string | null>(null)
 
-const weekDayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
-
-const monthNames = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-]
+const weekDayLabels = computed(() => [
+  t('dateRange.weekdays.mon'),
+  t('dateRange.weekdays.tue'),
+  t('dateRange.weekdays.wed'),
+  t('dateRange.weekdays.thu'),
+  t('dateRange.weekdays.fri'),
+  t('dateRange.weekdays.sat'),
+  t('dateRange.weekdays.sun'),
+])
 
 function todayYmd(): string {
   const d = new Date()
@@ -200,7 +205,9 @@ watch(
   }
 )
 
-const monthTitle = computed(() => `${monthNames[viewMonth.value]} ${viewYear.value}`)
+const monthTitle = computed(() =>
+  new Date(viewYear.value, viewMonth.value, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+)
 
 const canGoNextMonth = computed(() => {
   const maxD = parseYmd(effectiveMax.value)
@@ -258,17 +265,17 @@ const calendarCells = computed<CalendarCell[]>(() => {
 
 const summaryLabel = computed(() => {
   const f = props.modelValue.from.trim()
-  const t = props.modelValue.to.trim()
-  if (!f && !t) return 'Rango de fechas'
-  if (f && !t) return formatShort(f)
-  if (!f && t) return formatShort(t)
-  if (f === t) return formatShort(f)
-  return `${formatShort(f)} – ${formatShort(t)}`
+  const toValue = props.modelValue.to.trim()
+  if (!f && !toValue) return t('dateRange.placeholder')
+  if (f && !toValue) return formatShort(f)
+  if (!f && toValue) return formatShort(toValue)
+  if (f === toValue) return formatShort(f)
+  return `${formatShort(f)} – ${formatShort(toValue)}`
 })
 
 const hintText = computed(() => {
-  if (pendingFrom.value) return 'Elige el último día del rango.'
-  return 'Elige el primer día; luego el último. Mismo día = un solo día.'
+  if (pendingFrom.value) return t('dateRange.hintEnd')
+  return t('dateRange.hintStart')
 })
 
 function formatShort(ymd: string): string {
@@ -279,26 +286,26 @@ function formatShort(ymd: string): string {
 
 function isInRange(ymd: string): boolean {
   const f = props.modelValue.from.trim()
-  const t = props.modelValue.to.trim()
-  if (!f || !t) return false
-  const a = f <= t ? f : t
-  const b = f <= t ? t : f
+  const toValue = props.modelValue.to.trim()
+  if (!f || !toValue) return false
+  const a = f <= toValue ? f : toValue
+  const b = f <= toValue ? toValue : f
   return ymd >= a && ymd <= b
 }
 
 function isRangeStart(ymd: string): boolean {
   const f = props.modelValue.from.trim()
-  const t = props.modelValue.to.trim()
+  const toValue = props.modelValue.to.trim()
   if (!f) return false
-  const a = f <= t ? f : t
+  const a = f <= toValue ? f : toValue
   return ymd === a
 }
 
 function isRangeEnd(ymd: string): boolean {
   const f = props.modelValue.from.trim()
-  const t = props.modelValue.to.trim()
-  if (!t) return f === ymd
-  const b = f <= t ? t : f
+  const toValue = props.modelValue.to.trim()
+  if (!toValue) return f === ymd
+  const b = f <= toValue ? toValue : f
   return ymd === b
 }
 

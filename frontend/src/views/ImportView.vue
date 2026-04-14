@@ -1,21 +1,21 @@
 <template>
   <div class="p-4 md:p-6 lg:p-8 max-w-screen-xl mx-auto max-w-2xl">
     <div class="mw-card mb-6">
-      <p class="font-display font-extrabold text-lg dark:text-dark-txt text-light-txt">Importar movimientos ING</p>
+      <p class="font-display font-extrabold text-lg dark:text-dark-txt text-light-txt">{{ t('import.title') }}</p>
       <p class="text-sm mt-2 dark:text-dark-txt2 text-light-txt2 leading-relaxed">
-        Sube el Excel <strong class="dark:text-dark-txt text-light-txt">«Movimientos de la Cuenta»</strong> que descargas desde ING.
-        Se leen las columnas <strong>F. VALOR</strong>, <strong>DESCRIPCIÓN</strong> e <strong>IMPORTE (€)</strong> (y categorías si existen).
-        Se importan <strong>todas las filas válidas</strong> que vengan en el Excel (el banco suele limitar el periodo; nosotros no acotamos fechas en código).
-        Los importes negativos se registran como <strong>gastos</strong> y los positivos como <strong>ingresos</strong>.
-        Si el Excel incluye la columna <strong>Saldo</strong>, el saldo de la cuenta se fija al valor del <strong>último movimiento</strong> (como en el extracto del banco); si no, se sigue sumando sobre el saldo que ya tenía la cuenta en la app.
-        Los <strong>traspasos a ahorro</strong> (p. ej. redondeos con categoría «Ahorro») se guardan como traspaso: bajan el saldo de la cuenta pero <strong>no cuentan como gasto</strong> en el resumen de ingresos − gastos.
+        {{ t('import.helpIntro') }} <strong class="dark:text-dark-txt text-light-txt">{{ t('import.ingSheetName') }}</strong> {{ t('import.helpFromIng') }}
+        {{ t('import.helpColumnsStart') }} <strong>{{ t('import.colValueDate') }}</strong>, <strong>{{ t('import.colDescription') }}</strong> {{ t('import.helpColumnsAnd') }} <strong>{{ t('import.colAmount') }}</strong> {{ t('import.helpColumnsEnd') }}
+        {{ t('import.helpValidRowsStart') }} <strong>{{ t('import.helpValidRowsStrong') }}</strong> {{ t('import.helpValidRowsEnd') }}
+        {{ t('import.helpSignedStart') }} <strong>{{ t('import.helpExpensesStrong') }}</strong> {{ t('import.helpSignedMiddle') }} <strong>{{ t('import.helpIncomeStrong') }}</strong>.
+        {{ t('import.helpBalanceStart') }} <strong>{{ t('import.colBalance') }}</strong>, {{ t('import.helpBalanceMiddle') }} <strong>{{ t('import.helpLastMovementStrong') }}</strong> {{ t('import.helpBalanceEnd') }}
+        {{ t('import.helpTransfersStart') }} <strong>{{ t('import.helpTransfersStrong') }}</strong> {{ t('import.helpTransfersMiddle') }} <strong>{{ t('import.helpTransfersNoExpenseStrong') }}</strong> {{ t('import.helpTransfersEnd') }}
       </p>
     </div>
 
     <div class="mw-card space-y-4">
       <div>
         <label for="import-account" class="block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2">
-          Cuenta destino
+          {{ t('import.targetAccount') }}
         </label>
         <select
           id="import-account"
@@ -23,26 +23,37 @@
           class="mw-input"
           :disabled="loadingAccounts"
         >
-          <option value="" disabled>{{ loadingAccounts ? 'Cargando…' : 'Elige una cuenta' }}</option>
+          <option value="" disabled>{{ loadingAccounts ? t('common.loading') : t('import.chooseAccount') }}</option>
           <option v-for="a in accounts" :key="a.id" :value="a.id">
-            {{ a.name }} — {{ a.balance?.toFixed?.(2) ?? a.balance }} {{ a.currency }}
+            {{ formatAccountOption(a) }}
           </option>
         </select>
       </div>
 
       <div>
         <label for="import-file" class="block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2">
-          Archivo Excel (.xlsx)
+          {{ t('import.excelFile') }}
         </label>
         <input
           id="import-file"
           ref="fileInput"
           type="file"
           accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          class="block w-full text-sm dark:text-dark-txt2 text-light-txt2 file:mr-3 file:rounded-xl file:border-0 file:px-4 file:py-2 file:font-semibold file:bg-brand-blue file:text-white"
+          class="sr-only"
           @change="onFile"
         />
-        <p v-if="fileName" class="mt-1 text-xs dark:text-dark-txt3 text-light-txt3">{{ fileName }}</p>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
+            @click="fileInput?.click()"
+          >
+            {{ t('import.selectFile') }}
+          </button>
+          <p class="text-xs dark:text-dark-txt3 text-light-txt3">
+            {{ fileName || t('import.noFileSelected') }}
+          </p>
+        </div>
       </div>
 
       <p v-if="errorMsg" class="text-sm text-red-500 dark:text-red-400">{{ errorMsg }}</p>
@@ -55,7 +66,7 @@
           :disabled="!canSubmit || busy"
           @click="submit"
         >
-          {{ busy === 'import' ? 'Importando…' : 'Importar movimientos' }}
+          {{ busy === 'import' ? t('import.importing') : t('import.importMovements') }}
         </button>
         <button
           type="button"
@@ -63,26 +74,28 @@
           :disabled="!canSubmit || busy"
           @click="submitSyncBalanceOnly"
         >
-          {{ busy === 'sync' ? 'Alineando…' : 'Solo alinear saldo' }}
+          {{ busy === 'sync' ? t('import.syncing') : t('import.syncOnly') }}
         </button>
       </div>
       <p class="text-xs dark:text-dark-txt2 text-light-txt2 leading-relaxed">
-        «Solo alinear saldo» no duplica movimientos: lee el <strong>Saldo</strong> del último movimiento del Excel y actualiza la cuenta. Úsalo si ya importaste y el saldo no coincide con el banco.
+        {{ t('import.syncHelpStart') }} <strong>{{ t('import.colBalance') }}</strong> {{ t('import.syncHelpEnd') }}
       </p>
     </div>
 
     <p class="text-center text-sm mt-6">
-      <RouterLink to="/settings" class="text-brand-blue font-semibold underline underline-offset-2">Volver a ajustes</RouterLink>
+      <RouterLink to="/settings" class="text-brand-blue font-semibold underline underline-offset-2">{{ t('import.backSettings') }}</RouterLink>
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api, type ApiAccount } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
 
 const store = useWalletStore()
+const { t, locale } = useI18n()
 
 const accounts = ref<ApiAccount[]>([])
 const loadingAccounts = ref(true)
@@ -95,6 +108,16 @@ const errorMsg = ref('')
 const successMsg = ref('')
 
 const canSubmit = computed(() => Boolean(accountId.value && file.value))
+const localeTag = computed(() => (locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'))
+
+function formatAccountOption(account: ApiAccount): string {
+  const currency = account.currency || 'EUR'
+  const rawBalance = Number(account.balance ?? 0)
+  const formattedBalance = Number.isFinite(rawBalance)
+    ? rawBalance.toLocaleString(localeTag.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '0.00'
+  return `${account.name} - ${formattedBalance} ${currency}`
+}
 
 function onFile(ev: Event): void {
   const input = ev.target as HTMLInputElement
@@ -110,7 +133,7 @@ onMounted(async () => {
     accounts.value = await api.getAccounts()
     if (accounts.value.length === 1) accountId.value = accounts.value[0].id
   } catch {
-    errorMsg.value = 'No se pudieron cargar las cuentas.'
+    errorMsg.value = t('import.loadAccountsError')
   } finally {
     loadingAccounts.value = false
   }
@@ -123,24 +146,30 @@ async function submit(): Promise<void> {
   busy.value = 'import'
   try {
     const r = await api.importIngBankXlsx(accountId.value, file.value)
-    successMsg.value =
-      `Importados ${r.imported} movimientos nuevos.` +
-      (r.skippedDuplicates > 0
-        ? ` Omitidos ${r.skippedDuplicates} que ya estaban (misma fecha, importe y concepto).`
-        : '') +
-      (r.firstDateImported && r.lastDateImported
-        ? ` Rango de fechas: ${r.firstDateImported} → ${r.lastDateImported}.`
-        : '') +
-      (r.balanceFromStatement != null
-        ? ` Saldo de la cuenta actualizado según el extracto: ${r.balanceFromStatement.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €.`
-        : '')
+    const parts: string[] = [
+      t('import.successImported', { count: r.imported }),
+    ]
+    if (r.skippedDuplicates > 0) {
+      parts.push(t('import.successSkippedDuplicates', { count: r.skippedDuplicates }))
+    }
+    if (r.firstDateImported && r.lastDateImported) {
+      parts.push(t('import.successDateRange', { from: r.firstDateImported, to: r.lastDateImported }))
+    }
+    if (r.balanceFromStatement != null) {
+      parts.push(
+        t('import.successBalanceUpdated', {
+          amount: r.balanceFromStatement.toLocaleString(localeTag.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        })
+      )
+    }
+    successMsg.value = parts.join(' ')
     await store.initialize()
     file.value = null
     fileName.value = ''
     if (fileInput.value) fileInput.value.value = ''
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    errorMsg.value = ax.response?.data?.error?.message ?? 'No se pudo importar el archivo.'
+    errorMsg.value = ax.response?.data?.error?.message ?? t('import.importError')
   } finally {
     busy.value = false
   }
@@ -153,11 +182,13 @@ async function submitSyncBalanceOnly(): Promise<void> {
   busy.value = 'sync'
   try {
     const r = await api.syncBalanceIngBankXlsx(accountId.value, file.value)
-    successMsg.value = `Saldo de la cuenta actualizado a ${r.balance.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (según columna Saldo del extracto).`
+    successMsg.value = t('import.successSyncBalance', {
+      amount: r.balance.toLocaleString(localeTag.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    })
     await store.initialize()
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    errorMsg.value = ax.response?.data?.error?.message ?? 'No se pudo alinear el saldo.'
+    errorMsg.value = ax.response?.data?.error?.message ?? t('import.syncError')
   } finally {
     busy.value = false
   }

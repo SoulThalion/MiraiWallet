@@ -9,7 +9,7 @@
         <span class="font-display font-bold text-4xl dark:text-dark-txt2 text-light-txt2">Wallet</span>
       </div>
       <p class="text-sm mb-10 dark:text-dark-txt2 text-light-txt2">
-        <span class="font-medium dark:text-dark-txt text-light-txt">Your Money, Your Future</span>
+        <span class="font-medium dark:text-dark-txt text-light-txt">{{ t('onboarding.tagline') }}</span>
       </p>
 
       <!-- Features -->
@@ -23,9 +23,9 @@
         </div>
       </div>
 
-      <button class="btn-primary mb-3" @click="start">Comenzar →</button>
+      <button class="btn-primary mb-3" @click="start">{{ t('onboarding.start') }} →</button>
       <button type="button" class="text-sm underline underline-offset-2 dark:text-dark-txt2 text-light-txt2" @click="goLogin">
-        Ya tengo una cuenta
+        {{ t('onboarding.haveAccount') }}
       </button>
     </div>
   </div>
@@ -33,6 +33,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
 import MwLogo from '@/components/MwLogo.vue'
 
@@ -45,15 +46,16 @@ interface Feature {
 
 const router = useRouter()
 const store = useWalletStore()
+const { t } = useI18n()
 
 function goLogin(): void {
   router.push('/login')
 }
 
 const features: Feature[] = [
-  { icon: '📊', title: 'Visualiza tus gastos', desc: 'Gráficos interactivos por categoría y mes', bg: 'bg-brand-blue/10' },
-  { icon: '🔔', title: 'Alertas inteligentes', desc: 'Sugerencias de pago y financiación', bg: 'bg-brand-green/10' },
-  { icon: '💳', title: 'Importa movimientos', desc: 'Conecta tu banco o añade manualmente', bg: 'bg-brand-gold/10' },
+  { icon: '📊', title: t('onboarding.features.visualizeTitle'), desc: t('onboarding.features.visualizeDesc'), bg: 'bg-brand-blue/10' },
+  { icon: '🔔', title: t('onboarding.features.alertsTitle'), desc: t('onboarding.features.alertsDesc'), bg: 'bg-brand-green/10' },
+  { icon: '💳', title: t('onboarding.features.importTitle'), desc: t('onboarding.features.importDesc'), bg: 'bg-brand-gold/10' },
 ]
 
 function start(): void {

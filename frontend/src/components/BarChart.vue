@@ -30,16 +30,16 @@
         <div class="space-y-1 text-[10px] leading-snug">
           <p class="font-display font-bold text-light-txt dark:text-dark-txt">{{ bar.month }}</p>
           <p class="text-light-txt2 dark:text-dark-txt2">
-            Gastos
+            {{ t('stats.expensesLabel') }}
             <span class="ml-1 tabular-nums font-semibold text-light-txt dark:text-dark-txt">{{ formatEuro(bar.amount, false) }}</span>
           </p>
           <template v-if="hasMonthFinance(bar)">
             <p class="text-light-txt2 dark:text-dark-txt2">
-              Ingresos
+              {{ t('stats.incomeLabel') }}
               <span class="ml-1 tabular-nums font-semibold text-light-txt dark:text-dark-txt">{{ formatEuro(monthIncome(bar), false) }}</span>
             </p>
             <p class="text-light-txt2 dark:text-dark-txt2">
-              Neto
+              {{ t('stats.netLabel') }}
               <span
                 class="ml-1 tabular-nums font-semibold"
                 :class="amountColor(monthNet(bar))"
@@ -53,6 +53,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { MonthlyData } from '@/stores/wallet'
 import { useCurrency } from '@/composables/useCurrency'
 import Tooltip from '@/components/Tooltip.vue'
@@ -64,6 +65,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const { formatEuro, amountColor } = useCurrency()
+const { t } = useI18n()
 
 function hasMonthFinance(bar: MonthlyData): boolean {
   return typeof bar.income === 'number' || typeof bar.net === 'number'

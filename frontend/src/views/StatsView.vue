@@ -3,8 +3,7 @@
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0 flex-1">
         <p class="text-xs dark:text-dark-txt2 text-light-txt2">
-          Elige el periodo desde el calendario: un solo endpoint carga gasto por categoría, presupuestos del mes y las 12
-          barras del año.
+          {{ t('stats.periodHint') }}
         </p>
       </div>
       <div class="flex flex-shrink-0 flex-col items-stretch gap-2 sm:items-end">
@@ -24,13 +23,17 @@
       <div class="mw-card lg:col-span-1">
         <div class="mb-3 flex items-start justify-between gap-2">
           <div>
-            <p class="mb-1 text-xs font-semibold dark:text-dark-txt text-light-txt">Distribución del mes</p>
+            <p class="mb-1 text-xs font-semibold dark:text-dark-txt text-light-txt">{{ t('stats.monthDistribution') }}</p>
             <p class="text-[10px] dark:text-dark-txt2 text-light-txt2">{{ selectedDistributionLabel }}</p>
           </div>
-          <MwMonthStepper v-model="selectedDistributionYm" />
+          <MwMonthStepper
+            v-model="selectedDistributionYm"
+            :prev-aria-label="t('dateRange.prevMonth')"
+            :next-aria-label="t('dateRange.nextMonth')"
+          />
         </div>
         <div v-if="statsDonutSegments.length === 0" class="py-8 text-center text-sm dark:text-dark-txt2 text-light-txt2">
-          Sin gasto registrado por categoría en este mes.
+          {{ t('stats.noExpenseThisMonth') }}
         </div>
         <DonutChart v-else :segments="statsDonutSegments" :center-label="donutCenterLabel" />
       </div>
@@ -39,16 +42,16 @@
       <div class="mw-card flex h-full min-h-[16rem] flex-col md:col-span-2 lg:col-span-2">
         <div class="mb-3 flex items-start justify-between gap-2">
           <div>
-            <p class="mb-1 shrink-0 text-xs font-semibold dark:text-dark-txt text-light-txt">Gasto mensual</p>
-            <p class="shrink-0 text-[10px] dark:text-dark-txt2 text-light-txt2">Año {{ chartYear }} · el mes actual del sistema se resalta si cae en este año</p>
+            <p class="mb-1 shrink-0 text-xs font-semibold dark:text-dark-txt text-light-txt">{{ t('stats.monthlyExpense') }}</p>
+            <p class="shrink-0 text-[10px] dark:text-dark-txt2 text-light-txt2">{{ t('stats.yearLabel', { year: chartYear }) }}</p>
           </div>
           <MwMonthStepper
             v-model="selectedBarsYear"
             mode="year"
             :min-year="barYearMin"
             :max-year="barYearMax"
-            prev-aria-label="Año anterior"
-            next-aria-label="Año siguiente"
+            :prev-aria-label="t('stats.prevYear')"
+            :next-aria-label="t('stats.nextYear')"
           />
         </div>
         <div class="min-h-0 flex-1">
@@ -58,17 +61,17 @@
 
       <!-- KPIs -->
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Promedio mensual de gasto (ventana móvil)</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('stats.avgExpenseWindow') }}</p>
         <p class="font-display text-2xl font-extrabold dark:text-dark-txt text-light-txt md:text-3xl">
           {{ formatEuro(yearlyAverageExpense, false) }}
         </p>
         <p class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
-          Calculado con los últimos 12 meses con datos, excluyendo mes en curso y primer mes parcial.
+          {{ t('stats.avgExpenseHint') }}
         </p>
       </div>
 
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Mes con menos gasto</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('stats.lowestExpenseMonth') }}</p>
         <p class="font-display text-2xl font-extrabold dark:text-dark-txt text-light-txt md:text-3xl">
           {{ formatEuro(bestMonthAmount, false) }}
         </p>
@@ -76,27 +79,27 @@
       </div>
 
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Gasto del mes (suma categorías)</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('stats.monthExpenseTotal') }}</p>
         <p class="font-display text-2xl font-extrabold dark:text-dark-txt text-light-txt md:text-3xl">
           {{ formatEuro(statsMonthSpendTotal, false) }}
         </p>
         <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">
-          Presupuesto total asignado: {{ formatEuro(monthBudgetTotal, false) }} · {{ selectedMonthLabel }}
+          {{ t('stats.totalAssignedBudget') }}: {{ formatEuro(monthBudgetTotal, false) }} · {{ selectedMonthLabel }}
         </p>
       </div>
 
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Promedio mensual ingresos (ventana móvil)</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('stats.avgIncomeWindow') }}</p>
         <p class="font-display text-2xl font-extrabold text-brand-green md:text-3xl">
           {{ formatEuro(yearlyAverageIncome, true) }}
         </p>
         <p class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
-          Últimos 12 meses con datos, excluyendo mes en curso y primer mes parcial.
+          {{ t('stats.avgIncomeHint') }}
         </p>
       </div>
 
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Mes con menos ingreso</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('stats.lowestIncomeMonth') }}</p>
         <p class="font-display text-2xl font-extrabold text-brand-green md:text-3xl">
           {{ formatEuro(bestIncomeMonthAmount, true) }}
         </p>
@@ -104,20 +107,20 @@
       </div>
 
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Ingreso del mes (suma categorías)</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('stats.monthIncomeTotal') }}</p>
         <p class="font-display text-2xl font-extrabold text-brand-green md:text-3xl">
           {{ formatEuro(statsMonthIncomeTotal, true) }}
         </p>
         <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">
-          Mismo mes fiscal seleccionado.
+          {{ t('stats.sameFiscalMonth') }}
         </p>
       </div>
 
       <!-- Desglose -->
       <div class="mw-card md:col-span-2 lg:col-span-3">
-        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">Desglose por categoría</p>
+        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.breakdownByCategory') }}</p>
         <p class="mb-4 text-[10px] dark:text-dark-txt2 text-light-txt2">
-          Gasto del mes frente al presupuesto · {{ selectedMonthLabel }}
+          {{ t('stats.monthExpenseVsBudget') }} · {{ selectedMonthLabel }}
         </p>
         <div class="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2 lg:grid-cols-3">
           <div v-for="cat in categoriesForBreakdown" :key="cat.id">
@@ -140,30 +143,27 @@
       <!-- Ventana móvil: últimos 12 meses con datos, con desglose por subcategoría -->
       <div class="mw-card md:col-span-2 lg:col-span-3">
         <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">
-          Medias mensuales (últimos 12 meses con datos)
+          {{ t('stats.monthlyAverages') }}
         </p>
         <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
-          Total por categoría en una ventana móvil: <strong class="dark:text-dark-txt text-light-txt">últimos 12 meses fiscales con datos</strong>
-          hasta el mes consultado (puede cruzar años). La media mensual divide solo entre los meses con movimiento
-          del tipo correspondiente (gasto/ingreso).
-          Pulsa una categoría para ver el desglose por subcategoría.
+          {{ t('stats.monthlyAveragesHint') }}
         </p>
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div>
-            <p class="mb-2 text-xs font-semibold dark:text-dark-txt text-light-txt">Gastos · categorías</p>
+            <p class="mb-2 text-xs font-semibold dark:text-dark-txt text-light-txt">{{ t('stats.expensesCategories') }}</p>
             <div class="overflow-x-auto rounded-xl border dark:border-white/[0.07] border-brand-blue/10">
               <table class="w-full min-w-[300px] text-left text-xs">
                 <thead class="dark:bg-dark-surf bg-light-surf text-[10px] uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
                   <tr>
                     <th class="w-8 px-1 py-2" aria-hidden="true"></th>
-                    <th class="px-2 py-2 font-semibold">Categoría</th>
-                    <th class="px-3 py-2 font-semibold text-right">Total ventana</th>
-                    <th class="px-3 py-2 font-semibold text-right">Media / mes</th>
+                    <th class="px-2 py-2 font-semibold">{{ t('stats.category') }}</th>
+                    <th class="px-3 py-2 font-semibold text-right">{{ t('stats.windowTotal') }}</th>
+                    <th class="px-3 py-2 font-semibold text-right">{{ t('stats.avgPerMonth') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="expenseCatYearAvg.length === 0">
-                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">Sin gastos en la ventana móvil.</td>
+                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">{{ t('stats.noExpensesInWindow') }}</td>
                   </tr>
                   <template v-for="row in expenseCatYearAvg" :key="row.categoryId">
                     <tr
@@ -208,7 +208,7 @@
                     class="border-t-2 border-brand-blue/20 dark:border-white/[0.12] bg-black/[0.03] font-semibold dark:bg-white/[0.04] dark:text-dark-txt text-light-txt"
                   >
                     <td class="px-1 py-2.5"></td>
-                    <td class="px-2 py-2.5">Total ventana (todos los gastos)</td>
+                    <td class="px-2 py-2.5">{{ t('stats.totalWindowAllExpenses') }}</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableExpenseTotal, false) }}</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableExpenseAvg, false) }}</td>
                   </tr>
@@ -217,20 +217,20 @@
             </div>
           </div>
           <div>
-            <p class="mb-2 text-xs font-semibold dark:text-dark-txt text-light-txt">Ingresos · categorías</p>
+            <p class="mb-2 text-xs font-semibold dark:text-dark-txt text-light-txt">{{ t('stats.incomeCategories') }}</p>
             <div class="overflow-x-auto rounded-xl border dark:border-white/[0.07] border-brand-blue/10">
               <table class="w-full min-w-[300px] text-left text-xs">
                 <thead class="dark:bg-dark-surf bg-light-surf text-[10px] uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
                   <tr>
                     <th class="w-8 px-1 py-2" aria-hidden="true"></th>
-                    <th class="px-2 py-2 font-semibold">Categoría</th>
-                    <th class="px-3 py-2 font-semibold text-right">Total ventana</th>
-                    <th class="px-3 py-2 font-semibold text-right">Media / mes</th>
+                    <th class="px-2 py-2 font-semibold">{{ t('stats.category') }}</th>
+                    <th class="px-3 py-2 font-semibold text-right">{{ t('stats.windowTotal') }}</th>
+                    <th class="px-3 py-2 font-semibold text-right">{{ t('stats.avgPerMonth') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="incomeCatYearAvg.length === 0">
-                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">Sin ingresos en la ventana móvil.</td>
+                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">{{ t('stats.noIncomeInWindow') }}</td>
                   </tr>
                   <template v-for="row in incomeCatYearAvg" :key="row.categoryId">
                     <tr
@@ -275,7 +275,7 @@
                     class="border-t-2 border-brand-blue/20 dark:border-white/[0.12] bg-black/[0.03] font-semibold dark:bg-white/[0.04] dark:text-dark-txt text-light-txt"
                   >
                     <td class="px-1 py-2.5"></td>
-                    <td class="px-2 py-2.5">Total ventana (todos los ingresos)</td>
+                    <td class="px-2 py-2.5">{{ t('stats.totalWindowAllIncome') }}</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableIncomeTotal, true) }}</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableIncomeAvg, true) }}</td>
                   </tr>
@@ -288,25 +288,20 @@
 
       <!-- Gastos recurrentes -->
       <div class="mw-card md:col-span-2 lg:col-span-3">
-        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">Gastos recurrentes</p>
+        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.recurringExpenses') }}</p>
         <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
-          Misma categoría, subcategoría, importe y
-          <strong class="dark:text-dark-txt text-light-txt">día del mes</strong>;
-          el concepto se compara tras quitar prefijos tipo «Pago en…» y signos de puntuación, para agrupar textos del banco parecidos.
-          Al menos dos meses naturales distintos (últimos 36 meses, hasta 20.000 movimientos más recientes).
+          {{ t('stats.recurringHint') }}
         </p>
 
         <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
           <summary class="cursor-pointer select-none text-xs font-semibold text-brand-blue hover:underline">
-            Excluir categorías y subcategorías del detector
+            {{ t('stats.excludeCategoriesDetector') }}
           </summary>
           <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2">
-            Los gastos marcados no entran en el agrupado de recurrentes (toda la categoría, o solo una subcategoría). Las
-            categorías con subcategorías se despliegan al pulsar la fila para elegir cuáles excluir. Puedes revertirlo cuando
-            quieras.
+            {{ t('stats.excludeDetectorHint') }}
           </p>
           <div v-if="!expenseCategoriesForRecurring.length" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
-            Carga categorías desde otra pestaña o recarga la app.
+            {{ t('stats.loadCategoriesHint') }}
           </div>
           <div v-else class="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
             <template v-for="c in expenseCategoriesForRecurring" :key="c.id">
@@ -322,7 +317,7 @@
                   @change="onToggleExcludeCategory(c.id!, ($event.target as HTMLInputElement).checked)"
                 />
                 <span>{{ c.icon }} {{ c.name }}</span>
-                <span class="ml-auto text-[10px] dark:text-dark-txt3 text-light-txt3">Sin subcategorías</span>
+                <span class="ml-auto text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.noSubcategories') }}</span>
               </label>
               <details
                 v-else
@@ -355,7 +350,7 @@
                   class="space-y-1.5 border-t border-brand-blue/8 px-3 py-2.5 pl-9 dark:border-white/[0.06] dark:bg-white/[0.02]"
                 >
                   <p class="text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
-                    Excluir subcategorías
+                    {{ t('stats.excludeSubcategories') }}
                   </p>
                   <label
                     v-for="s in c.subcategories"
@@ -375,26 +370,26 @@
               </details>
             </template>
           </div>
-          <p v-if="excludeSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">Guardando…</p>
+          <p v-if="excludeSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
           <p v-if="excludeError" class="mt-2 text-[10px] text-red-400">{{ excludeError }}</p>
         </details>
 
         <div v-if="recurringExpensesList.length === 0" class="py-8 text-center text-sm dark:text-dark-txt2 text-light-txt2">
-          No se detectaron patrones recurrentes con esos criterios.
+          {{ t('stats.noRecurringPatterns') }}
         </div>
         <div v-else class="overflow-x-auto rounded-xl border dark:border-white/[0.07] border-brand-blue/10">
           <table class="w-full min-w-[720px] text-left text-xs">
             <thead class="dark:bg-dark-surf bg-light-surf text-[10px] uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
               <tr>
-                <th class="px-3 py-2 font-semibold">Día</th>
-                <th class="px-3 py-2 font-semibold">Categoría</th>
-                <th class="px-3 py-2 font-semibold">Concepto</th>
-                <th class="px-3 py-2 font-semibold text-right">Importe</th>
-                <th class="px-3 py-2 font-semibold text-right">Veces</th>
-                <th class="px-3 py-2 font-semibold text-right">Meses</th>
-                <th class="px-3 py-2 font-semibold">Primera</th>
-                <th class="px-3 py-2 font-semibold">Última</th>
-                <th class="px-3 py-2 font-semibold text-center">Acción</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.day') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.category') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.description') }}</th>
+                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.amount') }}</th>
+                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.times') }}</th>
+                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.months') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.first') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.last') }}</th>
+                <th class="px-3 py-2 font-semibold text-center">{{ t('stats.action') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -421,7 +416,7 @@
                     class="text-xs font-semibold text-red-400 hover:underline"
                     @click="openDismissRecurring(row)"
                   >
-                    Quitar
+                    {{ t('stats.remove') }}
                   </button>
                 </td>
               </tr>
@@ -431,7 +426,7 @@
                 class="border-t-2 border-brand-blue/20 bg-black/[0.03] font-semibold dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-dark-txt text-light-txt"
               >
                 <td class="px-3 py-2.5">—</td>
-                <td class="px-3 py-2.5" colspan="2">Totales ({{ recurringExpensesList.length }} patrones)</td>
+                <td class="px-3 py-2.5" colspan="2">{{ t('stats.totalsPatterns', { count: recurringExpensesList.length }) }}</td>
                 <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(recurringAmountSum, false) }}</td>
                 <td class="px-3 py-2.5 text-right tabular-nums">{{ recurringOccurrenceSum }}</td>
                 <td class="px-3 py-2.5 text-right tabular-nums">—</td>
@@ -459,16 +454,15 @@
           @click.stop
         >
           <p id="recurring-dismiss-title" class="font-display text-base font-bold dark:text-dark-txt text-light-txt">
-            Dejar de mostrar como recurrente
+            {{ t('stats.stopShowingRecurring') }}
           </p>
           <p class="mt-3 text-sm leading-relaxed dark:text-dark-txt2 text-light-txt2">
-            Se ocultará este patrón ({{ dismissModalRow.categoryIcon }} {{ dismissModalRow.categoryName
+            {{ t('stats.dismissPatternBody') }} ({{ dismissModalRow.categoryIcon }} {{ dismissModalRow.categoryName
             }}<span v-if="dismissModalRow.subcategoryName"> · {{ dismissModalRow.subcategoryName }}</span>,
             {{ dismissModalRow.description }}, {{ formatEuro(dismissModalRow.amount, false) }}).
           </p>
           <p class="mt-3 text-xs leading-relaxed text-amber-600 dark:text-amber-400/95">
-            No se borran movimientos. Si en un <strong>mes natural posterior</strong> al actual vuelve a aparecer un
-            cargo que coincida con el patrón, volverá a listarse como recurrente.
+            {{ t('stats.dismissPatternHint') }}
           </p>
           <p v-if="dismissError" class="mt-3 text-xs text-red-400">{{ dismissError }}</p>
           <div class="mt-5 flex gap-2">
@@ -478,7 +472,7 @@
               :disabled="dismissBusy"
               @click="dismissModalRow = null"
             >
-              Cancelar
+              {{ t('common.cancel') }}
             </button>
             <button
               type="button"
@@ -486,7 +480,7 @@
               :disabled="dismissBusy"
               @click="confirmDismissRecurring"
             >
-              {{ dismissBusy ? 'Aplicando…' : 'Confirmar' }}
+              {{ dismissBusy ? t('stats.applying') : t('stats.confirm') }}
             </button>
           </div>
         </div>
@@ -497,6 +491,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   api,
   type StatsMonthOverviewDto,
@@ -514,6 +509,7 @@ import MwMonthStepper from '@/components/MwMonthStepper.vue'
 
 const { formatEuro, roundMoney } = useCurrency()
 const wallet = useWalletStore()
+const { t, locale } = useI18n()
 
 function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
@@ -541,7 +537,7 @@ async function loadMonthOverview(ym: string): Promise<void> {
     statsError.value =
       e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
         ? (e as { message: string }).message
-        : 'No se pudieron cargar las estadísticas.'
+        : t('stats.loadStatsError')
     overview.value = null
   } finally {
     monthLoading.value = false
@@ -557,7 +553,7 @@ async function loadBarsOverview(year: number): Promise<void> {
     statsError.value =
       e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
         ? (e as { message: string }).message
-        : 'No se pudieron cargar las estadísticas.'
+        : t('stats.loadStatsError')
     barsOverview.value = null
   } finally {
     barsLoading.value = false
@@ -624,8 +620,9 @@ const chartBars = computed<MonthlyData[]>(() => {
   if (!o) return []
   const [selY, selM] = selectedMonthYm.value.split('-')
   const selectedForBars = String(chartYear.value) === String(selY) ? Number(selM) : 0
+  const localeTag = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
   return o.monthlyBars.map(b => ({
-    month: b.label,
+    month: new Date(chartYear.value, Math.max(0, Number(b.month) - 1), 1).toLocaleDateString(localeTag, { month: 'short' }),
     amount: b.expenses,
     current: b.isCurrentSystemMonth,
     selected: Number(b.month) === selectedForBars,
@@ -679,8 +676,9 @@ const statsDonutSegments = computed<DonutSegment[]>(() => {
 })
 
 const donutCenterLabel = computed(() => {
-  const t = roundMoney(distributionOverview.value?.totals.monthExpenseTotal ?? 0)
-  const s = t.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const totalValue = roundMoney(distributionOverview.value?.totals.monthExpenseTotal ?? 0)
+  const localeTag = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
+  const s = totalValue.toLocaleString(localeTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return `€${s}`
 })
 
@@ -747,7 +745,7 @@ async function onToggleExcludeCategory(categoryId: string, checked: boolean): Pr
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
         : null
-    excludeError.value = typeof msg === 'string' ? msg : 'No se pudo guardar la exclusión.'
+    excludeError.value = typeof msg === 'string' ? msg : t('stats.saveExclusionError')
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
@@ -770,7 +768,7 @@ async function onToggleExcludeSubcategory(subcategoryId: string, checked: boolea
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
         : null
-    excludeError.value = typeof msg === 'string' ? msg : 'No se pudo guardar la exclusión.'
+    excludeError.value = typeof msg === 'string' ? msg : t('stats.saveExclusionError')
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
@@ -800,7 +798,7 @@ async function confirmDismissRecurring(): Promise<void> {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
         : null
-    dismissError.value = typeof msg === 'string' ? msg : 'No se pudo aplicar.'
+    dismissError.value = typeof msg === 'string' ? msg : t('stats.couldNotApply')
   } finally {
     dismissBusy.value = false
   }
@@ -861,14 +859,41 @@ function budgetBarWidth(cat: StatsMonthCategoryDto): string {
 const bestMonthYearLabel = computed(() => {
   const label = overview.value?.totals.bestMonthLabel
   if (!label) return '—'
-  return label
+  return normalizeBestMonthLabel(label)
 })
 
 const bestIncomeMonthYearLabel = computed(() => {
   const label = overview.value?.totals.bestIncomeMonthLabel
   if (!label) return '—'
-  return label
+  return normalizeBestMonthLabel(label)
 })
+
+function normalizeBestMonthLabel(raw: string): string {
+  const v = raw.trim()
+  const ym = /^(\d{4})-(\d{2})$/.exec(v)
+  if (ym) {
+    return formatYearMonthEs(`${ym[1]}-${ym[2]}`)
+  }
+  const parts = /^([A-Za-zÀ-ÿ]+)\s+(\d{4})$/.exec(v)
+  if (!parts) return v
+  const monthMap: Record<string, number> = {
+    ene: 1, enero: 1, jan: 1, januar: 1,
+    feb: 2, febrero: 2, februar: 2,
+    mar: 3, marzo: 3, maerz: 3, märz: 3,
+    abr: 4, abril: 4, apr: 4, april: 4,
+    may: 5, mayo: 5, mai: 5,
+    jun: 6, junio: 6, juni: 6,
+    jul: 7, julio: 7, juli: 7,
+    ago: 8, agosto: 8, aug: 8,
+    sep: 9, septiembre: 9, sept: 9,
+    oct: 10, octubre: 10, okt: 10, oktober: 10,
+    nov: 11, noviembre: 11,
+    dic: 12, diciembre: 12, dez: 12, dezember: 12, dec: 12, december: 12,
+  }
+  const m = monthMap[parts[1].toLowerCase()]
+  if (!m) return v
+  return formatYearMonthEs(`${parts[2]}-${String(m).padStart(2, '0')}`)
+}
 
 </script>
 

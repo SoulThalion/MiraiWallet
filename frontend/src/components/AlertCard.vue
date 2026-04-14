@@ -31,7 +31,7 @@
           v-for="action in alert.actions" :key="action.label"
           :class="['flex-1 py-1.5 rounded-[9px] text-[11px] font-semibold transition-opacity active:opacity-80', actionClass(action.style)]"
           @click="action.style !== 'secondary' ? $emit('action', { alertId: alert.id, action: action.label }) : $emit('dismiss', alert.id)">
-          {{ action.label }}
+          {{ translateActionLabel(action.label) }}
         </button>
       </div>
     </div>
@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Alert } from '@/stores/wallet'
 
 interface Props {
@@ -56,6 +57,7 @@ interface TypeStyle {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 defineEmits<{
   dismiss: [alertId: number | string]
   action: [{ alertId: number | string, action: string }]
@@ -68,13 +70,29 @@ const typeMap: Record<string, TypeStyle> = {
   info: { icon: 'ℹ️', accent: 'bg-brand-blue', iconBg: 'bg-brand-blue/10', border: 'border-brand-blue/30', amount: 'text-brand-blue', badge: 'bg-brand-blue/10 text-brand-blue' },
 }
 
-const t = computed<TypeStyle>(() => typeMap[props.alert.type] || typeMap.info)
-const icon = computed<string>(() => t.value.icon)
-const accentColor = computed<string>(() => t.value.accent)
-const iconBg = computed<string>(() => t.value.iconBg)
-const borderColor = computed<string>(() => t.value.border)
-const amountColor = computed<string>(() => t.value.amount)
-const badgeClass = computed<string>(() => t.value.badge)
+const typeStyle = computed<TypeStyle>(() => typeMap[props.alert.type] || typeMap.info)
+const icon = computed<string>(() => typeStyle.value.icon)
+const accentColor = computed<string>(() => typeStyle.value.accent)
+const iconBg = computed<string>(() => typeStyle.value.iconBg)
+const borderColor = computed<string>(() => typeStyle.value.border)
+const amountColor = computed<string>(() => typeStyle.value.amount)
+const badgeClass = computed<string>(() => typeStyle.value.badge)
+
+function translateActionLabel(label: string): string {
+  const value = label.trim().toLowerCase()
+  const known: Record<string, string> = {
+    descartar: t('alerts.actions.dismiss'),
+    cerrar: t('alerts.actions.close'),
+    aceptar: t('alerts.actions.accept'),
+    confirmar: t('alerts.actions.confirm'),
+    aplicar: t('alerts.actions.apply'),
+    'ver movimientos': t('alerts.actions.viewMovements'),
+    'ir a estadisticas': t('alerts.actions.goStats'),
+    'ir a estadísticas': t('alerts.actions.goStats'),
+    'revisar presupuesto': t('alerts.actions.reviewBudget'),
+  }
+  return known[value] ?? label
+}
 
 function actionClass(style: string): string {
   return {
