@@ -69,6 +69,8 @@ export async function list(
   if (query.accountId)   where.accountId    = query.accountId
   if (query.categoryId)  where.categoryId   = query.categoryId
   if (query.importSource) where.importSource = query.importSource
+  if (query.isExcluded === 'true') where.isExcluded = true
+  if (query.isExcluded === 'false') where.isExcluded = false
 
   if (query.description?.trim()) {
     const raw = query.description.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')

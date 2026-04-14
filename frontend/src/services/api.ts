@@ -375,6 +375,7 @@ class ApiClient {
     to?: string
     description?: string
     importSource?: 'manual' | 'csv' | 'bank_api'
+    isExcluded?: boolean
     minAmount?: number
     maxAmount?: number
     sortBy?: 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'

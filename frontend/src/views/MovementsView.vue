@@ -1,17 +1,26 @@
 <template>
   <div class="mx-auto flex w-full max-w-screen-xl min-h-0 flex-1 flex-col gap-3 px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
-    <div class="flex flex-shrink-0 flex-wrap items-center justify-between gap-2">
+    <div class="flex flex-shrink-0 flex-wrap items-end justify-between gap-2">
       <p class="text-xs dark:text-dark-txt2 text-light-txt2 md:hidden">
         Desplázate hacia abajo para cargar más (20 por página).
       </p>
-      <button
-        v-if="!initialLoading"
-        type="button"
-        class="ml-auto text-xs font-semibold text-brand-blue hover:underline md:ml-0"
-        @click="resetFiltersAndSort"
-      >
-        Limpiar filtros y orden
-      </button>
+      <div v-if="!initialLoading" class="ml-auto flex items-end gap-3 md:ml-0">
+        <div class="min-w-[180px]">
+          <label class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">Estado</label>
+          <select v-model="filters.excludeState" :class="filterInputClass">
+            <option value="">Todos</option>
+            <option value="false">Activos</option>
+            <option value="true">Excluidos</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          class="mb-1 text-xs font-semibold text-brand-blue hover:underline"
+          @click="resetFiltersAndSort"
+        >
+          Limpiar filtros y orden
+        </button>
+      </div>
     </div>
 
     <!--
@@ -380,6 +389,7 @@ const filters = reactive({
   categoryId: '',
   type: '' as '' | 'income' | 'expense' | 'transfer',
   importSource: '' as '' | 'manual' | 'csv' | 'bank_api',
+  excludeState: '' as '' | 'true' | 'false',
   minAmount: '',
   maxAmount: '',
 })
@@ -539,6 +549,7 @@ function buildListParams(pageNum: number): NonNullable<Parameters<typeof api.get
   if (filters.categoryId) p.categoryId = filters.categoryId
   if (filters.type) p.type = filters.type
   if (filters.importSource) p.importSource = filters.importSource
+  if (filters.excludeState !== '') p.isExcluded = filters.excludeState === 'true'
   const min = parseFloat(filters.minAmount)
   if (filters.minAmount.trim() !== '' && Number.isFinite(min)) p.minAmount = min
   const max = parseFloat(filters.maxAmount)
@@ -589,6 +600,7 @@ function resetFiltersAndSort(): void {
   filters.categoryId = ''
   filters.type = ''
   filters.importSource = ''
+  filters.excludeState = ''
   filters.minAmount = ''
   filters.maxAmount = ''
   sortBy.value = 'date'

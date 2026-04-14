@@ -84,6 +84,8 @@ export interface TransactionQuery {
   /** Contiene (LIKE) en `description`, insensible a mayúsculas en MySQL utf8mb4_unicode_ci. */
   description?:  string
   importSource?:  ImportSource
+  /** `true` solo excluidos, `false` solo activos; vacío = ambos. */
+  isExcluded?:    'true' | 'false' | string
   minAmount?:     string
   maxAmount?:     string
   sortBy?:       TransactionListSortBy | string

@@ -47,6 +47,7 @@ export const listTransactionRules = [
   query('to').optional().isDate(),
   query('description').optional().trim().isLength({ max: 200 }),
   query('importSource').optional().isIn(['manual', 'csv', 'bank_api']),
+  query('isExcluded').optional().isIn(['true', 'false']),
   query('minAmount').optional().isFloat({ min: 0 }),
   query('maxAmount').optional().isFloat({ min: 0 }),
   query('sortBy').optional().isIn(['date', 'amount', 'description', 'type', 'importSource', 'category']),
