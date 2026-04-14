@@ -5,7 +5,7 @@
         {{ category.icon }} {{ category.name }}
       </span>
       <span :class="['text-[11px] font-semibold', overBudget ? 'text-red-400' : 'dark:text-dark-txt text-light-txt']">
-        €{{ displaySpent }} / €{{ category.budget }}
+        {{ spentLabel }} / {{ budgetLabel }}
       </span>
     </div>
     <div class="h-[5px] rounded-full overflow-hidden dark:bg-dark-surf bg-light-surf">
@@ -20,12 +20,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Category } from '@/stores/wallet'
+import { useCurrency } from '@/composables/useCurrency'
 
 interface Props {
   category: Category
 }
 
 const props = defineProps<Props>()
+const { formatEuro } = useCurrency()
 
 /** Con presupuesto: gasto del mes; sin presupuesto: acumulado (solo texto). */
 const displaySpent = computed<number>(() =>
@@ -39,4 +41,6 @@ const pct = computed<number>(() => {
 })
 const overBudget = computed<boolean>(() => displaySpent.value > props.category.budget)
 const barColor = computed<string>(() => overBudget.value ? '#E04545' : props.category.color)
+const spentLabel = computed<string>(() => formatEuro(displaySpent.value))
+const budgetLabel = computed<string>(() => formatEuro(props.category.budget))
 </script>

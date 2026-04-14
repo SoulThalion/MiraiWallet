@@ -122,11 +122,6 @@
               {{ t('alerts.noBudgetCategories') }}
             </p>
           </div>
-          <RouterLink
-            to="/add"
-            class="mt-4 block text-center text-xs font-semibold py-2.5 rounded-xl bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white">
-            {{ t('alerts.registerMovement') }}
-          </RouterLink>
         </div>
 
         <div class="mw-card">
