@@ -25,7 +25,7 @@
               : 'dark:text-dark-txt2 dark:hover:bg-white/5 dark:hover:text-dark-txt text-light-txt2 hover:bg-brand-blue/5 hover:text-light-txt'
           ]" @click="navigate">
             <span class="text-lg flex-shrink-0">{{ item.icon }}</span>
-            <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">{{ item.label }}</span>
+          <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">{{ item.label }}</span>
           </button>
         </RouterLink>
       </nav>
@@ -33,14 +33,14 @@
       <div class="px-2 py-3 border-t flex flex-col gap-1 dark:border-white/[0.07] border-brand-blue/10">
         <button class="flex items-center gap-3 rounded-xl px-3 py-2.5 w-full transition-colors dark:text-dark-txt2 dark:hover:bg-white/5 text-light-txt2 hover:bg-brand-blue/5" @click="store.toggleDark">
           <span class="text-lg flex-shrink-0">{{ store.darkMode ? '🌙' : '☀️' }}</span>
-          <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">
-            <span class="hidden dark:inline">Modo claro</span>
-            <span class="dark:hidden">Modo oscuro</span>
+            <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">
+            <span class="hidden dark:inline">{{ t('layout.lightMode') }}</span>
+            <span class="dark:hidden">{{ t('layout.darkMode') }}</span>
           </span>
         </button>
         <button class="flex items-center gap-3 rounded-xl px-3 py-2.5 w-full transition-colors dark:text-dark-txt2 dark:hover:bg-white/5 text-light-txt2 hover:bg-brand-blue/5" @click="sidebarExpanded = !sidebarExpanded">
           <span class="text-lg flex-shrink-0 leading-none">{{ sidebarExpanded ? '◀' : '▶' }}</span>
-          <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">Colapsar</span>
+          <span v-if="sidebarExpanded" class="text-sm font-semibold whitespace-nowrap">{{ t('layout.collapse') }}</span>
         </button>
       </div>
     </aside>
@@ -61,13 +61,34 @@
         </div>
         <div class="flex items-center gap-3">
           <div class="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl border dark:bg-dark-surf dark:border-white/[0.07] bg-light-surf border-brand-blue/10">
-            <span class="text-xs dark:text-dark-txt2 text-light-txt2">Saldo</span>
-            <span class="font-display font-extrabold text-sm text-brand-blue">€{{ store.balance.toLocaleString('es-ES', { minimumFractionDigits: 2 }) }}</span>
+            <span class="text-xs dark:text-dark-txt2 text-light-txt2">{{ t('common.balance') }}</span>
+            <span class="font-display font-extrabold text-sm text-brand-blue">€{{ store.balance.toLocaleString(localeTag, { minimumFractionDigits: 2 }) }}</span>
+          </div>
+          <div class="hidden lg:flex items-center gap-2 px-2.5 py-2 rounded-xl border dark:bg-dark-surf dark:border-white/[0.07] bg-light-surf border-brand-blue/10">
+            <span class="text-sm" aria-hidden="true">🌐</span>
+            <div class="flex items-center gap-1 rounded-lg p-1 dark:bg-dark-card/70 bg-white/70 border dark:border-white/[0.06] border-brand-blue/10">
+              <button
+                v-for="opt in localeOptions"
+                :key="opt.code"
+                type="button"
+                :class="[
+                  'px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150',
+                  selectedLocale === opt.code
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'dark:text-dark-txt2 text-light-txt2 hover:bg-brand-blue/10 hover:text-brand-blue'
+                ]"
+                :aria-label="t(opt.labelKey)"
+                :title="t(opt.labelKey)"
+                @click="selectedLocale = opt.code"
+              >
+                <span class="mr-1" aria-hidden="true">{{ opt.flag }}</span>{{ opt.code.toUpperCase() }}
+              </button>
+            </div>
           </div>
           <RouterLink to="/add">
             <button class="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white text-sm font-semibold shadow-glow hover:opacity-90 transition-opacity">
               <span class="text-base leading-none">+</span>
-              <span class="hidden lg:inline">Añadir gasto</span>
+              <span class="hidden lg:inline">{{ t('nav.addExpense') }}</span>
             </button>
           </RouterLink>
           <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-blue-dark to-brand-blue flex items-center justify-center font-display font-black text-xs text-white flex-shrink-0">
@@ -100,8 +121,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
 import { useTheme } from '@/composables/useTheme'
+import { type LocaleCode, setLocale } from '@/i18n'
 import MwLogo from '@/components/MwLogo.vue'
 import BottomNav from '@/components/BottomNav.vue'
 
@@ -114,15 +137,35 @@ interface NavItem {
   icon: string
   label: string
 }
+interface LocaleOption {
+  code: LocaleCode
+  labelKey: 'common.spanish' | 'common.english' | 'common.german'
+  flag: string
+}
 
 const store = useWalletStore()
 const route = useRoute()
 const sidebarExpanded = ref<boolean>(true)
+const { t, locale } = useI18n()
 
 const isBare = computed<boolean>(() => Boolean(route.meta.bare))
+const selectedLocale = computed<LocaleCode>({
+  get: () => locale.value as LocaleCode,
+  set: (value) => setLocale(value),
+})
+const localeOptions: LocaleOption[] = [
+  { code: 'es', labelKey: 'common.spanish', flag: '🇪🇸' },
+  { code: 'en', labelKey: 'common.english', flag: '🇬🇧' },
+  { code: 'de', labelKey: 'common.german', flag: '🇩🇪' },
+]
+const localeTag = computed<string>(() => {
+  if (selectedLocale.value === 'en') return 'en-US'
+  if (selectedLocale.value === 'de') return 'de-DE'
+  return 'es-ES'
+})
 
 const headerDate = computed<string>(() =>
-  new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  new Date().toLocaleDateString(localeTag.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 )
 
 /**
@@ -140,29 +183,29 @@ watch(
   { immediate: true }
 )
 
-const navItems: NavItem[] = [
-  { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
-  { name: 'movements', to: '/movements', icon: '📋', label: 'Movimientos' },
-  { name: 'stats', to: '/stats', icon: '📊', label: 'Estadísticas' },
-  { name: 'add', to: '/add', icon: '➕', label: 'Añadir gasto' },
-  { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
-  { name: 'import', to: '/import', icon: '📥', label: 'Importar' },
-  { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
-]
+const navItems = computed<NavItem[]>(() => [
+  { name: 'home', to: '/home', icon: '🏠', label: t('nav.home') },
+  { name: 'movements', to: '/movements', icon: '📋', label: t('nav.movements') },
+  { name: 'stats', to: '/stats', icon: '📊', label: t('nav.stats') },
+  { name: 'add', to: '/add', icon: '➕', label: t('nav.addExpense') },
+  { name: 'alerts', to: '/alerts', icon: '🔔', label: t('nav.alerts') },
+  { name: 'import', to: '/import', icon: '📥', label: t('nav.import') },
+  { name: 'settings', to: '/settings', icon: '⚙️', label: t('nav.settings') },
+])
 
-const pageTitles: Record<string, string> = {
-  home: 'Inicio',
-  movements: 'Movimientos',
-  stats: 'Estadísticas',
-  add: 'Añadir gasto',
-  alerts: 'Alertas',
-  settings: 'Ajustes',
-  import: 'Importar Excel',
-  onboarding: 'Bienvenido',
-  login: 'Acceso',
-  register: 'Registro'
-}
-const currentPageTitle = computed<string>(() => pageTitles[route.name as string] ?? 'Mirai Wallet')
+const pageTitles = computed<Record<string, string>>(() => ({
+  home: t('nav.home'),
+  movements: t('nav.movements'),
+  stats: t('nav.stats'),
+  add: t('nav.addExpense'),
+  alerts: t('nav.alerts'),
+  settings: t('nav.settings'),
+  import: t('nav.import'),
+  onboarding: t('nav.home'),
+  login: t('auth.loginTitle'),
+  register: t('auth.registerTitle'),
+}))
+const currentPageTitle = computed<string>(() => pageTitles.value[route.name as string] ?? t('layout.appName'))
 </script>
 
 <style>

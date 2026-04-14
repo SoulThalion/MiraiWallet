@@ -1,3 +1,5 @@
+import { getCurrentLocale } from '@/i18n'
+
 /**
  * Format a number as euros
  * @param value - The numeric value to format
@@ -10,8 +12,9 @@ export function useCurrency() {
   }
 
   function formatEuro(value: number, showSign = false): string {
+    const locale = getCurrentLocale() === 'en' ? 'en-US' : getCurrentLocale() === 'de' ? 'de-DE' : 'es-ES'
     const abs = Math.abs(value)
-    const formatted = new Intl.NumberFormat('es-ES', {
+    const formatted = new Intl.NumberFormat(locale, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(abs)
@@ -45,7 +48,8 @@ export function useCurrency() {
     const d = Number(m[3])
     const date = new Date(y, mo - 1, d)
     if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+    const locale = getCurrentLocale() === 'en' ? 'en-US' : getCurrentLocale() === 'de' ? 'de-DE' : 'es-ES'
+    return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   return { formatEuro, amountColor, formatPct, formatDateOnlyEs, roundMoney }

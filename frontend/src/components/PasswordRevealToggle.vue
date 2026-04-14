@@ -6,7 +6,7 @@
            hover:bg-brand-blue/10 hover:text-brand-blue
            dark:text-dark-txt2 dark:hover:bg-white/10 dark:hover:text-brand-blue
            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/50"
-    :aria-label="revealed ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+    :aria-label="revealed ? t('auth.hidePassword') : t('auth.showPassword')"
     :aria-pressed="revealed"
     @click="revealed = !revealed"
   >
@@ -18,9 +18,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import IconEye from '@/icons/IconEye.vue'
 import IconEyeOff from '@/icons/IconEyeOff.vue'
 
 /** true = la contraseña se muestra en claro */
 const revealed = defineModel<boolean>({ default: false })
+const { t } = useI18n()
 </script>

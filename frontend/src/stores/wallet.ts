@@ -12,6 +12,7 @@ import {
   SessionUser,
 } from '@/services/api'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
+import { getCurrentLocale } from '@/i18n'
 
 // ── Types ────────────────────────────────────────────────
 export interface Transaction {
@@ -136,7 +137,10 @@ export const useWalletStore = defineStore('wallet', () => {
       category: isTransfer ? `${catLabel} · Traspaso a ahorro` : catLabel,
       icon: isTransfer ? '🏦' : (tx.subcategory?.icon ?? tx.category?.icon ?? '💸'),
       amount: signed,
-      date: new Date(tx.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+      date: new Date(tx.date).toLocaleDateString(
+        getCurrentLocale() === 'en' ? 'en-US' : getCurrentLocale() === 'de' ? 'de-DE' : 'es-ES',
+        { day: 'numeric', month: 'short' }
+      ),
       kind: tx.type,
     }
   }

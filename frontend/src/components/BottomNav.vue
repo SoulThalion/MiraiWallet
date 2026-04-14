@@ -21,6 +21,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
 interface NavItem {
   name: string
   to: string
@@ -28,13 +31,14 @@ interface NavItem {
   label: string
 }
 
-const navItemsLeft: NavItem[] = [
-  { name: 'home', to: '/home', icon: '🏠', label: 'Inicio' },
-  { name: 'movements', to: '/movements', icon: '📋', label: 'Movs' },
-]
-const navItemsRight: NavItem[] = [
-  { name: 'stats', to: '/stats', icon: '📊', label: 'Stats' },
-  { name: 'alerts', to: '/alerts', icon: '🔔', label: 'Alertas' },
-  { name: 'settings', to: '/settings', icon: '⚙️', label: 'Ajustes' },
-]
+const { t } = useI18n()
+const navItemsLeft = computed<NavItem[]>(() => [
+  { name: 'home', to: '/home', icon: '🏠', label: t('nav.home') },
+  { name: 'movements', to: '/movements', icon: '📋', label: t('nav.shortMovements') },
+])
+const navItemsRight = computed<NavItem[]>(() => [
+  { name: 'stats', to: '/stats', icon: '📊', label: t('nav.shortStats') },
+  { name: 'alerts', to: '/alerts', icon: '🔔', label: t('nav.alerts') },
+  { name: 'settings', to: '/settings', icon: '⚙️', label: t('nav.settings') },
+])
 </script>

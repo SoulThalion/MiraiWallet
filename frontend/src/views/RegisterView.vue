@@ -3,7 +3,7 @@
     <div class="w-full max-w-md mx-auto">
       <div class="text-center mb-8">
         <MwLogo size="md" class="mx-auto mb-4" />
-        <p class="font-display font-black text-2xl dark:text-dark-txt text-light-txt">Crear cuenta</p>
+        <p class="font-display font-black text-2xl dark:text-dark-txt text-light-txt">{{ t('auth.registerTitle') }}</p>
         
       </div>
 
@@ -11,7 +11,7 @@
         <!-- Nombre -->
         <div>
           <label for="reg-name" class="block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2">
-            Nombre completo
+            {{ t('auth.fullName') }}
           </label>
           <input
             id="reg-name"
@@ -30,7 +30,7 @@
         <!-- Email -->
         <div>
           <label for="reg-email" class="block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2">
-            Correo electrónico
+            {{ t('auth.email') }}
           </label>
           <input
             id="reg-email"
@@ -49,7 +49,7 @@
         <!-- Contraseña -->
         <div>
           <label for="reg-password" class="block text-xs uppercase tracking-wider mb-1.5 font-semibold dark:text-dark-txt2 text-light-txt2">
-            Contraseña
+            {{ t('auth.password') }}
           </label>
           <div class="relative">
             <input
@@ -107,7 +107,7 @@
             class="mt-2 flex items-center gap-2 rounded-xl border border-red-400/35 bg-red-400/10 px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400"
           >
             <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-400/20 text-xs font-black" aria-hidden="true">!</span>
-            Las contraseñas no coinciden
+            {{ t('validation.passwordMismatch') }}
           </div>
           <p
             v-else-if="msg('passwordConfirm')"
@@ -122,7 +122,7 @@
         </p>
 
         <button type="submit" class="btn-primary w-full" :disabled="submitting">
-          {{ submitting ? 'Creando cuenta…' : 'Crear cuenta' }}
+          {{ submitting ? t('auth.creatingAccount') : t('auth.register') }}
         </button>
         <p v-if="submitted && !canSubmit" class="text-[11px] text-center dark:text-dark-txt3 text-light-txt3">
           Corrige los errores del formulario para continuar.
@@ -130,11 +130,11 @@
       </form>
 
       <p class="text-center text-sm mt-6 dark:text-dark-txt2 text-light-txt2">
-        ¿Ya tienes cuenta?
-        <RouterLink to="/login" class="text-brand-blue font-semibold underline underline-offset-2">Iniciar sesión</RouterLink>
+        {{ t('auth.haveAccount') }}
+        <RouterLink to="/login" class="text-brand-blue font-semibold underline underline-offset-2">{{ t('auth.signIn') }}</RouterLink>
       </p>
       <p class="text-center text-sm mt-2">
-        <RouterLink to="/" class="dark:text-dark-txt3 text-light-txt3 underline underline-offset-2">Volver al inicio</RouterLink>
+        <RouterLink to="/" class="dark:text-dark-txt3 text-light-txt3 underline underline-offset-2">{{ t('auth.backHome') }}</RouterLink>
       </p>
     </div>
   </div>
@@ -143,6 +143,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
 import MwLogo from '@/components/MwLogo.vue'
@@ -152,6 +153,7 @@ type FieldKey = 'name' | 'email' | 'password' | 'passwordConfirm'
 
 const router = useRouter()
 const store = useWalletStore()
+const { t } = useI18n()
 
 const name = ref('')
 const email = ref('')
@@ -220,26 +222,26 @@ function ruleIcon(ok: boolean): string {
 
 function validateName(): string | null {
   const n = name.value.trim()
-  if (n.length < 2) return 'El nombre debe tener al menos 2 caracteres.'
-  if (n.length > 100) return 'El nombre no puede superar 100 caracteres.'
+  if (n.length < 2) return t('validation.nameMin')
+  if (n.length > 100) return t('validation.nameMax')
   return null
 }
 
 function validateEmail(): string | null {
   const e = email.value.trim()
-  if (!e) return 'Introduce tu correo electrónico.'
-  if (!emailOk.value) return 'Introduce un correo con formato válido (ej. nombre@dominio.com).'
+  if (!e) return t('validation.emailRequired')
+  if (!emailOk.value) return t('validation.emailInvalid')
   return null
 }
 
 function validatePasswordField(): string | null {
-  if (!passwordOk.value) return 'La contraseña no cumple todas las normas indicadas arriba.'
+  if (!passwordOk.value) return t('validation.passwordRules')
   return null
 }
 
 function validatePasswordConfirm(): string | null {
-  if (!passwordConfirm.value) return 'Confirma tu contraseña.'
-  if (!passwordsMatch.value) return 'Las contraseñas no coinciden.'
+  if (!passwordConfirm.value) return t('validation.passwordConfirmRequired')
+  if (!passwordsMatch.value) return t('validation.passwordMismatch')
   return null
 }
 
@@ -285,7 +287,7 @@ async function onSubmit(): Promise<void> {
     await router.replace({ name: 'home' })
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    localError.value = ax.response?.data?.error?.message ?? 'No se pudo completar el registro. Inténtalo de nuevo.'
+    localError.value = ax.response?.data?.error?.message ?? t('validation.registerFailed')
   } finally {
     submitting.value = false
   }

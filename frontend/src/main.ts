@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import App from './App.vue'
 import './assets/main.css'
+import i18n from '@/i18n'
 
 import HomeView from './views/HomeView.vue'
 import StatsView from './views/StatsView.vue'
@@ -50,4 +51,5 @@ router.beforeEach((to) => {
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
+app.use(i18n)
 app.mount('#app')

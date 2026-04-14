@@ -1,4 +1,4 @@
-const MONTH_SHORT_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] as const
+import { getCurrentLocale } from '@/i18n'
 
 /** Etiqueta corta en español: `ene 2026` a partir de `YYYY-MM`. */
 export function formatYearMonthEs(ym: string): string {
@@ -7,7 +7,8 @@ export function formatYearMonthEs(ym: string): string {
   const y = parseInt(br[1]!, 10)
   const m = parseInt(br[2]!, 10)
   if (!Number.isFinite(y) || m < 1 || m > 12) return ym
-  return `${MONTH_SHORT_ES[m - 1]!} ${y}`
+  const locale = getCurrentLocale() === 'en' ? 'en-US' : getCurrentLocale() === 'de' ? 'de-DE' : 'es-ES'
+  return new Date(y, m - 1, 1).toLocaleDateString(locale, { month: 'short', year: 'numeric' })
 }
 
 export function ymKeyFromParts(y: number, month1to12: number): string {
