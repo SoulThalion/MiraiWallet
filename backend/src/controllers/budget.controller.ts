@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import * as budgetService from '../services/budget.service'
+import * as recommendationService from '../services/budget-recommendation.service'
 import { ApiResponse }    from '../utils/ApiResponse'
 import { User }           from '../models'
 
@@ -37,4 +38,20 @@ export const upsertSubcategory = async (req: Request, res: Response, next: NextF
 
 export const removeSubcategory = async (req: Request, res: Response, next: NextFunction) => {
   try { await budgetService.removeSubcategory(req.params.id, uid(req)); ApiResponse.noContent(res) } catch (e) { next(e) }
+}
+
+export const recommendations = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const month = (req.query.month as string) ?? currentMonthLocal()
+    const profile = req.query.profile as 'conservative' | 'balanced' | 'flexible' | undefined
+    const targetSavingsRateRaw = req.query.targetSavingsRate as string | undefined
+    const targetSavingsRate = targetSavingsRateRaw === undefined ? undefined : Number(targetSavingsRateRaw)
+    ApiResponse.success(res, await recommendationService.getRecommendations(uid(req), { month, profile, targetSavingsRate }))
+  } catch (e) { next(e) }
+}
+
+export const applyRecommendations = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    ApiResponse.success(res, await recommendationService.applyRecommendations(uid(req), req.body))
+  } catch (e) { next(e) }
 }

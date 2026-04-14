@@ -34,6 +34,9 @@ const ERROR_CODE_TO_I18N_KEY: Record<number, string> = {
   3001: 'errors.account.notFound',
   3002: 'errors.category.notFound',
   3003: 'errors.budget.notFound',
+  6001: 'errors.budget.recommendationMonthInvalid',
+  6002: 'errors.budget.recommendationProfileInvalid',
+  6003: 'errors.budget.recommendationApplyInvalid',
   3004: 'errors.alert.notFound',
 
   5001: 'errors.profile.monthCycleInvalid',

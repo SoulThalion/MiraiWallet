@@ -122,6 +122,20 @@ export interface UpsertSubcategoryBudgetDto {
   month: string
 }
 
+export type BudgetRecommendationProfile = 'conservative' | 'balanced' | 'flexible'
+
+export interface BudgetRecommendationQueryDto {
+  month: string
+  profile?: BudgetRecommendationProfile
+  targetSavingsRate?: number
+}
+
+export interface ApplyBudgetRecommendationDto extends BudgetRecommendationQueryDto {
+  mode?: 'all' | 'categories' | 'subcategories'
+  categoryIds?: string[]
+  subcategoryIds?: string[]
+}
+
 /** Respuesta de `GET /stats/month-overview` (solo datos para la vista Estadísticas). */
 export interface StatsMonthBarDto {
   month: string

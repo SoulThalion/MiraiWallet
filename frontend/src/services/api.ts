@@ -96,6 +96,44 @@ export interface ApiSubcategoryBudget {
   }
 }
 
+export type BudgetRecommendationProfile = 'conservative' | 'balanced' | 'flexible'
+
+export interface BudgetRecommendationSubLine {
+  subcategoryId: string
+  name: string
+  icon: string
+  color: string
+  currentBudget: number
+  suggestedBudget: number
+  delta: number
+  confidence: number
+  reasons: string[]
+}
+
+export interface BudgetRecommendationLine {
+  categoryId: string
+  name: string
+  icon: string
+  color: string
+  currentBudget: number
+  suggestedBudget: number
+  delta: number
+  confidence: number
+  reasons: string[]
+  subcategories: BudgetRecommendationSubLine[]
+}
+
+export interface BudgetRecommendationResult {
+  month: string
+  profile: BudgetRecommendationProfile
+  targetSavingsRate: number
+  incomeAverage: number
+  expenseAverage: number
+  suggestedTotalBudget: number
+  estimatedSavingsAmount: number
+  lines: BudgetRecommendationLine[]
+}
+
 export interface ApiAccount {
   id: string
   name: string
@@ -495,6 +533,30 @@ class ApiClient {
     month: string
   }): Promise<ApiSubcategoryBudget> {
     const response = await this.client.put<ApiSuccessBody<ApiSubcategoryBudget>>('/budgets/subcategories', data)
+    return response.data.data
+  }
+
+  async getBudgetRecommendations(params: {
+    month: string
+    profile?: BudgetRecommendationProfile
+    targetSavingsRate?: number
+  }): Promise<BudgetRecommendationResult> {
+    const response = await this.client.get<ApiSuccessBody<BudgetRecommendationResult>>('/budgets/recommendations', { params })
+    return response.data.data
+  }
+
+  async applyBudgetRecommendations(payload: {
+    month: string
+    profile?: BudgetRecommendationProfile
+    targetSavingsRate?: number
+    mode?: 'all' | 'categories' | 'subcategories'
+    categoryIds?: string[]
+    subcategoryIds?: string[]
+  }): Promise<{ appliedCategories: number; appliedSubcategories: number; month: string }> {
+    const response = await this.client.post<ApiSuccessBody<{ appliedCategories: number; appliedSubcategories: number; month: string }>>(
+      '/budgets/recommendations/apply',
+      payload
+    )
     return response.data.data
   }
 

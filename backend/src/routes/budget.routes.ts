@@ -1,6 +1,11 @@
 import { Router } from 'express'
 import * as ctrl  from '../controllers/budget.controller'
-import { upsertBudgetRules, upsertSubcategoryBudgetRules } from '../validators/budget.validators'
+import {
+  upsertBudgetRules,
+  upsertSubcategoryBudgetRules,
+  budgetRecommendationQueryRules,
+  applyBudgetRecommendationRules,
+} from '../validators/budget.validators'
 import { validate }     from '../middlewares/validate.middleware'
 import { authenticate } from '../middlewares/auth.middleware'
 
@@ -13,5 +18,7 @@ router.delete('/:id', ctrl.remove)
 router.get('/subcategories', ctrl.listSubcategory)
 router.put('/subcategories', upsertSubcategoryBudgetRules, validate, ctrl.upsertSubcategory)
 router.delete('/subcategories/:id', ctrl.removeSubcategory)
+router.get('/recommendations', budgetRecommendationQueryRules, validate, ctrl.recommendations)
+router.post('/recommendations/apply', applyBudgetRecommendationRules, validate, ctrl.applyRecommendations)
 
 export default router
