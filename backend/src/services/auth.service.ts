@@ -117,6 +117,8 @@ export async function updateProfile(
     monthCycleAnchor?: MonthCycleAnchor
     recurringExcludedCategoryIds?: string[] | null
     recurringExcludedSubcategoryIds?: string[] | null
+    budgetExcludedCategoryIds?: string[] | null
+    budgetExcludedSubcategoryIds?: string[] | null
   },
 ): Promise<object> {
   const patch: Partial<{
@@ -127,6 +129,8 @@ export async function updateProfile(
     monthCycleAnchor: MonthCycleAnchor
     recurringExcludedCategoryIds: string[]
     recurringExcludedSubcategoryIds: string[]
+    budgetExcludedCategoryIds: string[]
+    budgetExcludedSubcategoryIds: string[]
   }> = {}
 
   if (typeof data.name === 'string') {
@@ -196,6 +200,44 @@ export async function updateProfile(
         if (!sub) throw ApiError.badRequest(ERROR_CODES.PROFILE_EXCLUDED_SUBCATEGORY_UNKNOWN, 'Subcategoría desconocida para exclusión de recurrentes')
       }
       patch.recurringExcludedSubcategoryIds = ids
+    }
+  }
+
+  if (data.budgetExcludedCategoryIds !== undefined) {
+    if (data.budgetExcludedCategoryIds === null) {
+      patch.budgetExcludedCategoryIds = []
+    } else if (!Array.isArray(data.budgetExcludedCategoryIds)) {
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_BUDGET_EXCLUDED_CATEGORY_IDS_INVALID,
+        'budgetExcludedCategoryIds debe ser un array de UUIDs de categoría'
+      )
+    } else {
+      const ids = [...new Set(data.budgetExcludedCategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 80)
+      for (const id of ids) {
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(ERROR_CODES.PROFILE_BUDGET_EXCLUDED_CATEGORY_ID_INVALID, `ID de categoría inválido: ${id}`)
+        const cat = await Category.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
+        if (!cat) throw ApiError.badRequest(ERROR_CODES.PROFILE_BUDGET_EXCLUDED_CATEGORY_UNKNOWN, 'Categoría desconocida para exclusión de presupuestos')
+      }
+      patch.budgetExcludedCategoryIds = ids
+    }
+  }
+
+  if (data.budgetExcludedSubcategoryIds !== undefined) {
+    if (data.budgetExcludedSubcategoryIds === null) {
+      patch.budgetExcludedSubcategoryIds = []
+    } else if (!Array.isArray(data.budgetExcludedSubcategoryIds)) {
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_BUDGET_EXCLUDED_SUBCATEGORY_IDS_INVALID,
+        'budgetExcludedSubcategoryIds debe ser un array de UUIDs de subcategoría'
+      )
+    } else {
+      const ids = [...new Set(data.budgetExcludedSubcategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 120)
+      for (const id of ids) {
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(ERROR_CODES.PROFILE_BUDGET_EXCLUDED_SUBCATEGORY_ID_INVALID, `ID de subcategoría inválido: ${id}`)
+        const sub = await Subcategory.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
+        if (!sub) throw ApiError.badRequest(ERROR_CODES.PROFILE_BUDGET_EXCLUDED_SUBCATEGORY_UNKNOWN, 'Subcategoría desconocida para exclusión de presupuestos')
+      }
+      patch.budgetExcludedSubcategoryIds = ids
     }
   }
 

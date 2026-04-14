@@ -42,6 +42,12 @@ const ERROR_CODE_TO_I18N_KEY: Record<number, string> = {
   5004: 'errors.profile.monthCycleStartInvalid',
   5005: 'errors.profile.monthCycleEndInvalid',
   5006: 'errors.profile.monthCycleAnchorInvalid',
+  5013: 'errors.profile.budgetExcludedCategoryIdsInvalid',
+  5014: 'errors.profile.budgetExcludedCategoryIdInvalid',
+  5015: 'errors.profile.budgetExcludedCategoryUnknown',
+  5016: 'errors.profile.budgetExcludedSubcategoryIdsInvalid',
+  5017: 'errors.profile.budgetExcludedSubcategoryIdInvalid',
+  5018: 'errors.profile.budgetExcludedSubcategoryUnknown',
 
   1001: 'errors.validation.requestValidationFailed',
   1002: 'errors.validation.entityValidationFailed',

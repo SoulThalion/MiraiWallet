@@ -55,4 +55,17 @@ export const updateProfileRules = [
     .optional()
     .isUUID()
     .withMessage('Each recurringExcludedSubcategoryIds entry must be a UUID'),
+  body('budgetExcludedCategoryIds')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('budgetExcludedCategoryIds must be an array'),
+  body('budgetExcludedCategoryIds.*').optional().isUUID().withMessage('Each budgetExcludedCategoryIds entry must be a UUID'),
+  body('budgetExcludedSubcategoryIds')
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage('budgetExcludedSubcategoryIds must be an array'),
+  body('budgetExcludedSubcategoryIds.*')
+    .optional()
+    .isUUID()
+    .withMessage('Each budgetExcludedSubcategoryIds entry must be a UUID'),
 ]

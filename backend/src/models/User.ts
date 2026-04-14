@@ -28,6 +28,10 @@ export class User extends Model<
   declare recurringExcludedCategoryIds: CreationOptional<string[] | null>
   /** UUIDs de subcategorías excluidas del detector de gastos recurrentes (JSON array). */
   declare recurringExcludedSubcategoryIds: CreationOptional<string[] | null>
+  /** UUIDs de categorías excluidas del presupuesto (JSON array). */
+  declare budgetExcludedCategoryIds: CreationOptional<string[] | null>
+  /** UUIDs de subcategorías excluidas del presupuesto (JSON array). */
+  declare budgetExcludedSubcategoryIds: CreationOptional<string[] | null>
   declare createdAt:    CreationOptional<Date>
   declare updatedAt:    CreationOptional<Date>
 
@@ -80,6 +84,16 @@ export function initUser(sequelize: Sequelize): void {
         defaultValue: [],
       },
       recurringExcludedSubcategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      budgetExcludedCategoryIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      budgetExcludedSubcategoryIds: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],

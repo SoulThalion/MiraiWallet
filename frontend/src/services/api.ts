@@ -275,6 +275,10 @@ export interface SessionUser {
   recurringExcludedCategoryIds?: string[]
   /** Subcategorías excluidas del detector de recurrentes (UUIDs). */
   recurringExcludedSubcategoryIds?: string[]
+  /** Categorías excluidas de presupuestos. */
+  budgetExcludedCategoryIds?: string[]
+  /** Subcategorías excluidas de presupuestos. */
+  budgetExcludedSubcategoryIds?: string[]
 }
 
 export interface IngBankImportResult {
@@ -540,6 +544,8 @@ class ApiClient {
     monthCycleAnchor?: 'previous' | 'current'
     recurringExcludedCategoryIds?: string[] | null
     recurringExcludedSubcategoryIds?: string[] | null
+    budgetExcludedCategoryIds?: string[] | null
+    budgetExcludedSubcategoryIds?: string[] | null
   }): Promise<SessionUser> {
     const response = await this.client.patch<ApiSuccessBody<SessionUser>>('/auth/me', payload)
     return response.data.data

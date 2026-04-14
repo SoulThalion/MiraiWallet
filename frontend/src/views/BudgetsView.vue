@@ -47,14 +47,22 @@
           >
             <summary class="cursor-pointer list-none px-3 py-2">
               <div class="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  class="accent-brand-blue"
+                  :checked="!excludedCategoryIds.has(cat.id!)"
+                  @click.stop
+                  @change="onToggleCategoryIncluded(cat.id!, ($event.target as HTMLInputElement).checked)"
+                />
                 <span class="text-base">{{ cat.icon }}</span>
-                <span class="flex-1 text-sm font-semibold dark:text-dark-txt text-light-txt">{{ cat.name }}</span>
+                <span class="flex-1 min-w-0 truncate text-sm font-semibold dark:text-dark-txt text-light-txt">{{ cat.name }}</span>
                 <input
                   v-model.number="categoryBudgetDraft[cat.id!]"
                   type="number"
                   min="0"
                   step="0.01"
                   class="mw-input w-32 text-right tabular-nums"
+                  :disabled="excludedCategoryIds.has(cat.id!)"
                   @click.stop
                 />
               </div>
@@ -65,16 +73,24 @@
                 {{ t('budgets.noSubcategories') }}
               </div>
               <div v-else class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label v-for="sub in cat.subcategories" :key="sub.id" class="flex items-center gap-2">
-                  <span class="min-w-0 flex-1 truncate text-xs dark:text-dark-txt2 text-light-txt2">{{ sub.icon }} {{ sub.name }}</span>
+                <div v-for="sub in cat.subcategories" :key="sub.id" class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="accent-brand-blue"
+                    :disabled="excludedCategoryIds.has(cat.id!)"
+                    :checked="!excludedSubcategoryIds.has(sub.id)"
+                    @change="onToggleSubcategoryIncluded(sub.id, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="flex-1 min-w-0 truncate text-xs dark:text-dark-txt2 text-light-txt2">{{ sub.icon }} {{ sub.name }}</span>
                   <input
                     v-model.number="subcategoryBudgetDraft[cat.id!][sub.id]"
                     type="number"
                     min="0"
                     step="0.01"
                     class="mw-input w-28 text-right tabular-nums"
+                    :disabled="excludedCategoryIds.has(cat.id!) || excludedSubcategoryIds.has(sub.id)"
                   />
-                </label>
+                </div>
               </div>
               <p class="text-[11px] dark:text-dark-txt3 text-light-txt3">
                 {{ t('budgets.subSum') }}: {{ formatEuro(subcategorySum(cat.id!), false) }}
@@ -90,7 +106,7 @@
           <button
             type="button"
             class="rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-br from-brand-blue-dark to-brand-blue shadow-glow transition-opacity hover:opacity-90 disabled:opacity-40"
-            :disabled="budgetSaving || budgetLoading || !budgetDirty"
+            :disabled="budgetSaving || budgetLoading || !hasChanges"
             @click="saveBudgets"
           >
             {{ budgetSaving ? t('budgets.saving') : t('budgets.save') }}
@@ -128,11 +144,16 @@ const categoryBudgetDraft = ref<Record<string, number>>({})
 const subcategoryBudgetDraft = ref<Record<string, Record<string, number>>>({})
 const loadedBudgetMap = ref<Record<string, { amount: number }>>({})
 const loadedSubcategoryBudgetMap = ref<Record<string, number>>({})
+const excludedCategoryIds = ref<Set<string>>(new Set())
+const excludedSubcategoryIds = ref<Set<string>>(new Set())
+const loadedExcludedCategoryIds = ref<Set<string>>(new Set())
+const loadedExcludedSubcategoryIds = ref<Set<string>>(new Set())
 
 const budgetMonth = computed(() => fiscalYmForDate(new Date(), monthCycleConfigFromSession(store.user)))
-const expenseCategories = computed(() =>
+const allExpenseCategories = computed(() =>
   store.categories.filter(c => Boolean(c.id) && c.categoryType !== 'income')
 )
+const expenseCategories = computed(() => allExpenseCategories.value)
 const categoryBudgetSum = computed(() =>
   expenseCategories.value.reduce((sum, c) => sum + Math.max(0, Number(categoryBudgetDraft.value[c.id!] ?? 0)), 0)
 )
@@ -153,6 +174,14 @@ const budgetDirty = computed(() => {
     return false
   })
 })
+const excludeDirty = computed(() => {
+  if (excludedCategoryIds.value.size !== loadedExcludedCategoryIds.value.size) return true
+  if (excludedSubcategoryIds.value.size !== loadedExcludedSubcategoryIds.value.size) return true
+  for (const id of excludedCategoryIds.value) if (!loadedExcludedCategoryIds.value.has(id)) return true
+  for (const id of excludedSubcategoryIds.value) if (!loadedExcludedSubcategoryIds.value.has(id)) return true
+  return false
+})
+const hasChanges = computed(() => budgetDirty.value || excludeDirty.value)
 
 function subcategorySum(categoryId: string): number {
   const row = subcategoryBudgetDraft.value[categoryId] ?? {}
@@ -195,6 +224,10 @@ async function reloadBudgets(): Promise<void> {
   budgetMsg.value = ''
   try {
     if (!store.categories.length) await store.loadCategories()
+    excludedCategoryIds.value = new Set(store.user?.budgetExcludedCategoryIds ?? [])
+    excludedSubcategoryIds.value = new Set(store.user?.budgetExcludedSubcategoryIds ?? [])
+    loadedExcludedCategoryIds.value = new Set(excludedCategoryIds.value)
+    loadedExcludedSubcategoryIds.value = new Set(excludedSubcategoryIds.value)
     const [budgets, subBudgets] = await Promise.all([
       api.getBudgets(budgetMonth.value),
       api.getSubcategoryBudgets(budgetMonth.value),
@@ -231,22 +264,45 @@ async function saveBudgets(): Promise<void> {
   budgetError.value = null
   budgetMsg.value = ''
   try {
+    if (excludeDirty.value) {
+      await api.updateProfile({
+        budgetExcludedCategoryIds: Array.from(excludedCategoryIds.value),
+        budgetExcludedSubcategoryIds: Array.from(excludedSubcategoryIds.value),
+      })
+      await store.loadUser()
+      loadedExcludedCategoryIds.value = new Set(excludedCategoryIds.value)
+      loadedExcludedSubcategoryIds.value = new Set(excludedSubcategoryIds.value)
+    }
+
     const targetTotal = Math.max(0, Number(budgetTotalDraft.value || 0))
     distributeToTotal(targetTotal)
 
     const payloadsCategory: Array<{ categoryId: string; amount: number; month: string }> = []
     const payloadsSubcategory: Array<{ subcategoryId: string; amount: number; month: string }> = []
-    for (const cat of expenseCategories.value) {
+    for (const cat of allExpenseCategories.value) {
       const categoryId = cat.id!
+      if (excludedCategoryIds.value.has(categoryId)) {
+        payloadsCategory.push({ categoryId, amount: 0, month: budgetMonth.value })
+        for (const sub of cat.subcategories ?? []) {
+          payloadsSubcategory.push({ subcategoryId: sub.id, amount: 0, month: budgetMonth.value })
+        }
+        continue
+      }
       const amount = Math.max(0, Number(categoryBudgetDraft.value[categoryId] ?? 0))
       const subRows = subcategoryBudgetDraft.value[categoryId] ?? {}
-      const subSum = Object.values(subRows).reduce((sum, v) => sum + Math.max(0, Number(v || 0)), 0)
+      const subSum = Object.entries(subRows).reduce((sum, [subId, v]) => (
+        excludedSubcategoryIds.value.has(subId) ? sum : sum + Math.max(0, Number(v || 0))
+      ), 0)
       if (subSum - amount > 0.009) {
         budgetError.value = t('budgets.subOverCategory', { category: cat.name })
         budgetSaving.value = false
         return
       }
       for (const [subId, val] of Object.entries(subRows)) {
+        if (excludedSubcategoryIds.value.has(subId)) {
+          payloadsSubcategory.push({ subcategoryId: subId, amount: 0, month: budgetMonth.value })
+          continue
+        }
         const n = Math.max(0, Math.round(Number(val || 0) * 100) / 100)
         payloadsSubcategory.push({ subcategoryId: subId, amount: n, month: budgetMonth.value })
       }
@@ -265,6 +321,20 @@ async function saveBudgets(): Promise<void> {
   } finally {
     budgetSaving.value = false
   }
+}
+
+function onToggleCategoryIncluded(categoryId: string, included: boolean): void {
+  const next = new Set(excludedCategoryIds.value)
+  if (included) next.delete(categoryId)
+  else next.add(categoryId)
+  excludedCategoryIds.value = next
+}
+
+function onToggleSubcategoryIncluded(subcategoryId: string, included: boolean): void {
+  const next = new Set(excludedSubcategoryIds.value)
+  if (included) next.delete(subcategoryId)
+  else next.add(subcategoryId)
+  excludedSubcategoryIds.value = next
 }
 
 watch(
