@@ -64,26 +64,37 @@
             <span class="text-xs dark:text-dark-txt2 text-light-txt2">{{ t('common.balance') }}</span>
             <span class="font-display font-extrabold text-sm text-brand-blue">€{{ store.balance.toLocaleString(localeTag, { minimumFractionDigits: 2 }) }}</span>
           </div>
-          <div class="hidden lg:flex items-center gap-2 px-2.5 py-2 rounded-xl border dark:bg-dark-surf dark:border-white/[0.07] bg-light-surf border-brand-blue/10">
-            <span class="text-sm" aria-hidden="true">🌐</span>
-            <div class="flex items-center gap-1 rounded-lg p-1 dark:bg-dark-card/70 bg-white/70 border dark:border-white/[0.06] border-brand-blue/10">
-              <button
-                v-for="opt in localeOptions"
-                :key="opt.code"
-                type="button"
-                :class="[
-                  'px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150',
-                  selectedLocale === opt.code
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'dark:text-dark-txt2 text-light-txt2 hover:bg-brand-blue/10 hover:text-brand-blue'
-                ]"
-                :aria-label="t(opt.labelKey)"
-                :title="t(opt.labelKey)"
-                @click="selectedLocale = opt.code"
+          <div ref="desktopLocaleMenuRef" class="relative hidden lg:block">
+            <button
+              type="button"
+              class="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors dark:bg-dark-surf dark:border-white/[0.07] dark:text-dark-txt2 dark:hover:border-brand-blue/40 bg-light-surf border-brand-blue/10 text-light-txt2 hover:border-brand-blue/40"
+              @click="desktopLocaleMenuOpen = !desktopLocaleMenuOpen"
+            >
+              <span class="text-sm" aria-hidden="true">{{ activeLocaleOption.flag }}</span>
+              <span>{{ selectedLocale.toUpperCase() }}</span>
+              <span class="text-[10px] opacity-70" aria-hidden="true">{{ desktopLocaleMenuOpen ? '▲' : '▼' }}</span>
+            </button>
+            <transition name="fade">
+              <div
+                v-if="desktopLocaleMenuOpen"
+                class="absolute right-0 top-[calc(100%+8px)] z-40 w-44 rounded-xl border p-1.5 shadow-xl dark:bg-dark-card dark:border-white/[0.08] bg-light-card border-brand-blue/10"
               >
-                <span class="mr-1" aria-hidden="true">{{ opt.flag }}</span>{{ opt.code.toUpperCase() }}
-              </button>
-            </div>
+                <button
+                  v-for="opt in localeOptions"
+                  :key="opt.code"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors"
+                  :class="selectedLocale === opt.code
+                    ? 'bg-brand-blue/12 text-brand-blue font-semibold'
+                    : 'dark:text-dark-txt2 text-light-txt2 hover:bg-brand-blue/8'"
+                  @click="selectLocale(opt.code)"
+                >
+                  <span aria-hidden="true">{{ opt.flag }}</span>
+                  <span class="flex-1">{{ t(opt.labelKey) }}</span>
+                  <span v-if="selectedLocale === opt.code" class="text-[11px]" aria-hidden="true">✓</span>
+                </button>
+              </div>
+            </transition>
           </div>
           <RouterLink to="/add">
             <button class="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-blue-dark to-brand-blue text-white text-sm font-semibold shadow-glow hover:opacity-90 transition-opacity">
@@ -114,12 +125,43 @@
       </main>
     </div>
 
+    <div ref="mobileLocaleMenuRef" class="fixed right-3 top-3 z-40 md:hidden">
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[11px] font-semibold shadow-sm backdrop-blur-sm transition-colors dark:bg-dark-card/90 dark:border-white/[0.08] dark:text-dark-txt2 dark:hover:border-brand-blue/40 bg-light-card/90 border-brand-blue/15 text-light-txt2 hover:border-brand-blue/40"
+        @click="mobileLocaleMenuOpen = !mobileLocaleMenuOpen"
+      >
+        <span aria-hidden="true">{{ activeLocaleOption.flag }}</span>
+        <span>{{ selectedLocale.toUpperCase() }}</span>
+      </button>
+      <transition name="fade">
+        <div
+          v-if="mobileLocaleMenuOpen"
+          class="absolute right-0 mt-2 w-40 rounded-xl border p-1.5 shadow-xl dark:bg-dark-card dark:border-white/[0.08] bg-light-card border-brand-blue/12"
+        >
+          <button
+            v-for="opt in localeOptions"
+            :key="`m-${opt.code}`"
+            type="button"
+            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors"
+            :class="selectedLocale === opt.code
+              ? 'bg-brand-blue/12 text-brand-blue font-semibold'
+              : 'dark:text-dark-txt2 text-light-txt2 hover:bg-brand-blue/8'"
+            @click="selectLocale(opt.code)"
+          >
+            <span aria-hidden="true">{{ opt.flag }}</span>
+            <span class="flex-1">{{ t(opt.labelKey) }}</span>
+            <span v-if="selectedLocale === opt.code" class="text-[11px]" aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </transition>
+    </div>
     <BottomNav class="md:hidden" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
@@ -153,11 +195,42 @@ const selectedLocale = computed<LocaleCode>({
   get: () => locale.value as LocaleCode,
   set: (value) => setLocale(value),
 })
+const desktopLocaleMenuOpen = ref(false)
+const mobileLocaleMenuOpen = ref(false)
+const desktopLocaleMenuRef = ref<HTMLElement | null>(null)
+const mobileLocaleMenuRef = ref<HTMLElement | null>(null)
 const localeOptions: LocaleOption[] = [
   { code: 'es', labelKey: 'common.spanish', flag: '🇪🇸' },
   { code: 'en', labelKey: 'common.english', flag: '🇬🇧' },
   { code: 'de', labelKey: 'common.german', flag: '🇩🇪' },
 ]
+const activeLocaleOption = computed<LocaleOption>(() =>
+  localeOptions.find((opt) => opt.code === selectedLocale.value) ?? localeOptions[0]
+)
+
+function selectLocale(code: LocaleCode): void {
+  selectedLocale.value = code
+  desktopLocaleMenuOpen.value = false
+  mobileLocaleMenuOpen.value = false
+}
+
+function handleOutsideClick(event: MouseEvent): void {
+  const target = event.target as Node
+  if (desktopLocaleMenuRef.value && !desktopLocaleMenuRef.value.contains(target)) {
+    desktopLocaleMenuOpen.value = false
+  }
+  if (mobileLocaleMenuRef.value && !mobileLocaleMenuRef.value.contains(target)) {
+    mobileLocaleMenuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick)
+})
 const localeTag = computed<string>(() => {
   if (selectedLocale.value === 'en') return 'en-US'
   if (selectedLocale.value === 'de') return 'de-DE'
