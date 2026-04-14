@@ -90,6 +90,89 @@ function calendarYmToday(d = new Date()): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`
 }
 
+/**
+ * Mejor mes (mínimo importe mensual del tipo) en ventana móvil:
+ * - Solo meses con movimiento del tipo (>0)
+ * - Últimos 12 meses con datos hasta `anchorYm`
+ * - Excluye siempre el mes fiscal actual (incompleto)
+ */
+async function bestMonthRolling(
+  userId: string,
+  anchorYm: string,
+  monthCycleCfg: Awaited<ReturnType<typeof getMonthCycleConfigForUser>>,
+  kind: 'expense' | 'income',
+): Promise<{ label: string; amount: number }> {
+  const nowYmd = toDateOnlyString(new Date())
+  const currentFiscalYm = dateToFiscalYm(nowYmd, monthCycleCfg)
+  const anchor = /^\d{4}-(0[1-9]|1[0-2])$/.test(anchorYm) ? anchorYm : (currentFiscalYm ?? anchorYm)
+  const { to: toAnchor } = ymToDateBounds(anchor, monthCycleCfg)
+  const fromProbe = ymToDateBounds(`${String(parseInt(anchor.slice(0, 4), 10) - 4)}-01`, monthCycleCfg).from
+
+  const txs = await Transaction.findAll({
+    where: {
+      userId,
+      isExcluded: false,
+      type: kind,
+      date: { [Op.between]: [fromProbe, toAnchor] },
+    },
+    attributes: ['date', 'amount'],
+  })
+
+  const byYm = new Map<string, number>()
+  for (const tx of txs) {
+    const ym = dateToFiscalYm(tx.date, monthCycleCfg)
+    if (!ym || ym > anchor) continue
+    if (currentFiscalYm && ym === currentFiscalYm) continue
+    const amt = Number(tx.amount)
+    if (!Number.isFinite(amt) || amt <= 0) continue
+    byYm.set(ym, roundMoney2((byYm.get(ym) ?? 0) + amt))
+  }
+
+  const windowYms = [...byYm.keys()].sort((a, b) => b.localeCompare(a)).slice(0, 12)
+  if (windowYms.length === 0) return { label: '—', amount: 0 }
+
+  /**
+   * Si el mes más antiguo de la ventana es el mes en que empezó la actividad del usuario
+   * y ese primer movimiento cayó después del inicio del periodo fiscal, lo tratamos como
+   * mes parcial de arranque y lo excluimos para el KPI de mínimo mensual.
+   */
+  const firstTx = await Transaction.findOne({
+    where: { userId, isExcluded: false, type: kind },
+    attributes: ['date'],
+    order: [['date', 'ASC']],
+  })
+  let candidateYms = [...windowYms]
+  if (firstTx) {
+    const firstYmd = toDateOnlyString(firstTx.date)
+    const firstYm = dateToFiscalYm(firstYmd, monthCycleCfg)
+    const oldestYm = candidateYms[candidateYms.length - 1]
+    if (firstYm && oldestYm && firstYm === oldestYm) {
+      try {
+        const { from } = ymToDateBounds(oldestYm, monthCycleCfg)
+        if (firstYmd > from) {
+          candidateYms = candidateYms.filter(ym => ym !== oldestYm)
+        }
+      } catch {
+        // Si el periodo no es válido por algún motivo, mantenemos el comportamiento base.
+      }
+    }
+  }
+  if (candidateYms.length === 0) return { label: '—', amount: 0 }
+
+  let bestYm = candidateYms[0]!
+  let bestAmount = byYm.get(bestYm) ?? 0
+  for (const ym of candidateYms.slice(1)) {
+    const amt = byYm.get(ym) ?? 0
+    if (amt < bestAmount || (amt === bestAmount && ym < bestYm)) {
+      bestYm = ym
+      bestAmount = amt
+    }
+  }
+
+  const [y, mm] = bestYm.split('-')
+  return { label: `${monthLabelEs(mm)} ${y}`, amount: roundMoney2(bestAmount) }
+}
+
 async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurringExpenseDto[]> {
   const user = await User.findByPk(userId, {
     attributes: ['id', 'recurringExcludedCategoryIds', 'recurringExcludedSubcategoryIds'],
@@ -237,6 +320,8 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
       findRecurringExpensePatterns(userId),
       getMonthCycleConfigForUser(userId),
     ])
+  const bestExpenseMonthRolling = await bestMonthRolling(userId, month, monthCycleCfg, 'expense')
+  const bestIncomeMonthRolling = await bestMonthRolling(userId, month, monthCycleCfg, 'income')
 
   const expenseMap = new Map<string, number>()
   const expenseMeta = new Map<string, { name: string; icon: string; color: string }>()
@@ -300,32 +385,6 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const now = new Date()
   const cy = now.getFullYear()
   const cm = String(now.getMonth() + 1).padStart(2, '0')
-  const todayYmd = `${cy}-${cm}-${pad2(now.getDate())}`
-
-  /** Meses del año fiscal ya iniciados (excluye meses futuros con gasto 0 artificial). */
-  const startedMonths = summaryRows.filter((row) => {
-    try {
-      const { from } = ymToDateBounds(`${year}-${row.month}`, monthCycleCfg)
-      return from <= todayYmd
-    } catch {
-      return true
-    }
-  })
-  /** Preferir meses con al menos un movimiento (gasto o ingreso); si no hay ninguno, usar solo «ya iniciados». */
-  const withMovement = startedMonths.filter((r) => r.expenses > 0 || r.income > 0)
-  const poolForBestMonth = withMovement.length > 0 ? withMovement : startedMonths
-
-  let bestRow = summaryRows[0]!
-  if (poolForBestMonth.length > 0) {
-    bestRow = poolForBestMonth[0]!
-    for (const row of poolForBestMonth.slice(1)) {
-      const m = parseInt(row.month, 10)
-      const bestM = parseInt(bestRow.month, 10)
-      if (row.expenses < bestRow.expenses || (row.expenses === bestRow.expenses && m < bestM)) {
-        bestRow = row
-      }
-    }
-  }
 
   const monthlyBars = summaryRows.map(row => ({
     month: row.month,
@@ -340,9 +399,11 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const yearExpenseTotal = roundMoney2(yearAvgs.expenseTotalWindow)
   const yearIncomeTotal = roundMoney2(yearAvgs.incomeTotalWindow)
   const yearlyAverageExpense = roundMoney2(yearExpenseTotal / Math.max(1, yearAvgs.expenseMonthsDivisor))
+  const yearlyAverageIncome = roundMoney2(yearIncomeTotal / Math.max(1, yearAvgs.incomeMonthsDivisor))
   const yearIncomeAvgPerMonth = roundMoney2(yearIncomeTotal / Math.max(1, yearAvgs.incomeMonthsDivisor))
 
   const monthExpenseTotal = roundMoney2(expenseRows.reduce((s, r) => s + r.total, 0))
+  const monthIncomeTotal = roundMoney2(incomeRows.reduce((s, r) => s + r.total, 0))
   const monthBudgetTotal = roundMoney2([...budgetMap.values()].reduce((s, v) => s + v, 0))
 
   return {
@@ -352,10 +413,14 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
     categories,
     totals: {
       monthExpenseTotal,
+      monthIncomeTotal,
       monthBudgetTotal,
       yearlyAverageExpense,
-      bestMonthLabel: monthLabelEs(bestRow.month),
-      bestMonthAmount: bestRow.expenses,
+      yearlyAverageIncome,
+      bestMonthLabel: bestExpenseMonthRolling.label,
+      bestMonthAmount: bestExpenseMonthRolling.amount,
+      bestIncomeMonthLabel: bestIncomeMonthRolling.label,
+      bestIncomeMonthAmount: bestIncomeMonthRolling.amount,
       yearExpenseTotal,
       yearIncomeTotal,
       yearIncomeAvgPerMonth,

@@ -191,10 +191,14 @@ export interface StatsMonthOverviewDto {
   categories: StatsMonthCategoryDto[]
   totals: {
     monthExpenseTotal: number
+    monthIncomeTotal: number
     monthBudgetTotal: number
     yearlyAverageExpense: number
+    yearlyAverageIncome: number
     bestMonthLabel: string
     bestMonthAmount: number
+    bestIncomeMonthLabel: string
+    bestIncomeMonthAmount: number
     /** Suma de gastos de la ventana móvil de 12 meses con datos (no necesariamente un único año). */
     yearExpenseTotal: number
     /** Suma de ingresos de esa misma ventana móvil. */

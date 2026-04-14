@@ -200,10 +200,14 @@ export interface StatsMonthOverviewDto {
   categories: StatsMonthCategoryDto[]
   totals: {
     monthExpenseTotal: number
+    monthIncomeTotal: number
     monthBudgetTotal: number
     yearlyAverageExpense: number
+    yearlyAverageIncome: number
     bestMonthLabel: string
     bestMonthAmount: number
+    bestIncomeMonthLabel: string
+    bestIncomeMonthAmount: number
     yearExpenseTotal: number
     yearIncomeTotal: number
     yearIncomeAvgPerMonth: number

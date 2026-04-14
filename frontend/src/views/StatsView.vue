@@ -8,7 +8,6 @@
         </p>
       </div>
       <div class="flex flex-shrink-0 flex-col items-stretch gap-2 sm:items-end">
-        <MwYearMonthPicker v-model="selectedYm" />
         <p v-if="statsError" class="max-w-sm rounded-xl border border-red-400/40 px-3 py-2 text-xs text-red-400 dark:bg-dark-surf">
           {{ statsError }}
         </p>
@@ -23,8 +22,13 @@
     >
       <!-- Donut: gasto del mes por categoría -->
       <div class="mw-card lg:col-span-1">
-        <p class="mb-1 text-xs font-semibold dark:text-dark-txt text-light-txt">Distribución del mes</p>
-        <p class="mb-4 text-[10px] dark:text-dark-txt2 text-light-txt2">{{ selectedMonthLabel }}</p>
+        <div class="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <p class="mb-1 text-xs font-semibold dark:text-dark-txt text-light-txt">Distribución del mes</p>
+            <p class="text-[10px] dark:text-dark-txt2 text-light-txt2">{{ selectedDistributionLabel }}</p>
+          </div>
+          <MwMonthStepper v-model="selectedDistributionYm" />
+        </div>
         <div v-if="statsDonutSegments.length === 0" class="py-8 text-center text-sm dark:text-dark-txt2 text-light-txt2">
           Sin gasto registrado por categoría en este mes.
         </div>
@@ -33,8 +37,20 @@
 
       <!-- Barras: 12 meses del año del mes seleccionado (el gráfico crece con la altura de la fila del grid) -->
       <div class="mw-card flex h-full min-h-[16rem] flex-col md:col-span-2 lg:col-span-2">
-        <p class="mb-1 shrink-0 text-xs font-semibold dark:text-dark-txt text-light-txt">Gasto mensual</p>
-        <p class="mb-3 shrink-0 text-[10px] dark:text-dark-txt2 text-light-txt2">Año {{ chartYear }} · el mes actual del sistema se resalta si cae en este año; el mes elegido lleva anillo ámbar</p>
+        <div class="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <p class="mb-1 shrink-0 text-xs font-semibold dark:text-dark-txt text-light-txt">Gasto mensual</p>
+            <p class="shrink-0 text-[10px] dark:text-dark-txt2 text-light-txt2">Año {{ chartYear }} · el mes actual del sistema se resalta si cae en este año</p>
+          </div>
+          <MwMonthStepper
+            v-model="selectedBarsYear"
+            mode="year"
+            :min-year="barYearMin"
+            :max-year="barYearMax"
+            prev-aria-label="Año anterior"
+            next-aria-label="Año siguiente"
+          />
+        </div>
         <div class="min-h-0 flex-1">
           <BarChart class="h-full min-h-[10rem]" :bars="chartBars" :max-val="barMaxVal" />
         </div>
@@ -42,14 +58,13 @@
 
       <!-- KPIs -->
       <div class="mw-card">
-        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Promedio mensual (año {{ chartYear }})</p>
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Promedio mensual de gasto (ventana móvil)</p>
         <p class="font-display text-2xl font-extrabold dark:text-dark-txt text-light-txt md:text-3xl">
           {{ formatEuro(yearlyAverageExpense, false) }}
         </p>
-        <p v-if="comparisonHint" class="mt-2 text-[10px] leading-snug dark:text-dark-txt3 text-light-txt3">
-          {{ comparisonHint }}
+        <p class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
+          Calculado con los últimos 12 meses con datos, excluyendo mes en curso y primer mes parcial.
         </p>
-        <p v-else class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">Compara la media de la primera mitad del año con la segunda (al menos 4 meses con datos).</p>
       </div>
 
       <div class="mw-card">
@@ -66,7 +81,35 @@
           {{ formatEuro(statsMonthSpendTotal, false) }}
         </p>
         <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">
-          Presupuesto total asignado: {{ formatEuro(monthBudgetTotal, false) }}
+          Presupuesto total asignado: {{ formatEuro(monthBudgetTotal, false) }} · {{ selectedMonthLabel }}
+        </p>
+      </div>
+
+      <div class="mw-card">
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Promedio mensual ingresos (ventana móvil)</p>
+        <p class="font-display text-2xl font-extrabold text-brand-green md:text-3xl">
+          {{ formatEuro(yearlyAverageIncome, true) }}
+        </p>
+        <p class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
+          Últimos 12 meses con datos, excluyendo mes en curso y primer mes parcial.
+        </p>
+      </div>
+
+      <div class="mw-card">
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Mes con menos ingreso</p>
+        <p class="font-display text-2xl font-extrabold text-brand-green md:text-3xl">
+          {{ formatEuro(bestIncomeMonthAmount, true) }}
+        </p>
+        <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ bestIncomeMonthYearLabel }}</p>
+      </div>
+
+      <div class="mw-card">
+        <p class="mb-1 text-xs dark:text-dark-txt2 text-light-txt2">Ingreso del mes (suma categorías)</p>
+        <p class="font-display text-2xl font-extrabold text-brand-green md:text-3xl">
+          {{ formatEuro(statsMonthIncomeTotal, true) }}
+        </p>
+        <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">
+          Mismo mes fiscal seleccionado.
         </p>
       </div>
 
@@ -467,7 +510,7 @@ import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPerio
 import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import DonutChart from '@/components/DonutChart.vue'
 import BarChart from '@/components/BarChart.vue'
-import MwYearMonthPicker from '@/components/MwYearMonthPicker.vue'
+import MwMonthStepper from '@/components/MwMonthStepper.vue'
 
 const { formatEuro, roundMoney } = useCurrency()
 const wallet = useWalletStore()
@@ -476,14 +519,20 @@ function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
 }
 
-const selectedYm = ref(defaultSelectedYm())
+const selectedMonthYm = ref(defaultSelectedYm())
+const selectedDistributionYm = ref(defaultSelectedYm())
+const selectedBarsYear = ref(parseInt(defaultSelectedYm().slice(0, 4), 10))
 
 const overview = ref<StatsMonthOverviewDto | null>(null)
-const statsLoading = ref(false)
+const barsOverview = ref<StatsMonthOverviewDto | null>(null)
+const distributionOverview = ref<StatsMonthOverviewDto | null>(null)
+const monthLoading = ref(false)
+const barsLoading = ref(false)
 const statsError = ref<string | null>(null)
+const statsLoading = computed(() => monthLoading.value || barsLoading.value)
 
-async function loadOverview(ym: string): Promise<void> {
-  statsLoading.value = true
+async function loadMonthOverview(ym: string): Promise<void> {
+  monthLoading.value = true
   statsError.value = null
   try {
     overview.value = await api.getStatsMonthOverview(ym)
@@ -495,12 +544,43 @@ async function loadOverview(ym: string): Promise<void> {
         : 'No se pudieron cargar las estadísticas.'
     overview.value = null
   } finally {
-    statsLoading.value = false
+    monthLoading.value = false
   }
 }
 
-watch(selectedYm, (ym) => {
-  void loadOverview(ym)
+async function loadBarsOverview(year: number): Promise<void> {
+  barsLoading.value = true
+  statsError.value = null
+  try {
+    barsOverview.value = await api.getStatsMonthOverview(`${year}-01`)
+  } catch (e: unknown) {
+    statsError.value =
+      e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+        ? (e as { message: string }).message
+        : 'No se pudieron cargar las estadísticas.'
+    barsOverview.value = null
+  } finally {
+    barsLoading.value = false
+  }
+}
+
+async function loadDistributionOverview(ym: string): Promise<void> {
+  try {
+    distributionOverview.value = await api.getStatsMonthOverview(ym)
+  } catch {
+    distributionOverview.value = null
+  }
+}
+
+watch(selectedMonthYm, (ym) => {
+  void loadMonthOverview(ym)
+})
+
+watch(selectedBarsYear, (y) => {
+  void loadBarsOverview(y)
+})
+watch(selectedDistributionYm, (ym) => {
+  void loadDistributionOverview(ym)
 })
 
 watch(
@@ -511,28 +591,44 @@ watch(
     wallet.user?.monthCycleAnchor,
   ],
   () => {
-    selectedYm.value = defaultSelectedYm()
-    void loadOverview(selectedYm.value)
+    const ym = defaultSelectedYm()
+    selectedMonthYm.value = ym
+    selectedDistributionYm.value = ym
+    selectedBarsYear.value = parseInt(ym.slice(0, 4), 10)
+    void Promise.all([
+      loadMonthOverview(selectedMonthYm.value),
+      loadBarsOverview(selectedBarsYear.value),
+      loadDistributionOverview(selectedDistributionYm.value),
+    ])
   }
 )
 
 onMounted(() => {
   if (!wallet.categories.length) void wallet.loadCategories()
-  void loadOverview(selectedYm.value)
+  void Promise.all([
+    loadMonthOverview(selectedMonthYm.value),
+    loadBarsOverview(selectedBarsYear.value),
+    loadDistributionOverview(selectedDistributionYm.value),
+  ])
 })
 
-const chartYear = computed(() => parseInt(selectedYm.value.split('-')[0]!, 10))
+const chartYear = computed(() => selectedBarsYear.value)
+const barYearMin = computed(() => new Date().getFullYear() - 15)
+const barYearMax = computed(() => new Date().getFullYear() + 1)
 
-const selectedMonthLabel = computed(() => formatYearMonthEs(selectedYm.value))
+const selectedMonthLabel = computed(() => formatYearMonthEs(selectedMonthYm.value))
+const selectedDistributionLabel = computed(() => formatYearMonthEs(selectedDistributionYm.value))
 
 const chartBars = computed<MonthlyData[]>(() => {
-  const o = overview.value
+  const o = barsOverview.value
   if (!o) return []
+  const [selY, selM] = selectedMonthYm.value.split('-')
+  const selectedForBars = String(chartYear.value) === String(selY) ? Number(selM) : 0
   return o.monthlyBars.map(b => ({
     month: b.label,
     amount: b.expenses,
     current: b.isCurrentSystemMonth,
-    selected: b.isSelectedMonth,
+    selected: Number(b.month) === selectedForBars,
     income: b.income,
     net: b.net,
   }))
@@ -541,17 +637,20 @@ const chartBars = computed<MonthlyData[]>(() => {
 const barMaxVal = computed(() => Math.max(...chartBars.value.map(b => b.amount), 1))
 
 const yearlyAverageExpense = computed(() => roundMoney(overview.value?.totals.yearlyAverageExpense ?? 0))
+const yearlyAverageIncome = computed(() => roundMoney(overview.value?.totals.yearlyAverageIncome ?? 0))
 const yearTableExpenseTotal = computed(() => roundMoney(overview.value?.totals.yearExpenseTotal ?? 0))
 const yearTableExpenseAvg = computed(() => roundMoney(overview.value?.totals.yearlyAverageExpense ?? 0))
 const yearTableIncomeTotal = computed(() => roundMoney(overview.value?.totals.yearIncomeTotal ?? 0))
 const yearTableIncomeAvg = computed(() => roundMoney(overview.value?.totals.yearIncomeAvgPerMonth ?? 0))
 const bestMonthAmount = computed(() => roundMoney(overview.value?.totals.bestMonthAmount ?? 0))
+const bestIncomeMonthAmount = computed(() => roundMoney(overview.value?.totals.bestIncomeMonthAmount ?? 0))
 const monthBudgetTotal = computed(() => roundMoney(overview.value?.totals.monthBudgetTotal ?? 0))
 
 const statsMonthSpendTotal = computed(() => roundMoney(overview.value?.totals.monthExpenseTotal ?? 0))
+const statsMonthIncomeTotal = computed(() => roundMoney(overview.value?.totals.monthIncomeTotal ?? 0))
 
 const statsDonutSegments = computed<DonutSegment[]>(() => {
-  const rows = overview.value?.categories.filter(c => roundMoney(c.spent) > 0) ?? []
+  const rows = distributionOverview.value?.categories.filter(c => roundMoney(c.spent) > 0) ?? []
   const total = rows.reduce((s, c) => s + roundMoney(c.spent), 0)
   if (total <= 0) return []
   const circumference = 2 * Math.PI * 36
@@ -580,7 +679,7 @@ const statsDonutSegments = computed<DonutSegment[]>(() => {
 })
 
 const donutCenterLabel = computed(() => {
-  const t = statsMonthSpendTotal.value
+  const t = roundMoney(distributionOverview.value?.totals.monthExpenseTotal ?? 0)
   const s = t.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return `€${s}`
 })
@@ -642,7 +741,7 @@ async function onToggleExcludeCategory(categoryId: string, checked: boolean): Pr
   try {
     const u = await api.updateProfile({ recurringExcludedCategoryIds: excludedCategoryIds.value })
     wallet.user = u
-    await loadOverview(selectedYm.value)
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
   } catch (e: unknown) {
     const msg =
       e && typeof e === 'object' && 'response' in e
@@ -665,7 +764,7 @@ async function onToggleExcludeSubcategory(subcategoryId: string, checked: boolea
   try {
     const u = await api.updateProfile({ recurringExcludedSubcategoryIds: excludedSubcategoryIds.value })
     wallet.user = u
-    await loadOverview(selectedYm.value)
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
   } catch (e: unknown) {
     const msg =
       e && typeof e === 'object' && 'response' in e
@@ -695,7 +794,7 @@ async function confirmDismissRecurring(): Promise<void> {
   try {
     await api.dismissRecurringPattern(row.patternKey)
     dismissModalRow.value = null
-    await loadOverview(selectedYm.value)
+    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
   } catch (e: unknown) {
     const msg =
       e && typeof e === 'object' && 'response' in e
@@ -762,25 +861,15 @@ function budgetBarWidth(cat: StatsMonthCategoryDto): string {
 const bestMonthYearLabel = computed(() => {
   const label = overview.value?.totals.bestMonthLabel
   if (!label) return '—'
-  return `${label} ${chartYear.value}`
+  return label
 })
 
-/** Compara media de gasto 1ª mitad del año vs 2ª mitad (mismos datos que las barras). */
-const comparisonHint = computed<string | null>(() => {
-  const arr = chartBars.value
-  if (arr.length < 4) return null
-  const mid = Math.floor(arr.length / 2)
-  const first = arr.slice(0, mid)
-  const second = arr.slice(mid)
-  const a1 = first.reduce((s, m) => s + m.amount, 0) / first.length
-  const a2 = second.reduce((s, m) => s + m.amount, 0) / second.length
-  if (a1 <= 0 && a2 <= 0) return null
-  if (a1 <= 0) return null
-  const pct = Math.round(((a2 - a1) / a1) * 1000) / 10
-  if (Math.abs(pct) < 0.5) return 'Gasto medio muy similar entre la primera y la segunda mitad del año.'
-  if (pct < 0) return `Segunda mitad del año: ${Math.abs(pct)}% menos de gasto medio mensual que la primera.`
-  return `Segunda mitad del año: ${pct}% más de gasto medio mensual que la primera.`
+const bestIncomeMonthYearLabel = computed(() => {
+  const label = overview.value?.totals.bestIncomeMonthLabel
+  if (!label) return '—'
+  return label
 })
+
 </script>
 
 <style scoped>

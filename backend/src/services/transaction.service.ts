@@ -392,6 +392,8 @@ export async function rolling12ByCategoryAndSubcategory(userId: string, anchorYm
 }> {
   const cfg = await getMonthCycleConfigForUser(userId)
   const anchor = /^\d{4}-(0[1-9]|1[0-2])$/.test(anchorYm) ? anchorYm : dateToFiscalYm(toDateOnlyString(new Date()), cfg)!
+  const nowYmd = toDateOnlyString(new Date())
+  const currentFiscalYm = dateToFiscalYm(nowYmd, cfg)
   const { to: toAnchor } = ymToDateBounds(anchor, cfg)
   /** Margen amplio para poder reunir 12 meses con datos aunque haya huecos. */
   const fromProbe = ymToDateBounds(`${String(parseInt(anchor.slice(0, 4), 10) - 4)}-01`, cfg).from
@@ -410,6 +412,37 @@ export async function rolling12ByCategoryAndSubcategory(userId: string, anchorYm
   })
   const expenseMonths = new Set(lastNActiveFiscalMonths(txs, anchor, 12, cfg, 'expense'))
   const incomeMonths = new Set(lastNActiveFiscalMonths(txs, anchor, 12, cfg, 'income'))
+
+  /** Misma regla que para KPI de gastos: nunca contar el periodo fiscal en curso. */
+  if (currentFiscalYm) {
+    expenseMonths.delete(currentFiscalYm)
+    incomeMonths.delete(currentFiscalYm)
+  }
+
+  /** Descarta el mes más antiguo si es parcial de arranque para el tipo (primer movimiento después del inicio del periodo). */
+  const trimPartialStartMonth = (months: Set<string>, kind: 'expense' | 'income') => {
+    if (months.size === 0) return
+    const oldestYm = [...months].sort((a, b) => a.localeCompare(b))[0]
+    if (!oldestYm) return
+    let firstDate = ''
+    for (const tx of txs) {
+      if (tx.type !== kind) continue
+      const ymd = toDateOnlyString(tx.date)
+      if (!ymd) continue
+      if (!firstDate || ymd < firstDate) firstDate = ymd
+    }
+    if (!firstDate) return
+    const firstYm = dateToFiscalYm(firstDate, cfg)
+    if (!firstYm || firstYm !== oldestYm) return
+    try {
+      const { from } = ymToDateBounds(oldestYm, cfg)
+      if (firstDate > from) months.delete(oldestYm)
+    } catch {
+      // Si falla el parseo del periodo, mantenemos la selección original.
+    }
+  }
+  trimPartialStartMonth(expenseMonths, 'expense')
+  trimPartialStartMonth(incomeMonths, 'income')
 
   const expCat = new Map<string, CatAgg>()
   const expSub = new Map<string, SubAgg>()
