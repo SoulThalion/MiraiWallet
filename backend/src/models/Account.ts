@@ -61,6 +61,14 @@ export function initAccount(sequelize: Sequelize): void {
       createdAt:   DataTypes.DATE,
       updatedAt:   DataTypes.DATE,
     },
-    { sequelize, modelName: 'Account', tableName: 'accounts' }
+    {
+      sequelize,
+      modelName: 'Account',
+      tableName: 'accounts',
+      indexes: [
+        { fields: ['userId'] },
+        { fields: ['userId', 'isActive'] },
+      ],
+    }
   )
 }

@@ -62,7 +62,7 @@ export function initUser(sequelize: Sequelize): void {
     {
       id:           { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       name:         { type: DataTypes.STRING(100), allowNull: false, validate: { len: [2, 100] } },
-      email:        { type: DataTypes.STRING(254), allowNull: false, unique: true, validate: { isEmail: true } },
+      email:        { type: DataTypes.STRING(254), allowNull: false, validate: { isEmail: true } },
       passwordHash: { type: DataTypes.STRING,      allowNull: false },
       role:         { type: DataTypes.ENUM('user', 'admin'), defaultValue: 'user' },
       refreshToken: { type: DataTypes.TEXT,         allowNull: true },
@@ -137,6 +137,11 @@ export function initUser(sequelize: Sequelize): void {
       sequelize,
       modelName: 'User',
       tableName: 'users',
+      indexes: [
+        { unique: true, fields: ['email'] },
+        { fields: ['role'] },
+        { fields: ['isActive'] },
+      ],
       hooks: {
         beforeCreate: async (user) => {
           user.passwordHash = await bcrypt.hash(user.passwordHash, env.bcryptRounds)

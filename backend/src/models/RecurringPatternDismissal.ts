@@ -35,7 +35,11 @@ export function initRecurringPatternDismissal(sequelize: Sequelize): void {
       sequelize,
       modelName: 'RecurringPatternDismissal',
       tableName: 'recurring_pattern_dismissals',
-      indexes: [{ fields: ['userId'] }],
+      indexes: [
+        { fields: ['userId'] },
+        { unique: true, fields: ['userId', 'patternKey'] },
+        { fields: ['userId', 'dismissedYm'] },
+      ],
     },
   )
 }

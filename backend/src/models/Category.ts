@@ -43,7 +43,11 @@ export function initCategory(sequelize: Sequelize): void {
       sequelize,
       modelName: 'Category',
       tableName: 'categories',
-      indexes:   [{ fields: ['userId'] }, { unique: true, fields: ['userId', 'name'] }],
+      indexes: [
+        { fields: ['userId'] },
+        { fields: ['userId', 'type'] },
+        { unique: true, fields: ['userId', 'name'] },
+      ],
     }
   )
 }
