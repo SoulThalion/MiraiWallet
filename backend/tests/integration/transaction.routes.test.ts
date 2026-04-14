@@ -126,6 +126,19 @@ describe('PATCH /transactions/:id', () => {
   })
 })
 
+describe('PATCH /transactions/:id/exclude', () => {
+  it('200 — marca y desmarca exclusión sin borrar', async () => {
+    const tx = await createTransaction(user.id, account.id, category.id, { importSource: 'csv' })
+    const resA = await request(app).patch(`${BASE}/${tx.id}/exclude`).set(auth(token)).send({ isExcluded: true })
+    expect(resA.status).toBe(200)
+    expect(resA.body.data.isExcluded).toBe(true)
+
+    const resB = await request(app).patch(`${BASE}/${tx.id}/exclude`).set(auth(token)).send({ isExcluded: false })
+    expect(resB.status).toBe(200)
+    expect(resB.body.data.isExcluded).toBe(false)
+  })
+})
+
 describe('DELETE /transactions/:id', () => {
   it('204 — deletes', async () => {
     const tx = await createTransaction(user.id, account.id, category.id)

@@ -131,11 +131,23 @@
                 <tr
                   v-for="tx in rows"
                   :key="tx.id"
-                  class="relative z-0 border-b border-brand-blue/5 dark:border-white/[0.05] hover:bg-brand-blue/[0.04] dark:hover:bg-white/[0.03]"
+                  :class="[
+                    'relative z-0 border-b border-brand-blue/5 dark:border-white/[0.05] hover:bg-brand-blue/[0.04] dark:hover:bg-white/[0.03]',
+                    tx.isExcluded ? 'opacity-55' : '',
+                  ]"
                 >
                   <td class="py-2.5 px-2 whitespace-nowrap dark:text-dark-txt2 text-light-txt2">{{ formatDate(tx.date) }}</td>
                   <td class="py-2.5 px-2 dark:text-dark-txt text-light-txt">
-                    <span class="line-clamp-2">{{ tx.description }}</span>
+                    <div class="flex items-start gap-2">
+                      <span class="line-clamp-2">{{ tx.description }}</span>
+                      <span
+                        v-if="tx.isExcluded"
+                        class="shrink-0 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500"
+                        title="No se borra; se ignora en estadísticas, alertas y cálculos."
+                      >
+                        Excluido
+                      </span>
+                    </div>
                   </td>
                   <td class="py-2.5 px-2 hidden sm:table-cell dark:text-dark-txt2 text-light-txt2 text-xs">
                     {{ categoryLabel(tx) }}
@@ -153,15 +165,32 @@
                     {{ amountCell(tx) }}
                   </td>
                   <td class="py-2.5 px-2 text-center">
-                    <button
-                      v-if="tx.importSource === 'manual'"
-                      type="button"
-                      class="text-xs font-semibold text-brand-blue hover:underline"
-                      @click="openEdit(tx)"
-                    >
-                      Editar
-                    </button>
-                    <span v-else class="text-xs dark:text-dark-txt3 text-light-txt3">—</span>
+                    <div class="flex flex-col items-center gap-1">
+                      <button
+                        v-if="tx.importSource === 'manual'"
+                        type="button"
+                        class="text-xs font-semibold text-brand-blue hover:underline disabled:opacity-50"
+                        :disabled="Boolean(excludingTx[String(tx.id)])"
+                        @click="openEdit(tx)"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        class="text-[11px] font-semibold hover:underline disabled:opacity-50"
+                        :class="tx.isExcluded ? 'text-amber-500' : 'text-red-400'"
+                        :disabled="Boolean(excludingTx[String(tx.id)])"
+                        @click="toggleExcluded(tx)"
+                      >
+                        {{
+                          excludingTx[String(tx.id)]
+                            ? 'Guardando…'
+                            : tx.isExcluded
+                              ? 'Restaurar'
+                              : 'Excluir'
+                        }}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </template>
@@ -367,6 +396,7 @@ const filterWatchPaused = ref(false)
 const editing = ref<ApiTransaction | null>(null)
 const editError = ref('')
 const savingEdit = ref(false)
+const excludingTx = ref<Record<string, boolean>>({})
 
 const editForm = ref({
   type: 'expense' as ApiTransaction['type'],
@@ -392,6 +422,7 @@ const totals = computed(() => {
   let expense = 0
   let transfer = 0
   for (const tx of rows.value) {
+    if (tx.isExcluded) continue
     const a = Math.abs(Number(tx.amount))
     if (!Number.isFinite(a)) continue
     if (tx.type === 'income') income += a
@@ -649,6 +680,24 @@ async function saveEdit(): Promise<void> {
         : 'No se pudo guardar'
   } finally {
     savingEdit.value = false
+  }
+}
+
+async function toggleExcluded(tx: ApiTransaction): Promise<void> {
+  const key = String(tx.id)
+  if (excludingTx.value[key]) return
+  excludingTx.value = { ...excludingTx.value, [key]: true }
+  try {
+    const updated = await api.setTransactionExcluded(tx.id, !Boolean(tx.isExcluded))
+    const i = rows.value.findIndex(r => r.id === updated.id)
+    if (i >= 0) rows.value[i] = updated
+    await Promise.all([store.loadDashboard(), store.loadBudgets(), store.loadAlerts()])
+  } catch (e) {
+    console.error(e)
+  } finally {
+    const cp = { ...excludingTx.value }
+    delete cp[key]
+    excludingTx.value = cp
   }
 }
 

@@ -10,6 +10,8 @@ export interface ApiTransaction {
   date: string
   /** Origen del movimiento; solo `manual` es editable vía API. */
   importSource?: 'manual' | 'csv' | 'bank_api'
+  /** Si true, se conserva para deduplicación/imports pero se ignora en estadísticas y alertas. */
+  isExcluded?: boolean
   notes?: string | null
   category?: {
     id: string
@@ -410,6 +412,11 @@ class ApiClient {
     }
   ): Promise<ApiTransaction> {
     const response = await this.client.patch<ApiSuccessBody<ApiTransaction>>(`/transactions/${id}`, data)
+    return response.data.data
+  }
+
+  async setTransactionExcluded(id: string, isExcluded: boolean): Promise<ApiTransaction> {
+    const response = await this.client.patch<ApiSuccessBody<ApiTransaction>>(`/transactions/${id}/exclude`, { isExcluded })
     return response.data.data
   }
 

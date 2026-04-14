@@ -83,6 +83,29 @@ describe('GET /stats/dashboard', () => {
     expect(expenses).toBeCloseTo(450)
     expect(netCashflow).toBeCloseTo(income - expenses)
   })
+
+  it('ignora movimientos excluidos en dashboard y overview', async () => {
+    await createTransaction(user.id, account.id, category.id, { type: 'income', amount: 1200, date: '2026-01-01' })
+    await createTransaction(user.id, account.id, category.id, { type: 'expense', amount: 200, date: '2026-01-02' })
+    const excluded = await createTransaction(user.id, account.id, category.id, {
+      type: 'expense',
+      amount: 800,
+      date: '2026-01-03',
+      isExcluded: true,
+    })
+    expect(excluded.isExcluded).toBe(true)
+
+    const dash = await request(app).get(URL).query({ month: '2026-01' }).set({ Authorization: `Bearer ${token}` })
+    expect(dash.status).toBe(200)
+    expect(dash.body.data.expenses).toBeCloseTo(200)
+
+    const ov = await request(app)
+      .get('/api/v1/stats/month-overview')
+      .query({ month: '2026-01' })
+      .set({ Authorization: `Bearer ${token}` })
+    expect(ov.status).toBe(200)
+    expect(ov.body.data.totals.monthExpenseTotal).toBeCloseTo(200)
+  })
 })
 
 const MONTH_OVERVIEW = '/api/v1/stats/month-overview'

@@ -14,7 +14,7 @@ export async function listWithSpending(userId: string, month: string) {
       include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'] }],
     }),
     Transaction.findAll({
-      where:      { userId, type: 'expense', date: { [Op.between]: [from, to] } },
+      where:      { userId, isExcluded: false, type: 'expense', date: { [Op.between]: [from, to] } },
       attributes: ['categoryId', 'amount'],
     }),
   ])

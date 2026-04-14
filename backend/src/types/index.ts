@@ -66,6 +66,10 @@ export interface UpdateTransactionDto {
   recurringPeriod?: RecurringPeriod
 }
 
+export interface SetTransactionExcludedDto {
+  isExcluded: boolean
+}
+
 export type TransactionListSortBy =
   'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
 

@@ -33,6 +33,10 @@ export const updateTransactionRules = [
   body('recurringPeriod').optional().isIn(['daily', 'weekly', 'monthly', 'yearly']),
 ]
 
+export const setExcludedTransactionRules = [
+  body('isExcluded').isBoolean().withMessage('isExcluded debe ser boolean'),
+]
+
 export const listTransactionRules = [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),

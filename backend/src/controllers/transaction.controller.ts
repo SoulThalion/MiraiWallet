@@ -23,6 +23,12 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
 export const update = async (req: Request, res: Response, next: NextFunction) => {
   try { ApiResponse.success(res, await txService.update(req.params.id, uid(req), req.body)) } catch (e) { next(e) }
 }
+export const setExcluded = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const isExcluded = Boolean((req.body as { isExcluded?: boolean }).isExcluded)
+    ApiResponse.success(res, await txService.setExcluded(req.params.id, uid(req), isExcluded))
+  } catch (e) { next(e) }
+}
 export const remove = async (req: Request, res: Response, next: NextFunction) => {
   try { await txService.remove(req.params.id, uid(req)); ApiResponse.noContent(res) } catch (e) { next(e) }
 }

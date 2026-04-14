@@ -323,7 +323,9 @@ export const useWalletStore = defineStore('wallet', () => {
     error.value = null
     try {
       const response = await api.getTransactions({ page, limit })
-      transactions.value = response.data.map(mapApiTransaction)
+      transactions.value = response.data
+        .filter(tx => !tx.isExcluded)
+        .map(mapApiTransaction)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Error al cargar transacciones'
       console.error('Error loading transactions:', err)

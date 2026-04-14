@@ -55,6 +55,7 @@ export async function createTransaction(
     type: 'income'|'expense'|'transfer'
     date: string
     subcategoryId: string | null
+    isExcluded: boolean
   }> = {},
 ): Promise<Transaction> {
   return Transaction.create({

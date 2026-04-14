@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import multer from 'multer'
 import * as ctrl  from '../controllers/transaction.controller'
-import { createTransactionRules, updateTransactionRules, listTransactionRules } from '../validators/transaction.validators'
+import { createTransactionRules, updateTransactionRules, listTransactionRules, setExcludedTransactionRules } from '../validators/transaction.validators'
 import { validate }     from '../middlewares/validate.middleware'
 import { authenticate } from '../middlewares/auth.middleware'
 
@@ -36,6 +36,7 @@ router.get   ('/',    listTransactionRules,   validate, ctrl.list)
 router.post  ('/',    createTransactionRules, validate, ctrl.create)
 router.get   ('/:id', ctrl.getOne)
 router.patch ('/:id', updateTransactionRules, validate, ctrl.update)
+router.patch ('/:id/exclude', setExcludedTransactionRules, validate, ctrl.setExcluded)
 router.delete('/:id', ctrl.remove)
 
 export default router

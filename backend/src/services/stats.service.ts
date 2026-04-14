@@ -114,7 +114,7 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
   const fromYmd = `${since.getFullYear()}-${pad2(since.getMonth() + 1)}-${pad2(since.getDate())}`
 
   const txs = await Transaction.findAll({
-    where: { userId, type: 'expense', date: { [Op.gte]: fromYmd } },
+    where: { userId, isExcluded: false, type: 'expense', date: { [Op.gte]: fromYmd } },
     include: [
       { model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false },
       { model: Subcategory, as: 'subcategory', attributes: ['id', 'name'], required: false },
@@ -388,7 +388,7 @@ export async function dashboard(userId: string, monthOverride?: string) {
     await Promise.all([
       accountService.totalBalance(userId),
       Transaction.findAll({
-        where:      { userId },
+        where:      { userId, isExcluded: false },
         attributes: ['type', 'amount'],
       }),
       transactionService.categoryBreakdownAllTime(userId),

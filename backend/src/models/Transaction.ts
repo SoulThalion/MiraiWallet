@@ -21,6 +21,8 @@ export class Transaction extends Model<
   declare isRecurring:     CreationOptional<boolean>
   declare recurringPeriod: CreationOptional<RecurringPeriod | null>
   declare importSource:    CreationOptional<ImportSource>
+  /** Marcado por el usuario para ignorarlo en estadísticas/cálculos, sin borrar la fila. */
+  declare isExcluded:      CreationOptional<boolean>
   declare createdAt:       CreationOptional<Date>
   declare updatedAt:       CreationOptional<Date>
 
@@ -55,6 +57,7 @@ export function initTransaction(sequelize: Sequelize): void {
       isRecurring:     { type: DataTypes.BOOLEAN,  defaultValue: false },
       recurringPeriod: { type: DataTypes.ENUM('daily', 'weekly', 'monthly', 'yearly'), allowNull: true },
       importSource:    { type: DataTypes.ENUM('manual', 'csv', 'bank_api'), defaultValue: 'manual' },
+      isExcluded:      { type: DataTypes.BOOLEAN, defaultValue: false },
       createdAt:       DataTypes.DATE,
       updatedAt:       DataTypes.DATE,
     },
@@ -68,6 +71,7 @@ export function initTransaction(sequelize: Sequelize): void {
         { fields: ['categoryId'] },
         { fields: ['subcategoryId'] },
         { fields: ['userId', 'date'] },
+        { fields: ['userId', 'isExcluded', 'date'] },
       ],
     }
   )

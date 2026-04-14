@@ -15,6 +15,8 @@ import {
   TransactionQuery, PaginationMeta, TransactionListSortBy,
 } from '../types'
 
+const ACTIVE_TX_WHERE = { isExcluded: false } as const
+
 /** `required: false` → LEFT JOIN: no se pierden movimientos sin categoría o con FK huérfana (el total de gastos debe cuadrar con la suma por categorías). */
 const WITH_RELATIONS = [
   { model: Account,     as: 'account',     attributes: ['id', 'name', 'color'], required: false },
@@ -111,6 +113,12 @@ export async function findById(id: string, userId: string): Promise<Transaction>
   return tx
 }
 
+export async function setExcluded(id: string, userId: string, isExcluded: boolean): Promise<Transaction> {
+  const tx = await findById(id, userId)
+  await tx.update({ isExcluded })
+  return findById(id, userId)
+}
+
 export async function create(userId: string, data: CreateTransactionDto): Promise<Transaction> {
   const account = await Account.findOne({ where: { id: data.accountId, userId, isActive: true } })
   if (!account) throw ApiError.notFound('Account')
@@ -178,7 +186,7 @@ export async function monthlySummary(userId: string, year: number) {
 
   if (cfg.mode === 'calendar') {
     const txs = await Transaction.findAll({
-      where: { userId, date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
+      where: { userId, ...ACTIVE_TX_WHERE, date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
       attributes: ['type', 'amount', 'date'],
     })
     for (const tx of txs) {
@@ -193,7 +201,7 @@ export async function monthlySummary(userId: string, year: number) {
     const fromY = ymToDateBounds(`${year}-01`, cfg).from
     const toY = ymToDateBounds(`${year}-12`, cfg).to
     const txs = await Transaction.findAll({
-      where: { userId, date: { [Op.between]: [fromY, toY] } },
+      where: { userId, ...ACTIVE_TX_WHERE, date: { [Op.between]: [fromY, toY] } },
       attributes: ['type', 'amount', 'date'],
     })
     for (const tx of txs) {
@@ -260,7 +268,7 @@ export async function categoryBreakdown(userId: string, month: string) {
   const { from, to } = ymToDateBounds(month, cfg)
 
   const txs = await Transaction.findAll({
-    where:   { userId, type: 'expense', date: { [Op.between]: [from, to] } },
+    where:   { userId, ...ACTIVE_TX_WHERE, type: 'expense', date: { [Op.between]: [from, to] } },
     include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
   })
 
@@ -273,7 +281,7 @@ export async function categoryIncomeBreakdownMonth(userId: string, month: string
   const { from, to } = ymToDateBounds(month, cfg)
 
   const txs = await Transaction.findAll({
-    where:   { userId, type: 'income', date: { [Op.between]: [from, to] } },
+    where:   { userId, ...ACTIVE_TX_WHERE, type: 'income', date: { [Op.between]: [from, to] } },
     include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
   })
 
@@ -283,7 +291,7 @@ export async function categoryIncomeBreakdownMonth(userId: string, month: string
 /** Gastos acumulados por categoría (sin filtro de fechas). */
 export async function categoryBreakdownAllTime(userId: string) {
   const txs = await Transaction.findAll({
-    where:   { userId, type: 'expense' },
+    where:   { userId, ...ACTIVE_TX_WHERE, type: 'expense' },
     include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
   })
   return aggregateExpenseByCategory(txs)
@@ -292,7 +300,7 @@ export async function categoryBreakdownAllTime(userId: string) {
 /** Ingresos acumulados por categoría (sin filtro de fechas). */
 export async function categoryIncomeBreakdownAllTime(userId: string) {
   const txs = await Transaction.findAll({
-    where:   { userId, type: 'income' },
+    where:   { userId, ...ACTIVE_TX_WHERE, type: 'income' },
     include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false }],
   })
   return aggregateAmountByCategory(txs)
@@ -399,6 +407,7 @@ export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year
   const txs = await Transaction.findAll({
     where: {
       userId,
+      ...ACTIVE_TX_WHERE,
       type: { [Op.in]: ['expense', 'income'] as const },
       date: { [Op.between]: [fromY, toY] },
     },
