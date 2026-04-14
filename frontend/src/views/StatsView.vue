@@ -2,8 +2,7 @@
   <div class="p-4 md:p-6 lg:p-8 max-w-screen-xl mx-auto">
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0 flex-1">
-        <h2 class="font-display font-extrabold text-lg dark:text-dark-txt text-light-txt">Estadísticas</h2>
-        <p class="mt-0.5 text-xs dark:text-dark-txt2 text-light-txt2">
+        <p class="text-xs dark:text-dark-txt2 text-light-txt2">
           Elige el periodo desde el calendario: un solo endpoint carga gasto por categoría, presupuestos del mes y las 12
           barras del año.
         </p>
@@ -95,17 +94,15 @@
         </div>
       </div>
 
-      <!-- Medias anuales: categorías con desglose por subcategoría -->
+      <!-- Ventana móvil: últimos 12 meses con datos, con desglose por subcategoría -->
       <div class="mw-card md:col-span-2 lg:col-span-3">
         <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">
-          Medias mensuales del año {{ chartYear }}
+          Medias mensuales (últimos 12 meses con datos)
         </p>
         <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
-          Total por categoría en el año fiscal
-          <span class="font-mono text-[10px]">{{ chartYear }}</span>
-          (suma de los movimientos en ese año según tu corte de mes). La media mensual divide solo entre los
-          <strong class="dark:text-dark-txt text-light-txt">meses fiscales que tienen al menos un movimiento</strong>
-          (gastos o ingresos según la tabla); los meses sin datos no cuentan. En el año en curso no se incluyen meses futuros.
+          Total por categoría en una ventana móvil: <strong class="dark:text-dark-txt text-light-txt">últimos 12 meses fiscales con datos</strong>
+          hasta el mes consultado (puede cruzar años). La media mensual divide solo entre los meses con movimiento
+          del tipo correspondiente (gasto/ingreso).
           Pulsa una categoría para ver el desglose por subcategoría.
         </p>
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -117,13 +114,13 @@
                   <tr>
                     <th class="w-8 px-1 py-2" aria-hidden="true"></th>
                     <th class="px-2 py-2 font-semibold">Categoría</th>
-                    <th class="px-3 py-2 font-semibold text-right">Total año</th>
+                    <th class="px-3 py-2 font-semibold text-right">Total ventana</th>
                     <th class="px-3 py-2 font-semibold text-right">Media / mes</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="expenseCatYearAvg.length === 0">
-                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">Sin gastos registrados este año.</td>
+                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">Sin gastos en la ventana móvil.</td>
                   </tr>
                   <template v-for="row in expenseCatYearAvg" :key="row.categoryId">
                     <tr
@@ -168,7 +165,7 @@
                     class="border-t-2 border-brand-blue/20 dark:border-white/[0.12] bg-black/[0.03] font-semibold dark:bg-white/[0.04] dark:text-dark-txt text-light-txt"
                   >
                     <td class="px-1 py-2.5"></td>
-                    <td class="px-2 py-2.5">Total año (todos los gastos)</td>
+                    <td class="px-2 py-2.5">Total ventana (todos los gastos)</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableExpenseTotal, false) }}</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableExpenseAvg, false) }}</td>
                   </tr>
@@ -184,13 +181,13 @@
                   <tr>
                     <th class="w-8 px-1 py-2" aria-hidden="true"></th>
                     <th class="px-2 py-2 font-semibold">Categoría</th>
-                    <th class="px-3 py-2 font-semibold text-right">Total año</th>
+                    <th class="px-3 py-2 font-semibold text-right">Total ventana</th>
                     <th class="px-3 py-2 font-semibold text-right">Media / mes</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="incomeCatYearAvg.length === 0">
-                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">Sin ingresos registrados este año.</td>
+                    <td colspan="4" class="px-3 py-6 text-center dark:text-dark-txt2 text-light-txt2">Sin ingresos en la ventana móvil.</td>
                   </tr>
                   <template v-for="row in incomeCatYearAvg" :key="row.categoryId">
                     <tr
@@ -235,7 +232,7 @@
                     class="border-t-2 border-brand-blue/20 dark:border-white/[0.12] bg-black/[0.03] font-semibold dark:bg-white/[0.04] dark:text-dark-txt text-light-txt"
                   >
                     <td class="px-1 py-2.5"></td>
-                    <td class="px-2 py-2.5">Total año (todos los ingresos)</td>
+                    <td class="px-2 py-2.5">Total ventana (todos los ingresos)</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableIncomeTotal, true) }}</td>
                     <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(yearTableIncomeAvg, true) }}</td>
                   </tr>

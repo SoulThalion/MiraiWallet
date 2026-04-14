@@ -138,9 +138,8 @@ export interface StatsMonthCategoryDto {
 }
 
 /**
- * `avgPerMonth` = `totalYear` / meses fiscales del año con ≥1 movimiento del tipo (gasto o ingreso);
- * en el año fiscal actual no cuentan meses futuros ni meses sin movimientos.
- * Mismo criterio que `totals.yearlyAverageExpense` (gastos).
+ * `avgPerMonth` = `totalYear` / meses fiscales con datos dentro de la ventana móvil
+ * de los últimos 12 meses con movimiento del tipo (gasto o ingreso), hasta el mes consultado.
  */
 export interface StatsYearAvgCategoryDto {
   categoryId: string
@@ -194,17 +193,17 @@ export interface StatsMonthOverviewDto {
     yearlyAverageExpense: number
     bestMonthLabel: string
     bestMonthAmount: number
-    /** Suma de gastos del año fiscal de la vista (mismas barras anuales). */
+    /** Suma de gastos de la ventana móvil de 12 meses con datos (no necesariamente un único año). */
     yearExpenseTotal: number
-    /** Suma de ingresos del mismo año fiscal. */
+    /** Suma de ingresos de esa misma ventana móvil. */
     yearIncomeTotal: number
-    /** Media mensual de ingresos (total ÷ meses con al menos un ingreso). */
+    /** Media mensual de ingresos (total de ventana ÷ meses con ingresos en la ventana). */
     yearIncomeAvgPerMonth: number
   }
-  /** Gastos del año fiscal `year`: total y media mensual por categoría. */
+  /** Gastos de la ventana móvil: total y media mensual por categoría. */
   expenseCategoryYearAvg: StatsYearAvgCategoryDto[]
   expenseSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
-  /** Ingresos del mismo año fiscal. */
+  /** Ingresos de la misma ventana móvil. */
   incomeCategoryYearAvg: StatsYearAvgCategoryDto[]
   incomeSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
   /** Patrones de gasto repetido (últimos 36 meses, máx. 60 filas). */

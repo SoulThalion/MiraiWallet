@@ -350,83 +350,77 @@ function mapToYearAvgSubcategories(m: Map<string, SubAgg>, monthsDivisor: number
 }
 
 /**
- * Cuenta meses fiscales `YYYY-MM` del año con al menos un movimiento (por tipo), excluyendo meses posteriores
- * al mes fiscal actual cuando `year` es el año fiscal de hoy.
+ * Ventana móvil: últimos N meses fiscales con al menos un movimiento del tipo indicado,
+ * hasta `anchorYm` inclusive (puede cruzar años).
  */
-function activeFiscalMonthsForYearAvg(
+function lastNActiveFiscalMonths(
   txs: Transaction[],
-  year: number,
+  anchorYm: string,
+  n: number,
   cfg: MonthCycleConfig,
-  refYmd: string,
   kind: 'expense' | 'income',
-): number {
-  const yPrefix = `${year}-`
-  const nowYm = dateToFiscalYm(refYmd, cfg)
-  const refYear = nowYm ? parseInt(nowYm.slice(0, 4), 10) : year
+): string[] {
   const active = new Set<string>()
   for (const tx of txs) {
     if (tx.type !== kind) continue
     const ym = dateToFiscalYm(tx.date, cfg)
-    if (!ym || !ym.startsWith(yPrefix)) continue
-    if (year > refYear) continue
-    if (year === refYear && nowYm && ym > nowYm) continue
+    if (!ym || ym > anchorYm) continue
     active.add(ym)
   }
-  return Math.max(1, active.size)
+  return [...active].sort((a, b) => b.localeCompare(a)).slice(0, Math.max(1, n))
 }
 
 /**
- * Totales del año fiscal `year` y media mensual = total / meses con datos (≥1 movimiento de ese tipo en ese mes fiscal;
- * en el año en curso no se cuentan meses futuros ni meses sin movimientos).
- * Solo `expense` e `income` (los traspasos no entran aquí).
+ * Ventana móvil de medias/categorías: últimos 12 meses fiscales con datos por tipo (gasto/ingreso),
+ * hasta `anchorYm` inclusive (puede mezclar dos años).
  */
-export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year: number): Promise<{
+export async function rolling12ByCategoryAndSubcategory(userId: string, anchorYm: string): Promise<{
   expenseCategories: StatsYearAvgCategoryDto[]
   expenseSubcategories: StatsYearAvgSubcategoryDto[]
   incomeCategories: StatsYearAvgCategoryDto[]
   incomeSubcategories: StatsYearAvgSubcategoryDto[]
-  /** Meses con ≥1 gasto (para alinear `totals.yearlyAverageExpense`). */
+  /** Meses con gasto usados en la ventana móvil (1..12). */
   expenseMonthsDivisor: number
-  /** Meses con ≥1 ingreso. */
+  /** Meses con ingreso usados en la ventana móvil (1..12). */
   incomeMonthsDivisor: number
+  /** Total gastos en esos meses de gasto (denominador de `expenseMonthsDivisor`). */
+  expenseTotalWindow: number
+  /** Total ingresos en esos meses de ingreso (denominador de `incomeMonthsDivisor`). */
+  incomeTotalWindow: number
 }> {
   const cfg = await getMonthCycleConfigForUser(userId)
-  const yPrefix = `${year}-`
-  const refYmd = toDateOnlyString(new Date())
-
-  let fromY: string
-  let toY: string
-  if (cfg.mode === 'calendar') {
-    fromY = `${year}-01-01`
-    toY = `${year}-12-31`
-  } else {
-    fromY = ymToDateBounds(`${year}-01`, cfg).from
-    toY = ymToDateBounds(`${year}-12`, cfg).to
-  }
+  const anchor = /^\d{4}-(0[1-9]|1[0-2])$/.test(anchorYm) ? anchorYm : dateToFiscalYm(toDateOnlyString(new Date()), cfg)!
+  const { to: toAnchor } = ymToDateBounds(anchor, cfg)
+  /** Margen amplio para poder reunir 12 meses con datos aunque haya huecos. */
+  const fromProbe = ymToDateBounds(`${String(parseInt(anchor.slice(0, 4), 10) - 4)}-01`, cfg).from
 
   const txs = await Transaction.findAll({
     where: {
       userId,
       ...ACTIVE_TX_WHERE,
       type: { [Op.in]: ['expense', 'income'] as const },
-      date: { [Op.between]: [fromY, toY] },
+      date: { [Op.between]: [fromProbe, toAnchor] },
     },
     include: [
       { model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'], required: false },
       { model: Subcategory, as: 'subcategory', attributes: ['id', 'name', 'icon', 'color'], required: false },
     ],
   })
+  const expenseMonths = new Set(lastNActiveFiscalMonths(txs, anchor, 12, cfg, 'expense'))
+  const incomeMonths = new Set(lastNActiveFiscalMonths(txs, anchor, 12, cfg, 'income'))
 
   const expCat = new Map<string, CatAgg>()
   const expSub = new Map<string, SubAgg>()
   const incCat = new Map<string, CatAgg>()
   const incSub = new Map<string, SubAgg>()
+  let expenseTotalWindow = 0
+  let incomeTotalWindow = 0
 
   const subKey = (cid: string, sid: string | null) => `${cid}\t${sid ?? ''}`
 
   for (const tx of txs) {
     const ym = dateToFiscalYm(tx.date, cfg)
-    if (!ym || !ym.startsWith(yPrefix)) continue
+    if (!ym || ym > anchor) continue
     const amt = Number(tx.amount)
     if (!Number.isFinite(amt)) continue
 
@@ -435,7 +429,8 @@ export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year
     const cicon = tx.category?.icon ?? '💸'
     const ccolor = tx.category?.color ?? '#888'
 
-    if (tx.type === 'expense') {
+    if (tx.type === 'expense' && expenseMonths.has(ym)) {
+      expenseTotalWindow = roundMoney2(expenseTotalWindow + amt)
       const ec = expCat.get(catId) ?? { total: 0, name: cname, icon: cicon, color: ccolor }
       ec.total = roundMoney2(ec.total + amt)
       expCat.set(catId, ec)
@@ -456,7 +451,8 @@ export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year
       }
       es.total = roundMoney2(es.total + amt)
       expSub.set(sk, es)
-    } else if (tx.type === 'income') {
+    } else if (tx.type === 'income' && incomeMonths.has(ym)) {
+      incomeTotalWindow = roundMoney2(incomeTotalWindow + amt)
       const ic = incCat.get(catId) ?? { total: 0, name: cname, icon: cicon, color: ccolor }
       ic.total = roundMoney2(ic.total + amt)
       incCat.set(catId, ic)
@@ -480,8 +476,8 @@ export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year
     }
   }
 
-  const expenseMonthsDivisor = activeFiscalMonthsForYearAvg(txs, year, cfg, refYmd, 'expense')
-  const incomeMonthsDivisor = activeFiscalMonthsForYearAvg(txs, year, cfg, refYmd, 'income')
+  const expenseMonthsDivisor = Math.max(1, expenseMonths.size)
+  const incomeMonthsDivisor = Math.max(1, incomeMonths.size)
 
   return {
     expenseCategories: mapToYearAvgCategories(expCat, expenseMonthsDivisor),
@@ -490,5 +486,7 @@ export async function fiscalYearAvgByCategoryAndSubcategory(userId: string, year
     incomeSubcategories: mapToYearAvgSubcategories(incSub, incomeMonthsDivisor),
     expenseMonthsDivisor,
     incomeMonthsDivisor,
+    expenseTotalWindow: roundMoney2(expenseTotalWindow),
+    incomeTotalWindow: roundMoney2(incomeTotalWindow),
   }
 }

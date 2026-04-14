@@ -3,11 +3,7 @@
     <!-- Cabecera + periodo -->
     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
       <div>
-        <p class="text-xs uppercase tracking-widest dark:text-dark-txt2 text-light-txt2">Centro de avisos</p>
-        <h1 class="font-display font-black text-2xl md:text-3xl dark:text-dark-txt text-light-txt">
-          Alertas e insights
-        </h1>
-        <p class="text-sm mt-1 dark:text-dark-txt2 text-light-txt2">
+        <p class="text-sm dark:text-dark-txt2 text-light-txt2">
           Periodo fiscal: <span class="font-semibold dark:text-dark-txt text-light-txt">{{ periodLabel }}</span>
         </p>
       </div>
@@ -41,7 +37,7 @@
           </div>
           <p class="text-xs dark:text-dark-txt2 text-light-txt2 mb-3">
             Presupuestos del periodo; gasto e ingresos del <span class="font-medium dark:text-dark-txt text-light-txt">mismo periodo fiscal</span>.
-            La media de gasto es la de <span class="font-medium dark:text-dark-txt text-light-txt">Estadísticas</span>: total de gastos del año fiscal ÷ meses con al menos un gasto (sin meses futuros).
+            La media de gasto es la de <span class="font-medium dark:text-dark-txt text-light-txt">Estadísticas</span>: total de gastos de los últimos 12 meses con datos ÷ meses con gasto en esa ventana.
           </p>
 
           <div v-if="derivedInsights.length === 0" class="mw-card text-center py-8 px-4">
@@ -305,7 +301,7 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
         type: 'warning',
         badge: 'Tendencia',
         title: 'Gasto del periodo por encima de tu media',
-        body: `Este periodo llevas ${formatEuro(cur)}. Tu media mensual de gasto en el año fiscal es ${formatEuro(avg)} (${mesesLabel} en el año, misma regla que en Estadísticas).`,
+        body: `Este periodo llevas ${formatEuro(cur)}. Tu media mensual de gasto en la ventana móvil es ${formatEuro(avg)} (${mesesLabel}, misma regla que en Estadísticas).`,
         amount: `+${formatPct((ratio - 1) * 100)} vs media`,
       })
     } else if (ratio <= 0.88) {
@@ -314,7 +310,7 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
         type: 'success',
         badge: 'Control',
         title: 'Gasto contenido respecto a la media',
-        body: `Has registrado ${formatEuro(cur)} frente a la media de ${formatEuro(avg)} (${monthsWithExpense} mes${monthsWithExpense === 1 ? '' : 'es'} con gasto este año fiscal).`,
+        body: `Has registrado ${formatEuro(cur)} frente a la media de ${formatEuro(avg)} (${monthsWithExpense} mes${monthsWithExpense === 1 ? '' : 'es'} con gasto en la ventana móvil).`,
         amount: `${formatPct((1 - ratio) * 100)} por debajo`,
       })
     }
@@ -381,7 +377,7 @@ const dynamicTip = computed(() => {
   const cur = store.monthExpenses
   const mwd = store.expenseMonthsWithData
   if (avg >= 0.01 && cur > 0 && mwd >= 1 && cur / avg >= 1.12) {
-    return `Vas por encima de tu media de gasto (año fiscal, solo meses con gasto): fija un tope semanal o aplaza compras no urgentes hasta ver el cierre del periodo.`
+    return `Vas por encima de tu media de gasto (últimos 12 meses con datos): fija un tope semanal o aplaza compras no urgentes hasta ver el cierre del periodo.`
   }
 
   if (store.monthNetCashflow < 0) {

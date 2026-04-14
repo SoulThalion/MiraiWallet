@@ -233,7 +233,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
       transactionService.categoryIncomeBreakdownMonth(userId, month),
       Category.findAll({ where: { userId }, order: [['name', 'ASC']] }),
       Budget.findAll({ where: { userId, month } }),
-      transactionService.fiscalYearAvgByCategoryAndSubcategory(userId, year),
+      transactionService.rolling12ByCategoryAndSubcategory(userId, month),
       findRecurringExpensePatterns(userId),
       getMonthCycleConfigForUser(userId),
     ])
@@ -337,16 +337,10 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
     isCurrentSystemMonth: year === cy && row.month === cm,
   }))
 
-  let sumExp = 0
-  let sumInc = 0
-  for (const row of summaryRows) {
-    sumExp += row.expenses
-    sumInc += row.income
-  }
-  const yearExpenseTotal = roundMoney2(sumExp)
-  const yearIncomeTotal = roundMoney2(sumInc)
-  const yearlyAverageExpense = roundMoney2(sumExp / Math.max(1, yearAvgs.expenseMonthsDivisor))
-  const yearIncomeAvgPerMonth = roundMoney2(sumInc / Math.max(1, yearAvgs.incomeMonthsDivisor))
+  const yearExpenseTotal = roundMoney2(yearAvgs.expenseTotalWindow)
+  const yearIncomeTotal = roundMoney2(yearAvgs.incomeTotalWindow)
+  const yearlyAverageExpense = roundMoney2(yearExpenseTotal / Math.max(1, yearAvgs.expenseMonthsDivisor))
+  const yearIncomeAvgPerMonth = roundMoney2(yearIncomeTotal / Math.max(1, yearAvgs.incomeMonthsDivisor))
 
   const monthExpenseTotal = roundMoney2(expenseRows.reduce((s, r) => s + r.total, 0))
   const monthBudgetTotal = roundMoney2([...budgetMap.values()].reduce((s, v) => s + v, 0))
@@ -394,7 +388,7 @@ export async function dashboard(userId: string, monthOverride?: string) {
       transactionService.categoryBreakdownAllTime(userId),
       transactionService.categoryIncomeBreakdownAllTime(userId),
       transactionService.monthlySummary(userId, y),
-      transactionService.fiscalYearAvgByCategoryAndSubcategory(userId, y),
+      transactionService.rolling12ByCategoryAndSubcategory(userId, month),
     ])
 
   let income = 0, expenses = 0
@@ -439,12 +433,8 @@ export async function dashboard(userId: string, monthOverride?: string) {
     }
   }
 
-  let sumYearExpenses = 0
-  for (const row of monthlySummary) {
-    sumYearExpenses += row.expenses
-  }
-  sumYearExpenses = roundMoney2(sumYearExpenses)
-  /** Misma fórmula que `monthOverview.totals.yearlyAverageExpense`: total gastos del año / meses con ≥1 gasto (sin meses futuros en el año en curso). */
+  const sumYearExpenses = roundMoney2(yearAvgs.expenseTotalWindow)
+  /** Misma fórmula que `monthOverview.totals.yearlyAverageExpense`: total gastos de los últimos 12 meses con datos / meses con gasto (1..12). */
   const yearlyAverageExpense = roundMoney2(
     sumYearExpenses / Math.max(1, yearAvgs.expenseMonthsDivisor),
   )

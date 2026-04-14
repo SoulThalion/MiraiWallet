@@ -180,7 +180,7 @@
                         class="text-[11px] font-semibold hover:underline disabled:opacity-50"
                         :class="tx.isExcluded ? 'text-amber-500' : 'text-red-400'"
                         :disabled="Boolean(excludingTx[String(tx.id)])"
-                        @click="toggleExcluded(tx)"
+                        @click="openExcludeConfirm(tx)"
                       >
                         {{
                           excludingTx[String(tx.id)]
@@ -238,6 +238,28 @@
         </div>
       </div>
     </div>
+
+    <!-- Confirmación excluir/restaurar -->
+    <Teleport to="body">
+      <div
+        v-if="excludeConfirm"
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        @click.self="closeExcludeConfirm"
+      >
+        <div
+          class="w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl mw-card border dark:border-white/[0.07] border-brand-blue/10 shadow-xl"
+          @click.stop
+        >
+          <AlertCard
+            :alert="excludeConfirmAlert"
+            @dismiss="closeExcludeConfirm"
+            @action="confirmExcludeToggle"
+          />
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Modal edición (solo manual) -->
     <Teleport to="body">
@@ -334,10 +356,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, reactive } from 'vue'
-import { useWalletStore, type Category } from '@/stores/wallet'
+import { useWalletStore, type Category, type Alert } from '@/stores/wallet'
 import { api, type ApiTransaction } from '@/services/api'
 import MwDateRangePicker from '@/components/MwDateRangePicker.vue'
 import MwAmountRangePicker from '@/components/MwAmountRangePicker.vue'
+import AlertCard from '@/components/AlertCard.vue'
 
 type SortColumn = 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
 
@@ -397,6 +420,7 @@ const editing = ref<ApiTransaction | null>(null)
 const editError = ref('')
 const savingEdit = ref(false)
 const excludingTx = ref<Record<string, boolean>>({})
+const excludeConfirm = ref<{ tx: ApiTransaction; toExcluded: boolean } | null>(null)
 
 const editForm = ref({
   type: 'expense' as ApiTransaction['type'],
@@ -699,6 +723,55 @@ async function toggleExcluded(tx: ApiTransaction): Promise<void> {
     delete cp[key]
     excludingTx.value = cp
   }
+}
+
+const excludeConfirmAlert = computed<Alert>(() => {
+  const p = excludeConfirm.value
+  if (!p) {
+    return {
+      id: 'exclude-confirm-empty',
+      type: 'info',
+      badge: 'Confirmación',
+      title: 'Confirmar acción',
+      body: '',
+      amount: null,
+      actions: [
+        { label: 'Confirmar', style: 'primary' },
+        { label: 'Cancelar', style: 'secondary' },
+      ],
+    }
+  }
+  const title = p.toExcluded ? '¿Excluir este movimiento?' : '¿Restaurar este movimiento?'
+  const body = p.toExcluded
+    ? 'No se borrará. Se mantendrá para deduplicar futuras importaciones, pero dejará de contar en estadísticas, alertas, presupuestos y demás cálculos.'
+    : 'Volverá a contar en estadísticas, alertas, presupuestos y demás cálculos. El movimiento seguirá existiendo igual en tu historial.'
+  return {
+    id: `exclude-confirm-${String(p.tx.id)}`,
+    type: p.toExcluded ? 'warning' : 'success',
+    badge: 'Confirmación',
+    title,
+    body,
+    amount: null,
+    actions: [
+      { label: p.toExcluded ? 'Sí, excluir' : 'Sí, restaurar', style: p.toExcluded ? 'gold' : 'success' },
+      { label: 'Cancelar', style: 'secondary' },
+    ],
+  }
+})
+
+function openExcludeConfirm(tx: ApiTransaction): void {
+  excludeConfirm.value = { tx, toExcluded: !Boolean(tx.isExcluded) }
+}
+
+function closeExcludeConfirm(): void {
+  excludeConfirm.value = null
+}
+
+async function confirmExcludeToggle(): Promise<void> {
+  const p = excludeConfirm.value
+  if (!p) return
+  closeExcludeConfirm()
+  await toggleExcluded(p.tx)
 }
 
 onMounted(() => {

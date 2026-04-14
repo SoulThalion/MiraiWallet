@@ -111,7 +111,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const alerts = ref<Alert[]>([])
   const monthlyData = ref<MonthlyData[]>([])
   const monthlySummary = ref<{ month: string; income: number; expenses: number; transfers: number; net: number }[]>([])
-  /** Media mensual de gasto: total año fiscal ÷ meses con ≥1 gasto (viene del dashboard; alineado con Estadísticas). */
+  /** Media mensual de gasto: ventana móvil de 12 meses con datos ÷ meses con gasto (alineado con Estadísticas). */
   const yearlyAverageExpense = ref<number>(0)
   const expenseMonthsWithData = ref<number>(0)
   const newExpense = ref<NewExpense>({
