@@ -49,6 +49,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 import MwLogo from '@/components/MwLogo.vue'
 import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
 
@@ -82,8 +83,7 @@ async function submit(): Promise<void> {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
     await router.replace(redirect || '/home')
   } catch (e: unknown) {
-    const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    localError.value = ax.response?.data?.error?.message ?? t('validation.loginFailed')
+    localError.value = t(resolveApiErrorI18nKey(e, 'validation.loginFailed'))
   } finally {
     submitting.value = false
   }

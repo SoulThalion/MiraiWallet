@@ -146,6 +146,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 import MwLogo from '@/components/MwLogo.vue'
 import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
 
@@ -286,8 +287,7 @@ async function onSubmit(): Promise<void> {
     store.applyAuth(data)
     await router.replace({ name: 'home' })
   } catch (e: unknown) {
-    const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    localError.value = ax.response?.data?.error?.message ?? t('validation.registerFailed')
+    localError.value = t(resolveApiErrorI18nKey(e, 'validation.registerFailed'))
   } finally {
     submitting.value = false
   }

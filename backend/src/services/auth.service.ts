@@ -4,6 +4,7 @@ import {
 } from '../models'
 import { createTokenPair, verifyRefreshToken } from '../utils/jwt'
 import { ApiError }    from '../utils/ApiError'
+import { ERROR_CODES } from '../errors/error-codes'
 import type { MonthCycleAnchor, MonthCycleConfig, MonthCycleMode } from '../utils/monthPeriod'
 import { ymToDateBounds } from '../utils/monthPeriod'
 import { RegisterDto, LoginDto, ChangePasswordDto, TokenPair } from '../types'
@@ -20,7 +21,7 @@ const DEFAULT_CATEGORIES = [
 
 export async function register(dto: RegisterDto): Promise<{ user: object } & TokenPair> {
   const existing = await User.findOne({ where: { email: dto.email } })
-  if (existing) throw ApiError.conflict('Email already registered')
+  if (existing) throw ApiError.conflict(ERROR_CODES.AUTH_EMAIL_ALREADY_REGISTERED, 'El email ya está registrado')
 
   const user = await User.create({ name: dto.name, email: dto.email, passwordHash: dto.password })
 
@@ -36,10 +37,10 @@ export async function register(dto: RegisterDto): Promise<{ user: object } & Tok
 
 export async function login(dto: LoginDto): Promise<{ user: object } & TokenPair> {
   const user = await User.findOne({ where: { email: dto.email } })
-  if (!user || !user.isActive) throw ApiError.unauthorized('Invalid credentials')
+  if (!user || !user.isActive) throw ApiError.unauthorized(ERROR_CODES.AUTH_INVALID_CREDENTIALS, 'Credenciales inválidas')
 
   const valid = await user.comparePassword(dto.password)
-  if (!valid) throw ApiError.unauthorized('Invalid credentials')
+  if (!valid) throw ApiError.unauthorized(ERROR_CODES.AUTH_INVALID_CREDENTIALS, 'Credenciales inválidas')
 
   const tokens = createTokenPair(user)
   await user.update({ refreshToken: tokens.refreshToken, lastLoginAt: new Date() })
@@ -49,11 +50,11 @@ export async function login(dto: LoginDto): Promise<{ user: object } & TokenPair
 export async function refresh(refreshToken: string): Promise<TokenPair> {
   let payload
   try { payload = verifyRefreshToken(refreshToken) }
-  catch { throw ApiError.unauthorized('Invalid or expired refresh token') }
+  catch { throw ApiError.unauthorized(ERROR_CODES.AUTH_REFRESH_TOKEN_INVALID, 'Refresh token inválido o expirado') }
 
   const user = await User.findByPk(payload.sub)
   if (!user || !user.isActive || user.refreshToken !== refreshToken) {
-    throw ApiError.unauthorized('Refresh token revoked')
+    throw ApiError.unauthorized(ERROR_CODES.AUTH_REFRESH_TOKEN_REVOKED, 'Refresh token revocado')
   }
 
   const tokens = createTokenPair(user)
@@ -67,13 +68,13 @@ export async function logout(userId: string): Promise<void> {
 
 export async function changePassword(user: User, dto: ChangePasswordDto): Promise<void> {
   const valid = await user.comparePassword(dto.currentPassword)
-  if (!valid) throw ApiError.badRequest('Current password is incorrect')
+  if (!valid) throw ApiError.badRequest(ERROR_CODES.AUTH_CURRENT_PASSWORD_INVALID, 'La contraseña actual es incorrecta')
   await user.update({ passwordHash: dto.newPassword, refreshToken: null })
 }
 
 export async function getProfile(userId: string): Promise<object> {
   const user = await User.findByPk(userId)
-  if (!user) throw ApiError.notFound('User')
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
   return user.toSafeJSON()
 }
 
@@ -89,10 +90,16 @@ function validateCustomMonthCycle(start: number, end: number, anchor: MonthCycle
     try {
       ;({ from, to } = ymToDateBounds(ym, cfg))
     } catch (e) {
-      throw ApiError.badRequest(e instanceof Error ? e.message : 'Periodo de mes inválido')
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_MONTH_CYCLE_INVALID,
+        e instanceof Error ? e.message : 'Periodo de mes inválido'
+      )
     }
     if (from > to) {
-      throw ApiError.badRequest('La fecha de inicio del periodo no puede ser posterior a la de fin.')
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_MONTH_CYCLE_DATE_RANGE_INVALID,
+        'La fecha de inicio del periodo no puede ser posterior a la de fin.'
+      )
     }
   }
 }
@@ -129,27 +136,27 @@ export async function updateProfile(
 
   if (data.monthCycleMode !== undefined) {
     if (data.monthCycleMode !== 'calendar' && data.monthCycleMode !== 'custom') {
-      throw ApiError.badRequest('monthCycleMode must be calendar or custom')
+      throw ApiError.badRequest(ERROR_CODES.PROFILE_MONTH_CYCLE_MODE_INVALID, 'monthCycleMode debe ser calendar o custom')
     }
     patch.monthCycleMode = data.monthCycleMode
   }
   if (data.monthCycleStartDay !== undefined) {
     const n = floorDay(data.monthCycleStartDay)
     if (!Number.isInteger(n) || n < 1 || n > 31) {
-      throw ApiError.badRequest('monthCycleStartDay must be an integer between 1 and 31')
+      throw ApiError.badRequest(ERROR_CODES.PROFILE_MONTH_CYCLE_START_INVALID, 'monthCycleStartDay debe ser un entero entre 1 y 31')
     }
     patch.monthCycleStartDay = n
   }
   if (data.monthCycleEndDay !== undefined) {
     const n = floorDay(data.monthCycleEndDay)
     if (!Number.isInteger(n) || n < 1 || n > 31) {
-      throw ApiError.badRequest('monthCycleEndDay must be an integer between 1 and 31')
+      throw ApiError.badRequest(ERROR_CODES.PROFILE_MONTH_CYCLE_END_INVALID, 'monthCycleEndDay debe ser un entero entre 1 y 31')
     }
     patch.monthCycleEndDay = n
   }
   if (data.monthCycleAnchor !== undefined) {
     if (data.monthCycleAnchor !== 'previous' && data.monthCycleAnchor !== 'current') {
-      throw ApiError.badRequest('monthCycleAnchor must be previous or current')
+      throw ApiError.badRequest(ERROR_CODES.PROFILE_MONTH_CYCLE_ANCHOR_INVALID, 'monthCycleAnchor debe ser previous o current')
     }
     patch.monthCycleAnchor = data.monthCycleAnchor
   }
@@ -158,13 +165,16 @@ export async function updateProfile(
     if (data.recurringExcludedCategoryIds === null) {
       patch.recurringExcludedCategoryIds = []
     } else if (!Array.isArray(data.recurringExcludedCategoryIds)) {
-      throw ApiError.badRequest('recurringExcludedCategoryIds must be an array of category UUIDs')
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_EXCLUDED_CATEGORY_IDS_INVALID,
+        'recurringExcludedCategoryIds debe ser un array de UUIDs de categoría'
+      )
     } else {
       const ids = [...new Set(data.recurringExcludedCategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 80)
       for (const id of ids) {
-        if (!UUID_RE.test(id)) throw ApiError.badRequest(`Invalid category id: ${id}`)
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(ERROR_CODES.PROFILE_EXCLUDED_CATEGORY_ID_INVALID, `ID de categoría inválido: ${id}`)
         const cat = await Category.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
-        if (!cat) throw ApiError.badRequest('Unknown category for recurring exclusion')
+        if (!cat) throw ApiError.badRequest(ERROR_CODES.PROFILE_EXCLUDED_CATEGORY_UNKNOWN, 'Categoría desconocida para exclusión de recurrentes')
       }
       patch.recurringExcludedCategoryIds = ids
     }
@@ -174,13 +184,16 @@ export async function updateProfile(
     if (data.recurringExcludedSubcategoryIds === null) {
       patch.recurringExcludedSubcategoryIds = []
     } else if (!Array.isArray(data.recurringExcludedSubcategoryIds)) {
-      throw ApiError.badRequest('recurringExcludedSubcategoryIds must be an array of subcategory UUIDs')
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_EXCLUDED_SUBCATEGORY_IDS_INVALID,
+        'recurringExcludedSubcategoryIds debe ser un array de UUIDs de subcategoría'
+      )
     } else {
       const ids = [...new Set(data.recurringExcludedSubcategoryIds.map(x => String(x).trim()).filter(Boolean))].slice(0, 120)
       for (const id of ids) {
-        if (!UUID_RE.test(id)) throw ApiError.badRequest(`Invalid subcategory id: ${id}`)
+        if (!UUID_RE.test(id)) throw ApiError.badRequest(ERROR_CODES.PROFILE_EXCLUDED_SUBCATEGORY_ID_INVALID, `ID de subcategoría inválido: ${id}`)
         const sub = await Subcategory.findOne({ where: { id, userId: user.id }, attributes: ['id'] })
-        if (!sub) throw ApiError.badRequest('Unknown subcategory for recurring exclusion')
+        if (!sub) throw ApiError.badRequest(ERROR_CODES.PROFILE_EXCLUDED_SUBCATEGORY_UNKNOWN, 'Subcategoría desconocida para exclusión de recurrentes')
       }
       patch.recurringExcludedSubcategoryIds = ids
     }
@@ -210,10 +223,10 @@ export interface WipeFinancialDataResult {
 /** Borra movimientos, presupuestos, subcategorías y categorías del usuario; pone saldos de cuentas a 0. */
 export async function wipeFinancialData(user: User, password: string): Promise<WipeFinancialDataResult> {
   const valid = await user.comparePassword(password)
-  if (!valid) throw ApiError.badRequest('Contraseña incorrecta')
+  if (!valid) throw ApiError.badRequest(ERROR_CODES.AUTH_CURRENT_PASSWORD_INVALID, 'Contraseña incorrecta')
 
   const sequelize = LedgerTransaction.sequelize
-  if (!sequelize) throw ApiError.internal('Database not configured')
+  if (!sequelize) throw ApiError.internal(ERROR_CODES.DB_NOT_CONFIGURED, 'Base de datos no configurada')
 
   return sequelize.transaction(async (trx) => {
     await RecurringPatternDismissal.destroy({ where: { userId: user.id }, transaction: trx })

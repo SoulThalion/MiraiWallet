@@ -13,6 +13,8 @@ import {
 } from '@/services/api'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
 import { getCurrentLocale } from '@/i18n'
+import i18n from '@/i18n'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
 // ── Types ────────────────────────────────────────────────
 export interface Transaction {
@@ -312,7 +314,7 @@ export const useWalletStore = defineStore('wallet', () => {
         })
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al cargar datos'
+      error.value = i18n.global.t(resolveApiErrorI18nKey(err, 'errors.common.unknown'))
       console.error('Error loading dashboard:', err)
     } finally {
       isLoading.value = false
@@ -328,7 +330,7 @@ export const useWalletStore = defineStore('wallet', () => {
         .filter(tx => !tx.isExcluded)
         .map(mapApiTransaction)
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al cargar transacciones'
+      error.value = i18n.global.t(resolveApiErrorI18nKey(err, 'errors.common.unknown'))
       console.error('Error loading transactions:', err)
     } finally {
       isLoading.value = false
@@ -465,7 +467,7 @@ export const useWalletStore = defineStore('wallet', () => {
   async function addTransaction(tx: NewExpense & { note?: string }): Promise<void> {
     const accountId = defaultAccountId.value
     if (!accountId) {
-      const msg = 'No hay cuenta asociada. Inicia sesión de nuevo o crea una cuenta en el backend.'
+      const msg = i18n.global.t('errors.transaction.noAssociatedAccount')
       error.value = msg
       throw new Error(msg)
     }
@@ -485,9 +487,7 @@ export const useWalletStore = defineStore('wallet', () => {
       await loadTransactions()
       await loadAccounts()
     } catch (err) {
-      const ax = err as { response?: { data?: { error?: { message?: string } } } }
-      const apiMsg = ax.response?.data?.error?.message
-      error.value = typeof apiMsg === 'string' ? apiMsg : err instanceof Error ? err.message : 'Error al añadir transacción'
+      error.value = i18n.global.t(resolveApiErrorI18nKey(err, 'errors.transaction.createFailed'))
       throw err
     }
   }

@@ -82,10 +82,10 @@ function naturalMonthBounds(y: number, month: number): { from: string; to: strin
  */
 export function ymToDateBounds(ym: string, cfg: MonthCycleConfig): { from: string; to: string } {
   const br = /^(\d{4})-(\d{2})$/.exec(ym.trim())
-  if (!br) throw new Error(`Invalid YYYY-MM: ${ym}`)
+  if (!br) throw new Error(`YYYY-MM inválido: ${ym}`)
   const y = parseInt(br[1]!, 10)
   const month = parseInt(br[2]!, 10)
-  if (month < 1 || month > 12) throw new Error(`Invalid month in ${ym}`)
+  if (month < 1 || month > 12) throw new Error(`Mes inválido en ${ym}`)
 
   if (cfg.mode === 'calendar') {
     return naturalMonthBounds(y, month)

@@ -3,6 +3,7 @@ import { ApiError }                         from '../utils/ApiError'
 import { parsePagination, buildPaginationMeta } from '../utils/pagination'
 import { AlertType, PaginationMeta }        from '../types'
 import { AlertAction }                      from '../models/Alert'
+import { ERROR_CODES }                      from '../errors/error-codes'
 
 interface AlertQuery { page?: string; limit?: string; type?: AlertType }
 
@@ -21,7 +22,7 @@ export async function list(
 
 export async function findById(id: string, userId: string): Promise<Alert> {
   const alert = await Alert.findOne({ where: { id, userId } })
-  if (!alert) throw ApiError.notFound('Alert')
+  if (!alert) throw ApiError.notFound(ERROR_CODES.ALERT_NOT_FOUND, 'Alerta')
   return alert
 }
 

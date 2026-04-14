@@ -5,6 +5,7 @@ import * as transactionService from './transaction.service'
 import type { StatsMonthOverviewDto, StatsRecurringExpenseDto } from '../types'
 import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds } from '../utils/monthPeriod'
 import { ApiError } from '../utils/ApiError'
+import { ERROR_CODES } from '../errors/error-codes'
 
 function isYm(s: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(s)
@@ -289,7 +290,7 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
  */
 export async function dismissRecurringPattern(userId: string, patternKeyRaw: string): Promise<void> {
   const patternKey = patternKeyRaw.trim().slice(0, 400)
-  if (!patternKey) throw ApiError.badRequest('patternKey es obligatorio')
+  if (!patternKey) throw ApiError.badRequest(ERROR_CODES.IMPORT_PATTERN_KEY_REQUIRED, 'patternKey es obligatorio')
 
   const dismissedYm = calendarYmToday()
   const existing = await RecurringPatternDismissal.findOne({ where: { userId, patternKey } })

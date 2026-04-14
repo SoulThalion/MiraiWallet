@@ -2,6 +2,7 @@ import { Op, type OrderItem }             from 'sequelize'
 import { Transaction, Account, Category, Subcategory } from '../models'
 import type { StatsYearAvgCategoryDto, StatsYearAvgSubcategoryDto } from '../types'
 import { ApiError }                        from '../utils/ApiError'
+import { ERROR_CODES }                     from '../errors/error-codes'
 import {
   dateToFiscalYm,
   getMonthCycleConfigForUser,
@@ -111,7 +112,7 @@ export async function list(
 
 export async function findById(id: string, userId: string): Promise<Transaction> {
   const tx = await Transaction.findOne({ where: { id, userId }, include: WITH_RELATIONS })
-  if (!tx) throw ApiError.notFound('Transaction')
+  if (!tx) throw ApiError.notFound(ERROR_CODES.TRANSACTION_NOT_FOUND, 'Transacción')
   return tx
 }
 
@@ -123,7 +124,7 @@ export async function setExcluded(id: string, userId: string, isExcluded: boolea
 
 export async function create(userId: string, data: CreateTransactionDto): Promise<Transaction> {
   const account = await Account.findOne({ where: { id: data.accountId, userId, isActive: true } })
-  if (!account) throw ApiError.notFound('Account')
+  if (!account) throw ApiError.notFound(ERROR_CODES.ACCOUNT_NOT_FOUND, 'Cuenta')
 
   const tx    = await Transaction.create({ ...data, userId })
   const delta = data.type === 'income' ? data.amount : -data.amount
@@ -136,18 +137,18 @@ export async function update(id: string, userId: string, data: UpdateTransaction
   const tx = await findById(id, userId)
 
   if (tx.importSource !== 'manual') {
-    throw ApiError.forbidden('Solo se pueden editar movimientos creados manualmente')
+    throw ApiError.forbidden(ERROR_CODES.TX_EDIT_ONLY_MANUAL, 'Solo se pueden editar movimientos creados manualmente')
   }
 
   const nextType       = data.type ?? tx.type
   const nextCategoryId = data.categoryId !== undefined ? data.categoryId : tx.categoryId
   if (nextType === 'expense' && !nextCategoryId) {
-    throw ApiError.badRequest('La categoría es obligatoria para un gasto')
+    throw ApiError.badRequest(ERROR_CODES.TX_CATEGORY_REQUIRED_FOR_EXPENSE, 'La categoría es obligatoria para un gasto')
   }
 
   if (data.amount !== undefined || data.type !== undefined) {
     const account   = await Account.findByPk(tx.accountId)
-    if (!account) throw ApiError.notFound('Account')
+    if (!account) throw ApiError.notFound(ERROR_CODES.ACCOUNT_NOT_FOUND, 'Cuenta')
     const oldDelta  = tx.type === 'income' ? tx.amount : -tx.amount
     const newAmount = data.amount ?? tx.amount
     const newType   = data.type   ?? tx.type
@@ -162,7 +163,7 @@ export async function update(id: string, userId: string, data: UpdateTransaction
 export async function remove(id: string, userId: string): Promise<void> {
   const tx      = await findById(id, userId)
   const account = await Account.findByPk(tx.accountId)
-  if (!account) throw ApiError.notFound('Account')
+  if (!account) throw ApiError.notFound(ERROR_CODES.ACCOUNT_NOT_FOUND, 'Cuenta')
   const delta = tx.type === 'income' ? -tx.amount : tx.amount
   await account.update({ balance: account.balance + delta })
   await tx.destroy()

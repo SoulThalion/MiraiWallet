@@ -16,8 +16,8 @@ export class ApiResponse {
     return res.status(204).send()
   }
 
-  static error(res: Response, statusCode: number, message: string, details?: unknown): Response {
-    const body: Record<string, unknown> = { success: false, error: { message } }
+  static error(res: Response, statusCode: number, code: number, message: string, details?: unknown): Response {
+    const body: Record<string, unknown> = { success: false, error: { code, message } }
     if (details !== undefined) (body.error as Record<string, unknown>).details = details
     return res.status(statusCode).json(body)
   }

@@ -93,6 +93,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiAccount } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
 const store = useWalletStore()
 const { t, locale } = useI18n()
@@ -168,8 +169,7 @@ async function submit(): Promise<void> {
     fileName.value = ''
     if (fileInput.value) fileInput.value.value = ''
   } catch (e: unknown) {
-    const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    errorMsg.value = ax.response?.data?.error?.message ?? t('import.importError')
+    errorMsg.value = t(resolveApiErrorI18nKey(e, 'import.importError'))
   } finally {
     busy.value = false
   }
@@ -187,8 +187,7 @@ async function submitSyncBalanceOnly(): Promise<void> {
     })
     await store.initialize()
   } catch (e: unknown) {
-    const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    errorMsg.value = ax.response?.data?.error?.message ?? t('import.syncError')
+    errorMsg.value = t(resolveApiErrorI18nKey(e, 'import.syncError'))
   } finally {
     busy.value = false
   }

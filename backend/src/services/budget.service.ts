@@ -3,6 +3,7 @@ import { Budget, Category, Transaction } from '../models'
 import { ApiError }                   from '../utils/ApiError'
 import { UpsertBudgetDto }            from '../types'
 import { getMonthCycleConfigForUser, ymToDateBounds } from '../utils/monthPeriod'
+import { ERROR_CODES } from '../errors/error-codes'
 
 export async function listWithSpending(userId: string, month: string) {
   const cfg = await getMonthCycleConfigForUser(userId)
@@ -38,7 +39,7 @@ export async function listWithSpending(userId: string, month: string) {
 
 export async function upsert(userId: string, dto: UpsertBudgetDto): Promise<Budget> {
   const category = await Category.findOne({ where: { id: dto.categoryId, userId } })
-  if (!category) throw ApiError.notFound('Category')
+  if (!category) throw ApiError.notFound(ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoría')
 
   const [budget, created] = await Budget.findOrCreate({
     where:    { userId, categoryId: dto.categoryId, month: dto.month },
@@ -51,6 +52,6 @@ export async function upsert(userId: string, dto: UpsertBudgetDto): Promise<Budg
 
 export async function remove(id: string, userId: string): Promise<void> {
   const budget = await Budget.findOne({ where: { id, userId } })
-  if (!budget) throw ApiError.notFound('Budget')
+  if (!budget) throw ApiError.notFound(ERROR_CODES.BUDGET_NOT_FOUND, 'Presupuesto')
   await budget.destroy()
 }

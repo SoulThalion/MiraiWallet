@@ -3,6 +3,7 @@ import { Transaction as LedgerTx, Account, Category, Subcategory } from '../mode
 import { ApiError } from '../utils/ApiError'
 import { parseIngMovimientosSheet, type IngParsedRow } from './ing-xlsx.parser'
 import type { Transaction as SequelizeTrx } from 'sequelize'
+import { ERROR_CODES } from '../errors/error-codes'
 
 /** Ingreso vs cargo (gasto o traspaso legacy): mismo movimiento no debe duplicarse si cambió solo el enum. */
 function fingerprintDirection(t: string): 'in' | 'out' {
@@ -182,11 +183,12 @@ export async function syncBalanceFromIngXlsx(
   buffer: Buffer
 ): Promise<{ balance: number }> {
   const parsed = parseIngMovimientosSheet(buffer)
-  if (parsed.length === 0) throw ApiError.badRequest('No hay movimientos válidos en el archivo.')
+  if (parsed.length === 0) throw ApiError.badRequest(ERROR_CODES.IMPORT_NO_VALID_ROWS, 'No hay movimientos válidos en el archivo.')
 
   const newest = parsed[0]!
   if (newest.balanceAfter == null || !Number.isFinite(newest.balanceAfter)) {
     throw ApiError.badRequest(
+      ERROR_CODES.IMPORT_BALANCE_COLUMN_INVALID,
       'El Excel no tiene columna «Saldo» legible, o el primer movimiento no incluye saldo. Exporta de nuevo «Movimientos de la Cuenta» desde ING.'
     )
   }
@@ -196,7 +198,7 @@ export async function syncBalanceFromIngXlsx(
   const account = await Account.findOne({
     where: { id: accountId, userId, isActive: true },
   })
-  if (!account) throw ApiError.notFound('Account')
+  if (!account) throw ApiError.notFound(ERROR_CODES.ACCOUNT_NOT_FOUND, 'Cuenta')
   await account.update({
     balance: finalBalance,
     statementOpeningSaldo: snap.openingSaldo,
@@ -222,7 +224,7 @@ export async function importIngMovementsXlsx(
 
   const categories = await Category.findAll({ where: { userId } })
   const sequelize = LedgerTx.sequelize!
-  if (!sequelize) throw ApiError.internal('Database not configured')
+  if (!sequelize) throw ApiError.internal(ERROR_CODES.DB_NOT_CONFIGURED, 'Base de datos no configurada')
 
   let imported = 0
   let skippedDuplicates = 0
@@ -234,7 +236,7 @@ export async function importIngMovementsXlsx(
       where: { id: accountId, userId, isActive: true },
       transaction: trx,
     })
-    if (!account) throw ApiError.notFound('Account')
+    if (!account) throw ApiError.notFound(ERROR_CODES.ACCOUNT_NOT_FOUND, 'Cuenta')
 
     let balance = Number(account.balance)
     const categoryList = [...categories]

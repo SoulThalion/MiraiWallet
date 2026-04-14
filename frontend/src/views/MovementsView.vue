@@ -371,6 +371,7 @@ import { api, type ApiTransaction } from '@/services/api'
 import MwDateRangePicker from '@/components/MwDateRangePicker.vue'
 import MwAmountRangePicker from '@/components/MwAmountRangePicker.vue'
 import AlertCard from '@/components/AlertCard.vue'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
 type SortColumn = 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
 
@@ -714,11 +715,7 @@ async function saveEdit(): Promise<void> {
     await Promise.all([store.loadDashboard(), store.loadTransactions()])
     closeEdit()
   } catch (err) {
-    const ax = err as { response?: { data?: { error?: { message?: string } } } }
-    editError.value =
-      typeof ax.response?.data?.error?.message === 'string'
-        ? ax.response.data.error.message
-        : t('movements.couldNotSave')
+    editError.value = t(resolveApiErrorI18nKey(err, 'movements.couldNotSave'))
   } finally {
     savingEdit.value = false
   }

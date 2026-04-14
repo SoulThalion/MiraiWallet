@@ -4,6 +4,7 @@ import * as txImport    from '../services/transaction-import.service'
 import { ApiResponse }  from '../utils/ApiResponse'
 import { User }         from '../models'
 import { TransactionQuery } from '../types'
+import { ERROR_CODES } from '../errors/error-codes'
 
 type AuthReq = Request & { user: User }
 const uid = (req: Request) => (req as AuthReq).user.id
@@ -51,12 +52,12 @@ export const importIngXlsx = async (req: Request, res: Response, next: NextFunct
   try {
     const f = (req as FileReq).file
     if (!f?.buffer?.length) {
-      ApiResponse.error(res, 400, 'Adjunta un archivo Excel (.xlsx) con el campo «file».')
+      ApiResponse.error(res, 400, ERROR_CODES.IMPORT_EXCEL_READ_FAILED, 'Adjunta un archivo Excel (.xlsx) con el campo «file».')
       return
     }
     const accountId = String((req.body as { accountId?: string }).accountId ?? '').trim()
     if (!accountId) {
-      ApiResponse.error(res, 400, 'Indica la cuenta destino (accountId).')
+      ApiResponse.error(res, 400, ERROR_CODES.ACCOUNT_NOT_FOUND, 'Indica la cuenta destino (accountId).')
       return
     }
     const data = await txImport.importIngMovementsXlsx(uid(req), accountId, f.buffer)
@@ -68,12 +69,12 @@ export const syncBalanceIngXlsx = async (req: Request, res: Response, next: Next
   try {
     const f = (req as FileReq).file
     if (!f?.buffer?.length) {
-      ApiResponse.error(res, 400, 'Adjunta un archivo Excel (.xlsx) con el campo «file».')
+      ApiResponse.error(res, 400, ERROR_CODES.IMPORT_EXCEL_READ_FAILED, 'Adjunta un archivo Excel (.xlsx) con el campo «file».')
       return
     }
     const accountId = String((req.body as { accountId?: string }).accountId ?? '').trim()
     if (!accountId) {
-      ApiResponse.error(res, 400, 'Indica la cuenta destino (accountId).')
+      ApiResponse.error(res, 400, ERROR_CODES.ACCOUNT_NOT_FOUND, 'Indica la cuenta destino (accountId).')
       return
     }
     const data = await txImport.syncBalanceFromIngXlsx(uid(req), accountId, f.buffer)

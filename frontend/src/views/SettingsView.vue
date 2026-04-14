@@ -252,6 +252,7 @@ import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
 import { api } from '@/services/api'
 import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
 interface Toggle {
   label: string
@@ -329,8 +330,7 @@ async function saveCycle(): Promise<void> {
     await store.loadUser()
     cycleMsg.value = t('settings.cycle.saved')
   } catch (e: unknown) {
-    const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    cycleErr.value = ax.response?.data?.error?.message ?? t('settings.cycle.saveError')
+    cycleErr.value = t(resolveApiErrorI18nKey(e, 'settings.cycle.saveError'))
   } finally {
     cycleSaving.value = false
   }
@@ -373,8 +373,7 @@ async function confirmWipe(): Promise<void> {
     wipePassword.value = ''
     await store.initialize()
   } catch (e: unknown) {
-    const ax = e as { response?: { data?: { error?: { message?: string } } } }
-    wipeError.value = ax.response?.data?.error?.message ?? t('settings.wipeModal.error')
+    wipeError.value = t(resolveApiErrorI18nKey(e, 'settings.wipeModal.error'))
   } finally {
     wipeSubmitting.value = false
   }

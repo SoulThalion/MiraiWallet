@@ -300,6 +300,15 @@ interface ApiSuccessBody<T> {
   meta?: PaginationMeta
 }
 
+export interface ApiErrorBody {
+  success: false
+  error: {
+    code?: number | string
+    message?: string
+    details?: unknown
+  }
+}
+
 function unwrapPaginated<T>(body: ApiSuccessBody<T[]>): PaginatedResponse<T> {
   return { data: body.data, meta: body.meta ?? { page: 1, limit: 20, total: body.data.length, totalPages: 1 } }
 }

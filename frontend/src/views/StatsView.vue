@@ -506,6 +506,7 @@ import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import DonutChart from '@/components/DonutChart.vue'
 import BarChart from '@/components/BarChart.vue'
 import MwMonthStepper from '@/components/MwMonthStepper.vue'
+import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
 const { formatEuro, roundMoney } = useCurrency()
 const wallet = useWalletStore()
@@ -534,10 +535,7 @@ async function loadMonthOverview(ym: string): Promise<void> {
     overview.value = await api.getStatsMonthOverview(ym)
     yearExpandedCats.value = {}
   } catch (e: unknown) {
-    statsError.value =
-      e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
-        ? (e as { message: string }).message
-        : t('stats.loadStatsError')
+    statsError.value = t(resolveApiErrorI18nKey(e, 'stats.loadStatsError'))
     overview.value = null
   } finally {
     monthLoading.value = false
@@ -550,10 +548,7 @@ async function loadBarsOverview(year: number): Promise<void> {
   try {
     barsOverview.value = await api.getStatsMonthOverview(`${year}-01`)
   } catch (e: unknown) {
-    statsError.value =
-      e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
-        ? (e as { message: string }).message
-        : t('stats.loadStatsError')
+    statsError.value = t(resolveApiErrorI18nKey(e, 'stats.loadStatsError'))
     barsOverview.value = null
   } finally {
     barsLoading.value = false
@@ -741,11 +736,7 @@ async function onToggleExcludeCategory(categoryId: string, checked: boolean): Pr
     wallet.user = u
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
   } catch (e: unknown) {
-    const msg =
-      e && typeof e === 'object' && 'response' in e
-        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-        : null
-    excludeError.value = typeof msg === 'string' ? msg : t('stats.saveExclusionError')
+    excludeError.value = t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError'))
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
@@ -764,11 +755,7 @@ async function onToggleExcludeSubcategory(subcategoryId: string, checked: boolea
     wallet.user = u
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
   } catch (e: unknown) {
-    const msg =
-      e && typeof e === 'object' && 'response' in e
-        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-        : null
-    excludeError.value = typeof msg === 'string' ? msg : t('stats.saveExclusionError')
+    excludeError.value = t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError'))
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
@@ -794,11 +781,7 @@ async function confirmDismissRecurring(): Promise<void> {
     dismissModalRow.value = null
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
   } catch (e: unknown) {
-    const msg =
-      e && typeof e === 'object' && 'response' in e
-        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-        : null
-    dismissError.value = typeof msg === 'string' ? msg : t('stats.couldNotApply')
+    dismissError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))
   } finally {
     dismissBusy.value = false
   }

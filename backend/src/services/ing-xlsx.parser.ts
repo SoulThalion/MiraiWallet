@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { ApiError } from '../utils/ApiError'
+import { ERROR_CODES } from '../errors/error-codes'
 
 export interface IngParsedRow {
   /** YYYY-MM-DD */
@@ -162,21 +163,22 @@ export function parseIngMovimientosSheet(buffer: Buffer): IngParsedRow[] {
   try {
     workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false })
   } catch {
-    throw ApiError.badRequest('No se pudo leer el archivo Excel.')
+    throw ApiError.badRequest(ERROR_CODES.IMPORT_EXCEL_READ_FAILED, 'No se pudo leer el archivo Excel.')
   }
   const name = workbook.SheetNames[0]
-  if (!name) throw ApiError.badRequest('El Excel no contiene hojas.')
+  if (!name) throw ApiError.badRequest(ERROR_CODES.IMPORT_EXCEL_NO_SHEETS, 'El Excel no contiene hojas.')
   const sheet = workbook.Sheets[name]
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as unknown[][]
 
   const headerIdx = findHeaderRowIndex(rows)
   if (headerIdx < 0) {
     throw ApiError.badRequest(
+      ERROR_CODES.IMPORT_ING_TABLE_NOT_FOUND,
       'No se encontró la tabla de movimientos ING. Busca una fila con columnas «F. VALOR» e «IMPORTE».'
     )
   }
   const col = mapHeaders(rows[headerIdx] ?? [])
-  if (!col) throw ApiError.badRequest('Cabeceras de columnas incompletas (F. VALOR, DESCRIPCIÓN, IMPORTE).')
+  if (!col) throw ApiError.badRequest(ERROR_CODES.IMPORT_HEADERS_INCOMPLETE, 'Cabeceras de columnas incompletas (F. VALOR, DESCRIPCIÓN, IMPORTE).')
 
   const out: IngParsedRow[] = []
   for (let r = headerIdx + 1; r < rows.length; r++) {
@@ -238,7 +240,7 @@ export function parseIngMovimientosSheet(buffer: Buffer): IngParsedRow[] {
   }
 
   if (out.length === 0) {
-    throw ApiError.badRequest('No se encontraron filas de movimiento válidas en el archivo.')
+    throw ApiError.badRequest(ERROR_CODES.IMPORT_NO_VALID_ROWS, 'No se encontraron filas de movimiento válidas en el archivo.')
   }
 
   /**

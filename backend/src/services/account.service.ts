@@ -1,6 +1,7 @@
 import { Account }              from '../models'
 import { ApiError }             from '../utils/ApiError'
 import { CreateAccountDto }     from '../types'
+import { ERROR_CODES } from '../errors/error-codes'
 
 export async function list(userId: string): Promise<Account[]> {
   return Account.findAll({ where: { userId, isActive: true }, order: [['createdAt', 'ASC']] })
@@ -8,7 +9,7 @@ export async function list(userId: string): Promise<Account[]> {
 
 export async function findById(id: string, userId: string): Promise<Account> {
   const account = await Account.findOne({ where: { id, userId } })
-  if (!account) throw ApiError.notFound('Account')
+  if (!account) throw ApiError.notFound(ERROR_CODES.ACCOUNT_NOT_FOUND, 'Cuenta')
   return account
 }
 
