@@ -168,8 +168,6 @@
             {{ cycleSaving ? t('settings.cycle.saving') : t('common.save') }}
           </button>
         </div>
-        <p v-if="cycleMsg" class="mt-3 text-xs text-brand-green dark:text-brand-green">{{ cycleMsg }}</p>
-        <p v-if="cycleErr" class="mt-3 text-xs text-red-400">{{ cycleErr }}</p>
       </div>
 
       <!-- Danger zone -->
@@ -265,6 +263,7 @@ import { useWalletStore } from '@/stores/wallet'
 import { api } from '@/services/api'
 import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { useToast } from '@/composables/useToast'
 
 interface Toggle {
   label: string
@@ -281,6 +280,7 @@ interface SettingItem {
 const store = useWalletStore()
 const router = useRouter()
 const { t } = useI18n()
+const toast = useToast()
 
 type CycleModeUi = 'calendar' | 'custom'
 
@@ -289,8 +289,6 @@ const cycleStartDay = ref(1)
 const cycleEndDay = ref(31)
 const cycleAnchor = ref<'previous' | 'current'>('previous')
 const cycleSaving = ref(false)
-const cycleMsg = ref('')
-const cycleErr = ref<string | null>(null)
 
 function clampDay(n: unknown, fallback: number): number {
   const x = Math.floor(Number(n))
@@ -326,8 +324,6 @@ async function saveCycle(): Promise<void> {
   cycleStartDay.value = clampDay(cycleStartDay.value, 1)
   cycleEndDay.value = clampDay(cycleEndDay.value, 31)
   cycleSaving.value = true
-  cycleMsg.value = ''
-  cycleErr.value = null
   try {
     if (cycleMode.value === 'calendar') {
       await api.updateProfile({ monthCycleMode: 'calendar' })
@@ -340,9 +336,9 @@ async function saveCycle(): Promise<void> {
       })
     }
     await store.loadUser()
-    cycleMsg.value = t('settings.cycle.saved')
+    toast.success(t('settings.cycle.saved'))
   } catch (e: unknown) {
-    cycleErr.value = t(resolveApiErrorI18nKey(e, 'settings.cycle.saveError'))
+    toast.error(t(resolveApiErrorI18nKey(e, 'settings.cycle.saveError')))
   } finally {
     cycleSaving.value = false
   }
@@ -384,8 +380,10 @@ async function confirmWipe(): Promise<void> {
     showWipeModal.value = false
     wipePassword.value = ''
     await store.initialize()
+    toast.success(t('common.saved'))
   } catch (e: unknown) {
     wipeError.value = t(resolveApiErrorI18nKey(e, 'settings.wipeModal.error'))
+    toast.error(wipeError.value)
   } finally {
     wipeSubmitting.value = false
   }

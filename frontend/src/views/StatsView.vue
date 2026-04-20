@@ -132,7 +132,7 @@
             </div>
             <p class="mt-1">{{ t('stats.paceActualVsExpected', { actual: formatEuro(budgetPace.actualSpent, false), expected: formatEuro(budgetPace.expectedSpentLinear, false) }) }}</p>
             <p :class="['mt-1 font-semibold', paceBadgeClass(budgetPace.statusLinear)]">
-              {{ paceStatusLabel(budgetPace.statusLinear) }} · {{ budgetPace.pacePctLinear > 0 ? '+' : '' }}{{ budgetPace.pacePctLinear.toFixed(1) }}%
+              {{ paceStatusLabel(budgetPace.statusLinear, budgetPace.pacePctLinear, budgetPace.actualSpent, budgetPace.expectedSpentLinear) }} · {{ paceStatusText(budgetPace.actualSpent, budgetPace.expectedSpentLinear) }}
             </p>
           </div>
           <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
@@ -142,7 +142,7 @@
             </div>
             <p class="mt-1">{{ t('stats.paceActualVsExpected', { actual: formatEuro(budgetPace.actualSpent, false), expected: formatEuro(budgetPace.expectedSpentWeighted, false) }) }}</p>
             <p :class="['mt-1 font-semibold', paceBadgeClass(budgetPace.statusWeighted)]">
-              {{ paceStatusLabel(budgetPace.statusWeighted) }} · {{ budgetPace.pacePctWeighted > 0 ? '+' : '' }}{{ budgetPace.pacePctWeighted.toFixed(1) }}%
+              {{ paceStatusLabel(budgetPace.statusWeighted, budgetPace.pacePctWeighted, budgetPace.actualSpent, budgetPace.expectedSpentWeighted) }} · {{ paceStatusText(budgetPace.actualSpent, budgetPace.expectedSpentWeighted) }}
             </p>
           </div>
         </div>
@@ -161,7 +161,7 @@
                 <td class="px-2 py-2">{{ row.icon }} {{ row.name }}</td>
                 <td class="px-2 py-2 text-right tabular-nums">{{ row.pacePctLinear > 0 ? '+' : '' }}{{ row.pacePctLinear.toFixed(1) }}%</td>
                 <td class="px-2 py-2 text-right tabular-nums">{{ row.pacePctWeighted > 0 ? '+' : '' }}{{ row.pacePctWeighted.toFixed(1) }}%</td>
-                <td :class="['px-2 py-2 text-right font-semibold', paceBadgeClass(row.statusWeighted)]">{{ paceStatusLabel(row.statusWeighted) }}</td>
+                <td :class="['px-2 py-2 text-right font-semibold', paceBadgeClass(row.statusWeighted)]">{{ paceStatusLabel(row.statusWeighted, row.pacePctWeighted, row.actualSpent, row.expectedSpentWeighted) }}</td>
               </tr>
             </tbody>
           </table>
@@ -453,7 +453,6 @@
             </template>
           </div>
           <p v-if="excludeSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
-          <p v-if="excludeError" class="mt-2 text-[10px] text-red-400">{{ excludeError }}</p>
         </details>
         <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
           <summary class="cursor-pointer select-none text-xs font-semibold text-brand-green hover:underline">
@@ -521,7 +520,6 @@
             </template>
           </div>
           <p v-if="savingsSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
-          <p v-if="savingsError" class="mt-2 text-[10px] text-red-400">{{ savingsError }}</p>
         </details>
 
         <div v-if="recurringExpensesList.length === 0" class="py-8 text-center text-sm dark:text-dark-txt2 text-light-txt2">
@@ -640,7 +638,6 @@
           <p class="mt-3 text-xs leading-relaxed text-amber-600 dark:text-amber-400/95">
             {{ t('stats.dismissPatternHint') }}
           </p>
-          <p v-if="dismissError" class="mt-3 text-xs text-red-400">{{ dismissError }}</p>
           <div class="mt-5 flex gap-2">
             <button
               type="button"
@@ -696,7 +693,6 @@
               <option v-for="s in recategorizeSubcategoryOptions" :key="`rs-${s.id}`" :value="s.id">{{ s.icon }} {{ s.name }}</option>
             </select>
           </label>
-          <p v-if="recategorizeError" class="mt-3 text-xs text-red-400">{{ recategorizeError }}</p>
           <div class="mt-5 flex gap-2">
             <button
               type="button"
@@ -741,10 +737,13 @@ import MwMonthStepper from '@/components/MwMonthStepper.vue'
 import InfoTip from '@/components/InfoTip.vue'
 import IconPigMoney from '@/icons/IconPigMoney.vue'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { paceSimpleText, paceStatusClass, paceStatusLabel as resolvePaceStatusLabel } from '@/composables/usePaceStatus'
+import { useToast } from '@/composables/useToast'
 
 const { formatEuro, roundMoney } = useCurrency()
 const wallet = useWalletStore()
 const { t, locale } = useI18n()
+const toast = useToast()
 
 function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
@@ -878,17 +877,15 @@ const budgetPace = computed(() => overview.value?.budgetPace ?? null)
 const budgetPaceCategories = computed(() => (overview.value?.budgetPace?.categories ?? []).slice().sort((a, b) => b.pacePctWeighted - a.pacePctWeighted))
 
 function paceBadgeClass(status: string): string {
-  if (status === 'critical') return 'text-red-500'
-  if (status === 'risk') return 'text-orange-500'
-  if (status === 'warn') return 'text-amber-500'
-  return 'text-brand-green'
+  return paceStatusClass(status)
 }
 
-function paceStatusLabel(status: string): string {
-  if (status === 'critical') return t('stats.paceStatusCritical')
-  if (status === 'risk') return t('stats.paceStatusRisk')
-  if (status === 'warn') return t('stats.paceStatusWarn')
-  return t('stats.paceStatusOk')
+function paceStatusLabel(status: string, pacePct: number, actualSpent?: number, expectedSpent?: number): string {
+  return resolvePaceStatusLabel(t, 'stats', status, pacePct, actualSpent, expectedSpent)
+}
+
+function paceStatusText(actualSpent?: number, expectedSpent?: number): string {
+  return paceSimpleText(t, 'stats', actualSpent, expectedSpent)
 }
 
 const statsDonutSegments = computed<DonutSegment[]>(() => {
@@ -998,8 +995,10 @@ async function onToggleExcludeCategory(categoryId: string, checked: boolean): Pr
     const u = await api.updateProfile({ recurringExcludedCategoryIds: excludedCategoryIds.value })
     wallet.user = u
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     excludeError.value = t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError'))
+    toast.error(excludeError.value)
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
@@ -1017,8 +1016,10 @@ async function onToggleSavingsCategory(categoryId: string, checked: boolean): Pr
     const u = await api.updateProfile({ recurringSavingsCategoryIds: savingsCategoryIds.value })
     wallet.user = u
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     savingsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
+    toast.error(savingsError.value)
     revertSavingsStateFromUser()
   } finally {
     savingsSaving.value = false
@@ -1036,8 +1037,10 @@ async function onToggleSavingsSubcategory(subcategoryId: string, checked: boolea
     const u = await api.updateProfile({ recurringSavingsSubcategoryIds: savingsSubcategoryIds.value })
     wallet.user = u
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     savingsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
+    toast.error(savingsError.value)
     revertSavingsStateFromUser()
   } finally {
     savingsSaving.value = false
@@ -1055,8 +1058,10 @@ async function onToggleExcludeSubcategory(subcategoryId: string, checked: boolea
     const u = await api.updateProfile({ recurringExcludedSubcategoryIds: excludedSubcategoryIds.value })
     wallet.user = u
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     excludeError.value = t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError'))
+    toast.error(excludeError.value)
     revertExcludeStateFromUser()
   } finally {
     excludeSaving.value = false
@@ -1087,8 +1092,10 @@ async function confirmDismissRecurring(): Promise<void> {
     await api.dismissRecurringPattern(row.patternKey)
     dismissModalRow.value = null
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     dismissError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))
+    toast.error(dismissError.value)
   } finally {
     dismissBusy.value = false
   }
@@ -1105,8 +1112,10 @@ async function toggleRecurringSavings(row: StatsRecurringExpenseDto): Promise<vo
     else nextKeys.delete(row.patternKey)
     wallet.user = await api.updateProfile({ recurringSavingsPatternKeys: [...nextKeys] })
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     statsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
+    if (statsError.value) toast.error(statsError.value)
   } finally {
     savingRecurringPatternKey.value = null
   }
@@ -1146,8 +1155,10 @@ async function confirmRecategorizeRecurring(): Promise<void> {
     )
     recategorizeModalRow.value = null
     await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    toast.success(t('stats.saved'))
   } catch (e: unknown) {
     recategorizeError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))
+    toast.error(recategorizeError.value)
   } finally {
     recategorizeBusy.value = false
   }

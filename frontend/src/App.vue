@@ -157,6 +157,7 @@
       </transition>
     </div>
     <BottomNav class="md:hidden" />
+    <ToastContainer />
   </div>
 </template>
 
@@ -169,6 +170,7 @@ import { useTheme } from '@/composables/useTheme'
 import { type LocaleCode, setLocale } from '@/i18n'
 import MwLogo from '@/components/MwLogo.vue'
 import BottomNav from '@/components/BottomNav.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
 
 /** Sincroniza `store.darkMode` con la clase `dark` en `<html>` (necesario para Tailwind). */
 useTheme()

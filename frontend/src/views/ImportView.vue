@@ -56,8 +56,6 @@
         </div>
       </div>
 
-      <p v-if="errorMsg" class="text-sm text-red-500 dark:text-red-400">{{ errorMsg }}</p>
-      <p v-if="successMsg" class="text-sm text-brand-green">{{ successMsg }}</p>
 
       <div class="flex flex-col sm:flex-row gap-3">
         <button
@@ -94,9 +92,11 @@ import { useI18n } from 'vue-i18n'
 import { api, type ApiAccount } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { useToast } from '@/composables/useToast'
 
 const store = useWalletStore()
 const { t, locale } = useI18n()
+const toast = useToast()
 
 const accounts = ref<ApiAccount[]>([])
 const loadingAccounts = ref(true)
@@ -105,8 +105,6 @@ const file = ref<File | null>(null)
 const fileName = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const busy = ref<false | 'import' | 'sync'>(false)
-const errorMsg = ref('')
-const successMsg = ref('')
 
 const canSubmit = computed(() => Boolean(accountId.value && file.value))
 const localeTag = computed(() => (locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'))
@@ -125,8 +123,6 @@ function onFile(ev: Event): void {
   const f = input.files?.[0]
   file.value = f ?? null
   fileName.value = f ? f.name : ''
-  errorMsg.value = ''
-  successMsg.value = ''
 }
 
 onMounted(async () => {
@@ -134,7 +130,7 @@ onMounted(async () => {
     accounts.value = await api.getAccounts()
     if (accounts.value.length === 1) accountId.value = accounts.value[0].id
   } catch {
-    errorMsg.value = t('import.loadAccountsError')
+    toast.error(t('import.loadAccountsError'))
   } finally {
     loadingAccounts.value = false
   }
@@ -142,8 +138,6 @@ onMounted(async () => {
 
 async function submit(): Promise<void> {
   if (!canSubmit.value || !file.value) return
-  errorMsg.value = ''
-  successMsg.value = ''
   busy.value = 'import'
   try {
     const r = await api.importIngBankXlsx(accountId.value, file.value)
@@ -163,13 +157,13 @@ async function submit(): Promise<void> {
         })
       )
     }
-    successMsg.value = parts.join(' ')
+    toast.success(parts.join(' '))
     await store.initialize()
     file.value = null
     fileName.value = ''
     if (fileInput.value) fileInput.value.value = ''
   } catch (e: unknown) {
-    errorMsg.value = t(resolveApiErrorI18nKey(e, 'import.importError'))
+    toast.error(t(resolveApiErrorI18nKey(e, 'import.importError')))
   } finally {
     busy.value = false
   }
@@ -177,17 +171,15 @@ async function submit(): Promise<void> {
 
 async function submitSyncBalanceOnly(): Promise<void> {
   if (!canSubmit.value || !file.value) return
-  errorMsg.value = ''
-  successMsg.value = ''
   busy.value = 'sync'
   try {
     const r = await api.syncBalanceIngBankXlsx(accountId.value, file.value)
-    successMsg.value = t('import.successSyncBalance', {
+    toast.success(t('import.successSyncBalance', {
       amount: r.balance.toLocaleString(localeTag.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    })
+    }))
     await store.initialize()
   } catch (e: unknown) {
-    errorMsg.value = t(resolveApiErrorI18nKey(e, 'import.syncError'))
+    toast.error(t(resolveApiErrorI18nKey(e, 'import.syncError')))
   } finally {
     busy.value = false
   }

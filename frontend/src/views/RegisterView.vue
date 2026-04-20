@@ -147,6 +147,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { useToast } from '@/composables/useToast'
 import MwLogo from '@/components/MwLogo.vue'
 import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
 
@@ -155,6 +156,7 @@ type FieldKey = 'name' | 'email' | 'password' | 'passwordConfirm'
 const router = useRouter()
 const store = useWalletStore()
 const { t } = useI18n()
+const toast = useToast()
 
 const name = ref('')
 const email = ref('')
@@ -288,6 +290,7 @@ async function onSubmit(): Promise<void> {
     await router.replace({ name: 'home' })
   } catch (e: unknown) {
     localError.value = t(resolveApiErrorI18nKey(e, 'validation.registerFailed'))
+    toast.error(localError.value)
   } finally {
     submitting.value = false
   }

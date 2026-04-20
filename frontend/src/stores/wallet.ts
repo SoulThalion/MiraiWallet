@@ -16,6 +16,7 @@ import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPerio
 import { getCurrentLocale } from '@/i18n'
 import i18n from '@/i18n'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { useToast } from '@/composables/useToast'
 
 // ── Types ────────────────────────────────────────────────
 export interface Transaction {
@@ -92,6 +93,7 @@ export interface DonutSegment extends Category {
 
 // ── Store ────────────────────────────────────────────────
 export const useWalletStore = defineStore('wallet', () => {
+  const toast = useToast()
   const darkMode = ref<boolean>(true)
   const onboarded = ref<boolean>(false)
   const isLoading = ref<boolean>(false)
@@ -490,8 +492,10 @@ export const useWalletStore = defineStore('wallet', () => {
     try {
       await api.dismissAlert(String(id))
       alerts.value = alerts.value.filter(a => a.id !== id)
+      toast.success(i18n.global.t('common.saved'))
     } catch (err) {
       console.error('Error dismissing alert:', err)
+      toast.error(i18n.global.t('errors.common.unknown'))
     }
   }
 
@@ -517,8 +521,10 @@ export const useWalletStore = defineStore('wallet', () => {
       await loadDashboard()
       await loadTransactions()
       await loadAccounts()
+      toast.success(i18n.global.t('common.saved'))
     } catch (err) {
       error.value = i18n.global.t(resolveApiErrorI18nKey(err, 'errors.transaction.createFailed'))
+      toast.error(error.value)
       throw err
     }
   }

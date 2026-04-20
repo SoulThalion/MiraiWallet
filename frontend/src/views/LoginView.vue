@@ -50,6 +50,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/services/api'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { useToast } from '@/composables/useToast'
 import MwLogo from '@/components/MwLogo.vue'
 import PasswordRevealToggle from '@/components/PasswordRevealToggle.vue'
 
@@ -57,6 +58,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useWalletStore()
 const { t } = useI18n()
+const toast = useToast()
 
 const email = ref('')
 const password = ref('')
@@ -84,6 +86,7 @@ async function submit(): Promise<void> {
     await router.replace(redirect || '/home')
   } catch (e: unknown) {
     localError.value = t(resolveApiErrorI18nKey(e, 'validation.loginFailed'))
+    toast.error(localError.value)
   } finally {
     submitting.value = false
   }

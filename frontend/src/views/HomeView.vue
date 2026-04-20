@@ -73,15 +73,15 @@
           <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
             <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('home.paceWeighted') }}</p>
             <p class="mt-1 text-[11px] dark:text-dark-txt2 text-light-txt2">
-              <span :class="['font-semibold', paceStatusClass(paceWeightedStatus)]">{{ paceStatusLabel(paceWeightedStatus, pacePctWeighted) }}</span>
-              <span> · {{ paceExplain(pacePctWeighted) }}</span>
+              <span :class="['font-semibold', paceStatusClass(paceWeightedStatus)]">{{ paceStatusLabel(t, 'stats', paceWeightedStatus, pacePctWeighted, paceActualSpent, paceExpectedWeighted) }}</span>
+              <span> · {{ paceExplain(paceActualSpent, paceExpectedWeighted) }}</span>
             </p>
           </div>
           <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
             <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('home.paceLinear') }}</p>
             <p class="mt-1 text-[11px] dark:text-dark-txt2 text-light-txt2">
-              <span :class="['font-semibold', paceStatusClass(paceLinearStatus)]">{{ paceStatusLabel(paceLinearStatus, pacePctLinear) }}</span>
-              <span> · {{ paceExplain(pacePctLinear) }}</span>
+              <span :class="['font-semibold', paceStatusClass(paceLinearStatus)]">{{ paceStatusLabel(t, 'stats', paceLinearStatus, pacePctLinear, paceActualSpent, paceExpectedLinear) }}</span>
+              <span> · {{ paceExplain(paceActualSpent, paceExpectedLinear) }}</span>
             </p>
           </div>
         </div>
@@ -158,6 +158,7 @@ import { useWalletStore } from '@/stores/wallet'
 import { useCurrency } from '@/composables/useCurrency'
 import type { BudgetPaceStatus } from '@/services/api'
 import InfoTip from '@/components/InfoTip.vue'
+import { paceStatusClass, paceStatusLabel } from '@/composables/usePaceStatus'
 
 interface BalanceStat {
   label: string
@@ -217,6 +218,9 @@ const paceDaysTotal = computed(() => store.budgetPace?.daysTotal ?? 0)
 const paceProgressPct = computed(() => Number((store.budgetPace?.periodProgressPct ?? 0).toFixed(1)))
 const pacePctLinear = computed(() => store.budgetPace?.pacePctLinear ?? 0)
 const pacePctWeighted = computed(() => store.budgetPace?.pacePctWeighted ?? 0)
+const paceActualSpent = computed(() => Number(store.budgetPace?.actualSpent ?? 0))
+const paceExpectedLinear = computed(() => Number(store.budgetPace?.expectedSpentLinear ?? 0))
+const paceExpectedWeighted = computed(() => Number(store.budgetPace?.expectedSpentWeighted ?? 0))
 const paceLinearStatus = computed<BudgetPaceStatus>(() => store.budgetPace?.statusLinear ?? 'ok')
 const paceWeightedStatus = computed<BudgetPaceStatus>(() => store.budgetPace?.statusWeighted ?? 'ok')
 const paceAsOfDayMonth = computed(() => {
@@ -226,26 +230,12 @@ const paceAsOfDayMonth = computed(() => {
   return `${m[3]}/${m[2]}`
 })
 
-function paceStatusLabel(status: BudgetPaceStatus, pct: number): string {
-  if (status === 'critical') return t('stats.paceStatusCritical')
-  if (status === 'risk') return t('stats.paceStatusRisk')
-  if (status === 'warn') return t('stats.paceStatusWarn')
-  if (pct < 0) return t('home.statusGood')
-  return t('stats.paceStatusOk')
-}
-
-function paceStatusClass(status: BudgetPaceStatus): string {
-  if (status === 'critical') return 'text-red-500'
-  if (status === 'risk') return 'text-orange-500'
-  if (status === 'warn') return 'text-amber-500'
-  return 'text-brand-green'
-}
-
-function paceExplain(value: number): string {
-  const pct = Math.abs(value).toFixed(1)
+function paceExplain(actualSpent: number, expectedSpent: number): string {
+  const diffPct = expectedSpent > 0 ? ((actualSpent - expectedSpent) / expectedSpent) * 100 : 0
+  const pct = Math.abs(diffPct).toFixed(1)
   const dayMonth = paceAsOfDayMonth.value
-  if (value > 0) return t('home.paceExplainAbove', { pct, dayMonth })
-  if (value < 0) return t('home.paceExplainBelow', { pct, dayMonth })
+  if (actualSpent > expectedSpent) return t('home.paceExplainAbove', { pct, dayMonth })
+  if (actualSpent < expectedSpent) return t('home.paceExplainBelow', { pct, dayMonth })
   return t('home.paceExplainOnTrack', { dayMonth })
 }
 

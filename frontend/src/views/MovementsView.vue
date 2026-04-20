@@ -372,11 +372,13 @@ import MwDateRangePicker from '@/components/MwDateRangePicker.vue'
 import MwAmountRangePicker from '@/components/MwAmountRangePicker.vue'
 import AlertCard from '@/components/AlertCard.vue'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
+import { useToast } from '@/composables/useToast'
 
 type SortColumn = 'date' | 'amount' | 'description' | 'type' | 'importSource' | 'category'
 
 const store = useWalletStore()
 const { t, locale } = useI18n()
+const toast = useToast()
 
 /** Fondo opaco alineado con `.mw-card` y sticky por `<th>` (el encabezado queda por encima del scroll del cuerpo). */
 const thSticky =
@@ -714,8 +716,10 @@ async function saveEdit(): Promise<void> {
     if (i >= 0) rows.value[i] = updated
     await Promise.all([store.loadDashboard(), store.loadTransactions()])
     closeEdit()
+    toast.success(t('common.saved'))
   } catch (err) {
     editError.value = t(resolveApiErrorI18nKey(err, 'movements.couldNotSave'))
+    toast.error(editError.value)
   } finally {
     savingEdit.value = false
   }
@@ -730,8 +734,10 @@ async function toggleExcluded(tx: ApiTransaction): Promise<void> {
     const i = rows.value.findIndex(r => r.id === updated.id)
     if (i >= 0) rows.value[i] = updated
     await Promise.all([store.loadDashboard(), store.loadBudgets(), store.loadAlerts()])
+    toast.success(t('common.saved'))
   } catch (e) {
     console.error(e)
+    toast.error(t('movements.couldNotSave'))
   } finally {
     const cp = { ...excludingTx.value }
     delete cp[key]
