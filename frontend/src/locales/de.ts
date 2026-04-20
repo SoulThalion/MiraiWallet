@@ -100,6 +100,10 @@ const de = {
       'Ein Kalender pro Monat: mit den Pfeilen wechseln (auch in die Zukunft). Betraege sind Schaetzungen aus Mustern und geplanten Verpflichtungen.',
     empty: 'Keine Daten fuer diesen Monat.',
     autoPatternCount: 'Automatisch erkannte Muster: {count} (gleiche Liste wie Budgets → Wiederkehrend).',
+    calendarRecurringOnly: 'Nur wiederkehrend',
+    calendarAllMovements: 'Alle Bewegungen',
+    calendarMovementsLoading: 'Bewegungen werden geladen…',
+    dueSourceMovement: 'Buchung',
   },
   budgets: {
     title: 'Budgets',

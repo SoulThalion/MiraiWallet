@@ -370,7 +370,8 @@ export interface StatsRecurringDueItemDto {
   dueDate: string
   label: string
   amount: number
-  source: 'auto' | 'manual' | 'planned'
+  /** `movement` solo en cliente (calendario «todos los movimientos»); el API envía auto|manual|planned. */
+  source: 'auto' | 'manual' | 'planned' | 'movement'
   patternKey?: string
   ruleId?: string
   commitmentId?: string

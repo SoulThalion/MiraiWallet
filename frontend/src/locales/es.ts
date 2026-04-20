@@ -100,6 +100,10 @@ const es = {
       'Un calendario por mes: cambia el mes con las flechas (también hacia el futuro). Los importes son una estimación según patrones recurrentes y compromisos planificados.',
     empty: 'No hay datos para este mes.',
     autoPatternCount: 'Patrones automáticos detectados: {count} (misma lista que Presupuestos → Recurrentes).',
+    calendarRecurringOnly: 'Solo recurrentes',
+    calendarAllMovements: 'Todos los movimientos',
+    calendarMovementsLoading: 'Cargando movimientos…',
+    dueSourceMovement: 'Movimiento',
   },
   budgets: {
     title: 'Presupuestos',

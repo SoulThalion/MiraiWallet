@@ -66,6 +66,7 @@ export function buildCalendarMonthGrid(
 export function dueSourceStripeClass(source: string): string {
   if (source === 'manual') return 'border-l-brand-green bg-brand-green/5 dark:bg-brand-green/10'
   if (source === 'planned') return 'border-l-violet-500 bg-violet-500/5 dark:bg-violet-400/10'
+  if (source === 'movement') return 'border-l-slate-500 bg-slate-500/5 dark:bg-slate-400/10'
   return 'border-l-brand-blue bg-brand-blue/5 dark:bg-brand-blue/10'
 }
 

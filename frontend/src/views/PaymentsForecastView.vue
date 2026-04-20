@@ -36,14 +36,56 @@
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(9.5rem,12.5rem)] lg:items-start">
           <div class="min-w-0 rounded-xl border p-3 dark:border-white/[0.08] border-brand-blue/10">
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-1.5">
-                <p class="text-xs font-semibold dark:text-dark-txt text-light-txt">{{ t('stats.recurringCalendarTitle') }}</p>
-                <InfoTip :text="t('stats.recurringCalendarInfo')" :aria-label="t('stats.recurringCalendarInfo')" />
+              <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <div class="flex items-center gap-1.5">
+                  <p class="text-xs font-semibold dark:text-dark-txt text-light-txt">{{ t('stats.recurringCalendarTitle') }}</p>
+                  <InfoTip :text="t('stats.recurringCalendarInfo')" :aria-label="t('stats.recurringCalendarInfo')" />
+                </div>
+                <div
+                  class="inline-flex shrink-0 rounded-lg border p-0.5 dark:border-white/[0.08] border-brand-blue/15"
+                  role="group"
+                >
+                  <button
+                    type="button"
+                    class="rounded-md px-2 py-1 text-[10px] font-semibold transition-colors"
+                    :class="
+                      calendarMode === 'recurring'
+                        ? 'bg-brand-blue/15 text-brand-blue dark:bg-brand-blue/25 dark:text-brand-blue'
+                        : 'dark:text-dark-txt2 text-light-txt2 hover:text-brand-blue'
+                    "
+                    :aria-pressed="calendarMode === 'recurring'"
+                    @click="setCalendarMode('recurring')"
+                  >
+                    {{ t('forecast.calendarRecurringOnly') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-md px-2 py-1 text-[10px] font-semibold transition-colors"
+                    :class="
+                      calendarMode === 'all'
+                        ? 'bg-brand-blue/15 text-brand-blue dark:bg-brand-blue/25 dark:text-brand-blue'
+                        : 'dark:text-dark-txt2 text-light-txt2 hover:text-brand-blue'
+                    "
+                    :aria-pressed="calendarMode === 'all'"
+                    @click="setCalendarMode('all')"
+                  >
+                    {{ t('forecast.calendarAllMovements') }}
+                  </button>
+                </div>
               </div>
               <p class="text-[10px] font-medium tabular-nums dark:text-dark-txt2 text-light-txt2">
                 {{ t('stats.recurringCalendarMonthLabel', { ym: calendarMainYm }) }}
               </p>
             </div>
+            <p
+              v-if="calendarMode === 'all' && calendarTxLoading"
+              class="mb-2 text-[10px] dark:text-dark-txt3 text-light-txt3"
+            >
+              {{ t('forecast.calendarMovementsLoading') }}
+            </p>
+            <p v-if="calendarMode === 'all' && calendarTxError" class="mb-2 text-[10px] text-red-400">
+              {{ calendarTxError }}
+            </p>
             <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
               <div v-for="(h, hi) in calendarMainGrid.headers" :key="`cal-h-${hi}`" class="py-1">{{ h }}</div>
             </div>
@@ -202,7 +244,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api, type StatsMonthOverviewDto, type StatsForecastSimulateDto } from '@/services/api'
+import { api, type StatsMonthOverviewDto, type StatsForecastSimulateDto, type StatsRecurringDueItemDto, type ApiTransaction } from '@/services/api'
 import { useCurrency } from '@/composables/useCurrency'
 import { useWalletStore } from '@/stores/wallet'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
@@ -219,10 +261,28 @@ function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
 }
 
+const FORECAST_CALENDAR_MODE_LS = 'miraiwallet.forecast.calendarMode'
+
+function readForecastCalendarMode(): 'recurring' | 'all' {
+  try {
+    const v = localStorage.getItem(FORECAST_CALENDAR_MODE_LS)
+    if (v === 'all' || v === 'recurring') return v
+  } catch {
+    /* modo privado u otro bloqueo */
+  }
+  return 'recurring'
+}
+
 const selectedForecastYm = ref(defaultSelectedYm())
 const forecastMain = ref<StatsMonthOverviewDto | null>(null)
 const forecastLoading = ref(false)
 const forecastError = ref<string | null>(null)
+
+const calendarMode = ref<'recurring' | 'all'>(readForecastCalendarMode())
+const calendarTxAll = ref<StatsRecurringDueItemDto[]>([])
+const calendarTxLoading = ref(false)
+const calendarTxError = ref<string | null>(null)
+let loadCalendarTxSeq = 0
 
 const todayYmd = computed(() => {
   const t0 = new Date()
@@ -231,10 +291,15 @@ const todayYmd = computed(() => {
 
 const calendarMainYm = computed(() => forecastMain.value?.month ?? selectedForecastYm.value)
 
+const calendarItemsForGrid = computed<StatsRecurringDueItemDto[]>(() => {
+  if (calendarMode.value === 'all') return calendarTxAll.value
+  return forecastMain.value?.recurringDueCalendar ?? []
+})
+
 const calendarMainGrid = computed(() =>
   buildCalendarMonthGrid(
     calendarMainYm.value,
-    forecastMain.value?.recurringDueCalendar ?? [],
+    calendarItemsForGrid.value,
     todayYmd.value,
     t,
   ),
@@ -256,7 +321,77 @@ const kpiRecurringCoverageText = computed(() => {
 function dueSourceLabel(source: string): string {
   if (source === 'manual') return t('stats.recurringDueSourceManual')
   if (source === 'planned') return t('stats.recurringDueSourcePlanned')
+  if (source === 'movement') return t('forecast.dueSourceMovement')
   return t('stats.recurringDueSourceAuto')
+}
+
+function buildMovementCalendarLabel(tx: ApiTransaction): string {
+  const tag = tx.type === 'income' ? '↑' : tx.type === 'expense' ? '↓' : '↔'
+  const desc = String(tx.description ?? '').trim().replace(/\s+/g, ' ')
+  const short = desc.length > 48 ? `${desc.slice(0, 47)}…` : desc
+  return `${tag} ${short || '—'}`.trim()
+}
+
+function setCalendarMode(mode: 'recurring' | 'all'): void {
+  if (calendarMode.value === mode) return
+  calendarMode.value = mode
+  try {
+    localStorage.setItem(FORECAST_CALENDAR_MODE_LS, mode)
+  } catch {
+    /* ignorar */
+  }
+}
+
+async function loadCalendarMonthTransactions(ym: string): Promise<void> {
+  const seq = ++loadCalendarTxSeq
+  calendarTxLoading.value = true
+  calendarTxError.value = null
+  const br = /^(\d{4})-(\d{2})$/.exec(ym.trim())
+  if (!br) {
+    calendarTxAll.value = []
+    calendarTxLoading.value = false
+    return
+  }
+  const y = parseInt(br[1]!, 10)
+  const mo = parseInt(br[2]!, 10) - 1
+  const from = `${ym}-01`
+  const lastD = new Date(y, mo + 1, 0).getDate()
+  const to = `${ym}-${String(lastD).padStart(2, '0')}`
+  try {
+    const items: StatsRecurringDueItemDto[] = []
+    let page = 1
+    const limit = 100
+    while (page <= 200) {
+      const { data, meta } = await api.getTransactions({
+        from,
+        to,
+        page,
+        limit,
+        sortBy: 'date',
+        sortOrder: 'asc',
+        isExcluded: false,
+      })
+      if (seq !== loadCalendarTxSeq) return
+      for (const tx of data) {
+        items.push({
+          dueDate: String(tx.date).slice(0, 10),
+          label: buildMovementCalendarLabel(tx),
+          amount: Math.abs(Number(tx.amount)),
+          source: 'movement',
+        })
+      }
+      if (!meta.hasNext) break
+      page += 1
+    }
+    if (seq !== loadCalendarTxSeq) return
+    calendarTxAll.value = items
+  } catch (e: unknown) {
+    if (seq !== loadCalendarTxSeq) return
+    calendarTxError.value = t(resolveApiErrorI18nKey(e, 'stats.loadStatsError'))
+    calendarTxAll.value = []
+  } finally {
+    if (seq === loadCalendarTxSeq) calendarTxLoading.value = false
+  }
 }
 
 const forecastSimPct = ref(0)
@@ -295,6 +430,21 @@ watch(selectedForecastYm, (ym) => {
   forecastSimResult.value = null
   void loadForecastMonth(ym)
 })
+
+watch(
+  () => [calendarMode.value, calendarMainYm.value] as const,
+  ([mode, ym]) => {
+    if (mode === 'all' && /^(\d{4})-(\d{2})$/.test(ym)) {
+      void loadCalendarMonthTransactions(ym)
+    } else {
+      loadCalendarTxSeq += 1
+      calendarTxLoading.value = false
+      calendarTxError.value = null
+      calendarTxAll.value = []
+    }
+  },
+  { immediate: true },
+)
 
 watch(
   () => [wallet.user?.monthCycleMode, wallet.user?.monthCycleStartDay, wallet.user?.monthCycleEndDay, wallet.user?.monthCycleAnchor],

@@ -100,6 +100,10 @@ const en = {
       'One calendar per month: use the arrows to change month (including future). Amounts are estimates from recurring patterns and planned commitments.',
     empty: 'No data for this month.',
     autoPatternCount: 'Auto-detected patterns: {count} (same list as Budgets → Recurring).',
+    calendarRecurringOnly: 'Recurring only',
+    calendarAllMovements: 'All movements',
+    calendarMovementsLoading: 'Loading movements…',
+    dueSourceMovement: 'Movement',
   },
   budgets: {
     title: 'Budgets',
