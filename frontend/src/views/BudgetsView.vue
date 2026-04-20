@@ -6,7 +6,120 @@
         <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('budgets.subtitle', { month: budgetMonth }) }}</p>
       </div>
 
-      <div class="mw-card">
+      <BookmarkTabs
+        :model-value="activeBudgetTab"
+        :tabs="budgetTabs"
+        @update:modelValue="(value) => { activeBudgetTab = value as BudgetTabId }"
+      />
+
+      <div v-show="activeBudgetTab === 'recurring'" class="mw-card -mt-4 rounded-tl-none rounded-tr-2xl md:-mt-6">
+        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.recurringExpenses') }}</p>
+        <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
+          {{ t('stats.recurringHint') }}
+        </p>
+        <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
+          <summary class="cursor-pointer select-none text-xs font-semibold text-brand-blue hover:underline">
+            {{ t('stats.excludeCategoriesDetector') }}
+          </summary>
+          <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2">{{ t('stats.excludeDetectorHint') }}</p>
+          <div v-if="!expenseCategoriesForRecurring.length" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.loadCategoriesHint') }}</div>
+          <div v-else class="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+            <label
+              v-for="c in expenseCategoriesForRecurring"
+              :key="`rex-${c.id}`"
+              class="flex cursor-pointer items-center gap-2 rounded-lg border border-brand-blue/10 px-2 py-2 text-xs dark:border-white/[0.06] dark:text-dark-txt2 text-light-txt2"
+            >
+              <input
+                type="checkbox"
+                class="rounded border-brand-blue/30"
+                :checked="recurringExcludedCategoryIds.includes(c.id!)"
+                :disabled="recurringSaving"
+                @change="onToggleRecurringExcludeCategory(c.id!, ($event.target as HTMLInputElement).checked)"
+              />
+              <span>{{ c.icon }} {{ c.name }}</span>
+            </label>
+          </div>
+        </details>
+
+        <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
+          <summary class="cursor-pointer select-none text-xs font-semibold text-brand-green hover:underline">
+            {{ t('stats.markSavingsByCategory') }}
+          </summary>
+          <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2">{{ t('stats.markSavingsByCategoryHint') }}</p>
+          <div v-if="!expenseCategoriesForRecurring.length" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.loadCategoriesHint') }}</div>
+          <div v-else class="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+            <label
+              v-for="c in expenseCategoriesForRecurring"
+              :key="`rsav-${c.id}`"
+              class="flex cursor-pointer items-center gap-2 rounded-lg border border-brand-blue/10 px-2 py-2 text-xs dark:border-white/[0.06] dark:text-dark-txt2 text-light-txt2"
+            >
+              <input
+                type="checkbox"
+                class="rounded border-brand-blue/30"
+                :checked="recurringSavingsCategoryIds.includes(c.id!)"
+                :disabled="recurringSaving"
+                @change="onToggleRecurringSavingsCategory(c.id!, ($event.target as HTMLInputElement).checked)"
+              />
+              <span>{{ c.icon }} {{ c.name }}</span>
+            </label>
+          </div>
+        </details>
+
+        <div v-if="recurringLoading" class="py-6 text-center text-xs dark:text-dark-txt2 text-light-txt2">{{ t('common.loading') }}</div>
+        <div v-else-if="recurringExpensesList.length === 0" class="py-6 text-center text-sm dark:text-dark-txt2 text-light-txt2">{{ t('stats.noRecurringPatterns') }}</div>
+        <div v-else class="overflow-x-auto rounded-xl border dark:border-white/[0.07] border-brand-blue/10">
+          <table class="w-full min-w-[680px] text-left text-xs">
+            <thead class="dark:bg-dark-surf bg-light-surf text-[10px] uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
+              <tr>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.day') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.category') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.description') }}</th>
+                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.amount') }}</th>
+                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.action') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in recurringExpensesList"
+                :key="row.patternKey || `${row.description}-${row.dayOfMonth}-${row.amount}`"
+                class="border-t dark:border-white/[0.06] border-brand-blue/8 dark:text-dark-txt text-light-txt"
+              >
+                <td class="px-3 py-2 tabular-nums font-medium">{{ row.dayOfMonth }}</td>
+                <td class="px-3 py-2">
+                  <span class="mr-1">{{ row.categoryIcon }}</span>{{ row.categoryName }}
+                  <span v-if="row.subcategoryName" class="dark:text-dark-txt2 text-light-txt2"> · {{ row.subcategoryName }}</span>
+                </td>
+                <td class="px-3 py-2 max-w-[14rem] truncate" :title="row.description">{{ row.description }}</td>
+                <td class="px-3 py-2 text-right tabular-nums">{{ formatEuro(row.amount, false) }}</td>
+                <td class="px-3 py-2 text-right">
+                  <div class="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
+                      :class="row.isSavings ? 'border-brand-green/40 text-brand-green hover:bg-brand-green/10' : 'border-brand-green/20 text-brand-green hover:bg-brand-green/10'"
+                      :title="row.isSavings ? t('stats.unmarkAsSavings') : t('stats.markAsSavings')"
+                      :disabled="recurringSavingPatternKey === row.patternKey"
+                      @click="toggleRecurringPatternSavings(row)"
+                    >
+                      <IconPigMoney :icon-class="row.isSavings ? 'h-4 w-4 opacity-100' : 'h-4 w-4 opacity-40'" />
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-400/35 text-red-400 transition-colors hover:bg-red-500/10"
+                      :title="t('stats.remove')"
+                      @click="dismissRecurringPattern(row)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-show="activeBudgetTab === 'pace'" class="mw-card -mt-4 rounded-tl-none rounded-tr-2xl md:-mt-6">
         <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-center gap-1.5">
             <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('budgets.paceTitle') }}</p>
@@ -104,7 +217,7 @@
         </div>
       </div>
 
-      <div class="mw-card">
+      <div v-show="activeBudgetTab === 'configure'" class="mw-card -mt-4 rounded-tl-none rounded-tr-2xl md:-mt-6">
         <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('budgets.configure') }}</p>
           <button
@@ -209,7 +322,7 @@
         </div>
       </div>
 
-      <div class="mw-card">
+      <div v-show="activeBudgetTab === 'recommendations'" class="mw-card -mt-4 rounded-tl-none rounded-tr-2xl md:-mt-6">
         <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('budgets.recommendationsTitle') }}</p>
         <p class="mt-1 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('budgets.recommendationsBody') }}</p>
         <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -316,6 +429,7 @@ import type {
   BudgetPaceMode,
   BudgetRecommendationProfile,
   BudgetRecommendationResult,
+  StatsRecurringExpenseDto,
 } from '@/services/api'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 import { useCurrency } from '@/composables/useCurrency'
@@ -323,11 +437,22 @@ import { paceSimpleText, paceStatusClass, paceStatusLabel } from '@/composables/
 import { useToast } from '@/composables/useToast'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
 import InfoTip from '@/components/InfoTip.vue'
+import IconPigMoney from '@/icons/IconPigMoney.vue'
+import BookmarkTabs from '@/components/BookmarkTabs.vue'
+
+type BudgetTabId = 'configure' | 'pace' | 'recurring' | 'recommendations'
 
 const store = useWalletStore()
 const { t } = useI18n()
 const { formatEuro } = useCurrency()
 const toast = useToast()
+const activeBudgetTab = ref<BudgetTabId>('configure')
+const budgetTabs = computed<Array<{ id: string; label: string }>>(() => [
+  { id: 'configure', label: t('budgets.configure') },
+  { id: 'pace', label: t('budgets.paceTitle') },
+  { id: 'recurring', label: t('stats.recurringExpenses') },
+  { id: 'recommendations', label: t('budgets.recommendationsTitle') },
+])
 
 const budgetLoading = ref(false)
 const budgetSaving = ref(false)
@@ -338,6 +463,12 @@ const recoError = ref<string | null>(null)
 const recoProfile = ref<BudgetRecommendationProfile>('balanced')
 const recoTargetSavingsPct = ref(20)
 const recommendations = ref<BudgetRecommendationResult | null>(null)
+const recurringLoading = ref(false)
+const recurringExpensesList = ref<StatsRecurringExpenseDto[]>([])
+const recurringExcludedCategoryIds = ref<string[]>([])
+const recurringSavingsCategoryIds = ref<string[]>([])
+const recurringSaving = ref(false)
+const recurringSavingPatternKey = ref<string | null>(null)
 const budgetTotalDraft = ref(0)
 const categoryBudgetDraft = ref<Record<string, number>>({})
 const subcategoryBudgetDraft = ref<Record<string, Record<string, number>>>({})
@@ -366,6 +497,9 @@ const allBudgetCategories = computed(() =>
   })
 )
 const expenseCategories = computed(() => allBudgetCategories.value)
+const expenseCategoriesForRecurring = computed(() =>
+  store.categories.filter(c => Boolean(c.id) && c.categoryType !== 'income')
+)
 const categoryBudgetSum = computed(() =>
   expenseCategories.value.reduce((sum, c) => sum + Math.max(0, Number(categoryBudgetDraft.value[c.id!] ?? 0)), 0)
 )
@@ -729,6 +863,93 @@ async function applySubcategoryRecommendation(subcategoryId: string): Promise<vo
   }
 }
 
+async function loadRecurringOverview(): Promise<void> {
+  recurringLoading.value = true
+  try {
+    const data = await api.getStatsMonthOverview(budgetMonth.value)
+    recurringExpensesList.value = data.recurringExpenses ?? []
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'errors.common.unknown')))
+  } finally {
+    recurringLoading.value = false
+  }
+}
+
+function syncRecurringProfileFromUser(): void {
+  recurringExcludedCategoryIds.value = Array.isArray(store.user?.recurringExcludedCategoryIds)
+    ? [...store.user!.recurringExcludedCategoryIds]
+    : []
+  recurringSavingsCategoryIds.value = Array.isArray(store.user?.recurringSavingsCategoryIds)
+    ? [...store.user!.recurringSavingsCategoryIds]
+    : []
+}
+
+async function onToggleRecurringExcludeCategory(categoryId: string, checked: boolean): Promise<void> {
+  const next = new Set(recurringExcludedCategoryIds.value)
+  if (checked) next.add(categoryId)
+  else next.delete(categoryId)
+  recurringExcludedCategoryIds.value = [...next]
+  recurringSaving.value = true
+  try {
+    store.user = await api.updateProfile({ recurringExcludedCategoryIds: recurringExcludedCategoryIds.value })
+    toast.success(t('stats.saved'))
+  } catch (e: unknown) {
+    syncRecurringProfileFromUser()
+    toast.error(t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError')))
+  } finally {
+    recurringSaving.value = false
+  }
+}
+
+async function onToggleRecurringSavingsCategory(categoryId: string, checked: boolean): Promise<void> {
+  const next = new Set(recurringSavingsCategoryIds.value)
+  if (checked) next.add(categoryId)
+  else next.delete(categoryId)
+  recurringSavingsCategoryIds.value = [...next]
+  recurringSaving.value = true
+  try {
+    store.user = await api.updateProfile({ recurringSavingsCategoryIds: recurringSavingsCategoryIds.value })
+    toast.success(t('stats.saved'))
+  } catch (e: unknown) {
+    syncRecurringProfileFromUser()
+    toast.error(t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError')))
+  } finally {
+    recurringSaving.value = false
+  }
+}
+
+async function toggleRecurringPatternSavings(row: StatsRecurringExpenseDto): Promise<void> {
+  if (!row.patternKey) return
+  recurringSavingPatternKey.value = row.patternKey
+  try {
+    await api.setRecurringPatternSavings(row.patternKey, !row.isSavings)
+    const nextKeys = new Set(Array.isArray(store.user?.recurringSavingsPatternKeys) ? store.user!.recurringSavingsPatternKeys : [])
+    if (!row.isSavings) nextKeys.add(row.patternKey)
+    else nextKeys.delete(row.patternKey)
+    store.user = await api.updateProfile({ recurringSavingsPatternKeys: [...nextKeys] })
+    await loadRecurringOverview()
+    toast.success(t('stats.saved'))
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError')))
+  } finally {
+    recurringSavingPatternKey.value = null
+  }
+}
+
+async function dismissRecurringPattern(row: StatsRecurringExpenseDto): Promise<void> {
+  if (!row.patternKey) return
+  recurringSaving.value = true
+  try {
+    await api.dismissRecurringPattern(row.patternKey)
+    await loadRecurringOverview()
+    toast.success(t('stats.saved'))
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'stats.couldNotApply')))
+  } finally {
+    recurringSaving.value = false
+  }
+}
+
 function onToggleCategoryIncluded(categoryId: string, included: boolean): void {
   const next = new Set(excludedCategoryIds.value)
   if (included) next.delete(categoryId)
@@ -760,9 +981,18 @@ watch(
   () => {
     void reloadBudgets()
     void loadBudgetPace()
+    void loadRecurringOverview()
     if (recommendations.value) void loadRecommendations()
   },
   { immediate: true }
+)
+
+watch(
+  () => store.user,
+  () => {
+    syncRecurringProfileFromUser()
+  },
+  { immediate: true, deep: true }
 )
 
 watch(

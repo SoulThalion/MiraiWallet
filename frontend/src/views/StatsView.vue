@@ -368,352 +368,52 @@
         </div>
       </div>
 
-      <!-- Gastos recurrentes -->
+      <!-- Gastos recurrentes (estadística simple) -->
       <div class="mw-card md:col-span-2 lg:col-span-3">
         <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.recurringExpenses') }}</p>
         <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
           {{ t('stats.recurringHint') }}
         </p>
-
-        <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
-          <summary class="cursor-pointer select-none text-xs font-semibold text-brand-blue hover:underline">
-            {{ t('stats.excludeCategoriesDetector') }}
-          </summary>
-          <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2">
-            {{ t('stats.excludeDetectorHint') }}
-          </p>
-          <div v-if="!expenseCategoriesForRecurring.length" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
-            {{ t('stats.loadCategoriesHint') }}
-          </div>
-          <div v-else class="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
-            <template v-for="c in expenseCategoriesForRecurring" :key="c.id">
-              <label
-                v-if="!(c.subcategories?.length)"
-                class="flex cursor-pointer items-center gap-2 rounded-lg border border-brand-blue/10 px-2 py-2 text-xs dark:border-white/[0.06] dark:text-dark-txt2 text-light-txt2"
-              >
-                <input
-                  type="checkbox"
-                  class="rounded border-brand-blue/30"
-                  :checked="excludedCategoryIds.includes(c.id!)"
-                  :disabled="excludeSaving"
-                  @change="onToggleExcludeCategory(c.id!, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ c.icon }} {{ c.name }}</span>
-                <span class="ml-auto text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.noSubcategories') }}</span>
-              </label>
-              <details
-                v-else
-                class="rounded-lg border border-brand-blue/10 open:border-brand-blue/20 dark:border-white/[0.07] dark:open:border-white/[0.12]"
-              >
-                <summary
-                  class="flex cursor-pointer list-none items-center gap-2 px-2 py-2 text-xs marker:content-none [&::-webkit-details-marker]:hidden"
-                >
-                  <span
-                    class="chevron-expand inline-flex w-4 shrink-0 justify-center font-mono text-[10px] text-brand-blue transition-transform dark:text-brand-blue"
-                    aria-hidden="true"
-                  >▶</span>
-                  <label class="flex cursor-pointer items-center gap-1.5" @click.stop>
-                    <input
-                      type="checkbox"
-                      class="rounded border-brand-blue/30"
-                      :checked="excludedCategoryIds.includes(c.id!)"
-                      :disabled="excludeSaving"
-                      @change="onToggleExcludeCategory(c.id!, ($event.target as HTMLInputElement).checked)"
-                    />
-                  </label>
-                  <span class="min-w-0 font-medium dark:text-dark-txt text-light-txt">
-                    <span class="mr-0.5">{{ c.icon }}</span>{{ c.name }}
-                  </span>
-                  <span class="ml-auto shrink-0 text-[10px] tabular-nums dark:text-dark-txt3 text-light-txt3">
-                    {{ c.subcategories!.length }} sub
-                  </span>
-                </summary>
-                <div
-                  class="space-y-1.5 border-t border-brand-blue/8 px-3 py-2.5 pl-9 dark:border-white/[0.06] dark:bg-white/[0.02]"
-                >
-                  <p class="text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
-                    {{ t('stats.excludeSubcategories') }}
-                  </p>
-                  <label
-                    v-for="s in c.subcategories"
-                    :key="s.id"
-                    class="flex cursor-pointer items-center gap-2 text-xs dark:text-dark-txt2 text-light-txt2"
-                  >
-                    <input
-                      type="checkbox"
-                      class="rounded border-brand-blue/30"
-                      :checked="excludedSubcategoryIds.includes(s.id)"
-                      :disabled="excludeSaving"
-                      @change="onToggleExcludeSubcategory(s.id, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ s.icon }} {{ s.name }}</span>
-                  </label>
-                </div>
-              </details>
-            </template>
-          </div>
-          <p v-if="excludeSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
-        </details>
-        <details class="mb-4 rounded-xl border border-brand-blue/10 px-3 py-2 dark:border-white/[0.07]">
-          <summary class="cursor-pointer select-none text-xs font-semibold text-brand-green hover:underline">
-            {{ t('stats.markSavingsByCategory') }}
-          </summary>
-          <p class="mt-2 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2">
-            {{ t('stats.markSavingsByCategoryHint') }}
-          </p>
-          <div v-if="!expenseCategoriesForRecurring.length" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">
-            {{ t('stats.loadCategoriesHint') }}
-          </div>
-          <div v-else class="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
-            <template v-for="c in expenseCategoriesForRecurring" :key="`sav-${c.id}`">
-              <label
-                v-if="!(c.subcategories?.length)"
-                class="flex cursor-pointer items-center gap-2 rounded-lg border border-brand-blue/10 px-2 py-2 text-xs dark:border-white/[0.06] dark:text-dark-txt2 text-light-txt2"
-              >
-                <input
-                  type="checkbox"
-                  class="rounded border-brand-blue/30"
-                  :checked="savingsCategoryIds.includes(c.id!)"
-                  :disabled="savingsSaving"
-                  @change="onToggleSavingsCategory(c.id!, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ c.icon }} {{ c.name }}</span>
-              </label>
-              <details
-                v-else
-                class="rounded-lg border border-brand-blue/10 open:border-brand-blue/20 dark:border-white/[0.07] dark:open:border-white/[0.12]"
-              >
-                <summary
-                  class="flex cursor-pointer list-none items-center gap-2 px-2 py-2 text-xs marker:content-none [&::-webkit-details-marker]:hidden"
-                >
-                  <span class="chevron-expand inline-flex w-4 shrink-0 justify-center font-mono text-[10px] text-brand-blue" aria-hidden="true">▶</span>
-                  <label class="flex cursor-pointer items-center gap-1.5" @click.stop>
-                    <input
-                      type="checkbox"
-                      class="rounded border-brand-blue/30"
-                      :checked="savingsCategoryIds.includes(c.id!)"
-                      :disabled="savingsSaving"
-                      @change="onToggleSavingsCategory(c.id!, ($event.target as HTMLInputElement).checked)"
-                    />
-                  </label>
-                  <span class="min-w-0 font-medium dark:text-dark-txt text-light-txt">
-                    <span class="mr-0.5">{{ c.icon }}</span>{{ c.name }}
-                  </span>
-                </summary>
-                <div class="space-y-1.5 border-t border-brand-blue/8 px-3 py-2.5 pl-9 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                  <label
-                    v-for="s in c.subcategories"
-                    :key="`sav-sub-${s.id}`"
-                    class="flex cursor-pointer items-center gap-2 text-xs dark:text-dark-txt2 text-light-txt2"
-                  >
-                    <input
-                      type="checkbox"
-                      class="rounded border-brand-blue/30"
-                      :checked="savingsSubcategoryIds.includes(s.id)"
-                      :disabled="savingsSaving"
-                      @change="onToggleSavingsSubcategory(s.id, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ s.icon }} {{ s.name }}</span>
-                  </label>
-                </div>
-              </details>
-            </template>
-          </div>
-          <p v-if="savingsSaving" class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.saving') }}</p>
-        </details>
-
         <div v-if="recurringExpensesList.length === 0" class="py-8 text-center text-sm dark:text-dark-txt2 text-light-txt2">
           {{ t('stats.noRecurringPatterns') }}
         </div>
-        <div v-else class="overflow-x-auto rounded-xl border dark:border-white/[0.07] border-brand-blue/10">
-          <table class="w-full min-w-[720px] text-left text-xs">
-            <thead class="dark:bg-dark-surf bg-light-surf text-[10px] uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
-              <tr>
-                <th class="px-3 py-2 font-semibold">{{ t('stats.day') }}</th>
-                <th class="px-3 py-2 font-semibold">{{ t('stats.category') }}</th>
-                <th class="px-3 py-2 font-semibold">{{ t('stats.description') }}</th>
-                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.amount') }}</th>
-                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.times') }}</th>
-                <th class="px-3 py-2 font-semibold text-right">{{ t('stats.months') }}</th>
-                <th class="px-3 py-2 font-semibold">{{ t('stats.first') }}</th>
-                <th class="px-3 py-2 font-semibold">{{ t('stats.last') }}</th>
-                <th class="px-3 py-2 font-semibold text-center">{{ t('stats.action') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in recurringExpensesList"
-                :key="row.patternKey || `${row.categoryId ?? 'x'}-${row.subcategoryId ?? 'n'}-${row.dayOfMonth}-${row.amount}-${row.description}`"
-                class="border-t dark:border-white/[0.06] border-brand-blue/8 dark:text-dark-txt text-light-txt"
-              >
-                <td class="px-3 py-2 tabular-nums font-medium">{{ row.dayOfMonth }}</td>
-                <td class="px-3 py-2">
-                  <span class="mr-1">{{ row.categoryIcon }}</span>
-                  <span>{{ row.categoryName }}</span>
-                  <span v-if="row.subcategoryName" class="dark:text-dark-txt2 text-light-txt2"> · {{ row.subcategoryName }}</span>
-                </td>
-                <td class="px-3 py-2 max-w-[14rem] truncate" :title="row.description">{{ row.description }}</td>
-                <td class="px-3 py-2 text-right tabular-nums">{{ formatEuro(row.amount, false) }}</td>
-                <td class="px-3 py-2 text-right tabular-nums">{{ row.occurrenceCount }}</td>
-                <td class="px-3 py-2 text-right tabular-nums">{{ row.distinctMonthCount }}</td>
-                <td class="px-3 py-2 tabular-nums dark:text-dark-txt2 text-light-txt2">{{ row.firstDate }}</td>
-                <td class="px-3 py-2 tabular-nums dark:text-dark-txt2 text-light-txt2">{{ row.lastDate }}</td>
-                <td class="px-3 py-2 text-center">
-                  <div class="inline-flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-brand-blue transition-colors hover:bg-brand-blue/10 dark:border-brand-blue/35"
-                      :title="t('stats.recategorize')"
-                      :aria-label="t('stats.recategorize')"
-                      @click="openRecategorizeRecurring(row)"
-                    >
-                      🏷️
-                    </button>
-                    <button
-                      type="button"
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
-                      :class="row.isSavings
-                        ? 'border-brand-green/40 text-brand-green hover:bg-brand-green/10'
-                        : 'border-brand-green/20 text-brand-green hover:bg-brand-green/10'"
-                      :title="row.isSavings ? t('stats.unmarkAsSavings') : t('stats.markAsSavings')"
-                      :aria-label="row.isSavings ? t('stats.unmarkAsSavings') : t('stats.markAsSavings')"
-                      :disabled="savingRecurringPatternKey === row.patternKey"
-                      @click="toggleRecurringSavings(row)"
-                    >
-                      <IconPigMoney :icon-class="row.isSavings ? 'h-4 w-4 opacity-100' : 'h-4 w-4 opacity-40'" />
-                    </button>
-                    <button
-                      type="button"
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-400/35 text-red-400 transition-colors hover:bg-red-500/10"
-                      :title="t('stats.remove')"
-                      :aria-label="t('stats.remove')"
-                      @click="openDismissRecurring(row)"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr
-                class="border-t-2 border-brand-blue/20 bg-black/[0.03] font-semibold dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-dark-txt text-light-txt"
-              >
-                <td class="px-3 py-2.5">—</td>
-                <td class="px-3 py-2.5" colspan="2">{{ t('stats.totalsPatterns', { count: recurringExpensesList.length }) }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">{{ formatEuro(recurringAmountSum, false) }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">{{ recurringOccurrenceSum }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">—</td>
-                <td class="px-3 py-2.5">—</td>
-                <td class="px-3 py-2.5">—</td>
-                <td class="px-3 py-2.5">—</td>
-              </tr>
-            </tfoot>
-          </table>
+        <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ t('stats.totalsPatterns', { count: recurringExpensesList.length }) }}</p>
+            <p class="mt-1 text-lg font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ recurringExpensesList.length }}</p>
+          </div>
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ t('stats.amount') }}</p>
+            <p class="mt-1 text-lg font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ formatEuro(recurringAmountSum, false) }}</p>
+          </div>
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ t('stats.times') }}</p>
+            <p class="mt-1 text-lg font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ recurringOccurrenceSum }}</p>
+          </div>
+        </div>
+        <div v-if="recurringExpensesList.length" class="mt-3 space-y-2">
+          <div
+            v-for="row in recurringTopByAmount"
+            :key="`rec-top-${row.patternKey ?? row.description}-${row.dayOfMonth}`"
+            class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10"
+          >
+            <div class="mb-1 flex items-center justify-between gap-2">
+              <p class="min-w-0 truncate font-semibold dark:text-dark-txt text-light-txt">
+                {{ row.categoryIcon }} {{ row.categoryName }}<span v-if="row.subcategoryName"> · {{ row.subcategoryName }}</span> · {{ row.description }}
+              </p>
+              <span class="shrink-0 tabular-nums">{{ formatEuro(row.amount, false) }}</span>
+            </div>
+            <div class="h-1.5 overflow-hidden rounded-full dark:bg-dark-surf bg-light-surf">
+              <div
+                class="h-full rounded-full bg-gradient-to-r from-brand-blue-dark to-brand-blue"
+                :style="{ width: recurringBarWidth(row) }"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <Teleport to="body">
-      <div
-        v-if="dismissModalRow"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recurring-dismiss-title"
-        @click.self="dismissModalRow = null"
-      >
-        <div
-          class="w-full max-h-[90dvh] overflow-y-auto rounded-t-2xl border border-brand-blue/10 bg-light-card p-5 shadow-xl dark:border-white/[0.07] dark:bg-dark-card sm:max-w-md sm:rounded-2xl"
-          @click.stop
-        >
-          <p id="recurring-dismiss-title" class="font-display text-base font-bold dark:text-dark-txt text-light-txt">
-            {{ t('stats.stopShowingRecurring') }}
-          </p>
-          <p class="mt-3 text-sm leading-relaxed dark:text-dark-txt2 text-light-txt2">
-            {{ t('stats.dismissPatternBody') }} ({{ dismissModalRow.categoryIcon }} {{ dismissModalRow.categoryName
-            }}<span v-if="dismissModalRow.subcategoryName"> · {{ dismissModalRow.subcategoryName }}</span>,
-            {{ dismissModalRow.description }}, {{ formatEuro(dismissModalRow.amount, false) }}).
-          </p>
-          <p class="mt-3 text-xs leading-relaxed text-amber-600 dark:text-amber-400/95">
-            {{ t('stats.dismissPatternHint') }}
-          </p>
-          <div class="mt-5 flex gap-2">
-            <button
-              type="button"
-              class="flex-1 rounded-xl border border-brand-blue/15 py-3 text-sm font-semibold dark:border-white/[0.08] dark:text-dark-txt2"
-              :disabled="dismissBusy"
-              @click="dismissModalRow = null"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded-xl bg-red-500/90 py-3 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-40"
-              :disabled="dismissBusy"
-              @click="confirmDismissRecurring"
-            >
-              {{ dismissBusy ? t('stats.applying') : t('stats.confirm') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <Teleport to="body">
-      <div
-        v-if="recategorizeModalRow"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recurring-recategorize-title"
-        @click.self="recategorizeModalRow = null"
-      >
-        <div
-          class="w-full max-h-[90dvh] overflow-y-auto rounded-t-2xl border border-brand-blue/10 bg-light-card p-5 shadow-xl dark:border-white/[0.07] dark:bg-dark-card sm:max-w-md sm:rounded-2xl"
-          @click.stop
-        >
-          <p id="recurring-recategorize-title" class="font-display text-base font-bold dark:text-dark-txt text-light-txt">
-            {{ t('stats.recategorizeTitle') }}
-          </p>
-          <p class="mt-2 text-xs leading-relaxed dark:text-dark-txt2 text-light-txt2">
-            {{ t('stats.recategorizeHint') }}
-          </p>
-          <label class="mt-3 block">
-            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.category') }}</span>
-            <select v-model="recategorizeCategoryId" class="mw-input w-full text-sm">
-              <option value="">{{ t('stats.noCategory') }}</option>
-              <option v-for="c in expenseCategoriesForRecurring" :key="`rc-${c.id}`" :value="c.id">{{ c.icon }} {{ c.name }}</option>
-            </select>
-          </label>
-          <label class="mt-3 block" v-if="recategorizeCategoryId">
-            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.subcategory') }}</span>
-            <select v-model="recategorizeSubcategoryId" class="mw-input w-full text-sm">
-              <option value="">{{ t('stats.noSubcategories') }}</option>
-              <option v-for="s in recategorizeSubcategoryOptions" :key="`rs-${s.id}`" :value="s.id">{{ s.icon }} {{ s.name }}</option>
-            </select>
-          </label>
-          <div class="mt-5 flex gap-2">
-            <button
-              type="button"
-              class="flex-1 rounded-xl border border-brand-blue/15 py-3 text-sm font-semibold dark:border-white/[0.08] dark:text-dark-txt2"
-              :disabled="recategorizeBusy"
-              @click="recategorizeModalRow = null"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded-xl bg-brand-blue py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
-              :disabled="recategorizeBusy"
-              @click="confirmRecategorizeRecurring"
-            >
-              {{ recategorizeBusy ? t('stats.applying') : t('common.save') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -943,6 +643,19 @@ const recurringAmountSum = computed(() =>
 const recurringOccurrenceSum = computed(() =>
   recurringExpensesList.value.reduce((s, r) => s + (r.occurrenceCount ?? 0), 0)
 )
+const recurringTopByAmount = computed(() =>
+  [...recurringExpensesList.value]
+    .sort((a, b) => Number(b.amount) - Number(a.amount))
+    .slice(0, 5)
+)
+const recurringTopMaxAmount = computed(() =>
+  Math.max(...recurringTopByAmount.value.map((row) => Number(row.amount) || 0), 0)
+)
+function recurringBarWidth(row: StatsRecurringExpenseDto): string {
+  const max = recurringTopMaxAmount.value
+  if (max <= 0) return '0%'
+  return `${Math.max(0, Math.min(100, (Number(row.amount) / max) * 100)).toFixed(1)}%`
+}
 
 const excludedCategoryIds = ref<string[]>([])
 const excludedSubcategoryIds = ref<string[]>([])
