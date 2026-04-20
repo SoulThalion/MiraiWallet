@@ -388,21 +388,6 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
     })
   }
 
-  const snap = store.statementSnapshot
-  if (snap != null && (snap.firstDate != null || snap.lastDate != null)) {
-    out.push({
-      key: 'statement',
-      type: 'info',
-      badge: t('alerts.badge.statement'),
-      title: t('alerts.derived.statementTitle'),
-      body: t('alerts.derived.statementBody', {
-        opening: formatEuro(snap.openingSaldo),
-        closing: formatEuro(snap.closingSaldo),
-      }),
-      amount: formatEuro(snap.delta, true),
-    })
-  }
-
   if (store.balance < 0) {
     out.unshift({
       key: 'balance-negative',

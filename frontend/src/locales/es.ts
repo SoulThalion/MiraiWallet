@@ -343,6 +343,8 @@ const es = {
     paceDaysProgress: 'Dia {elapsed}/{total} ({pct}% del periodo)',
     paceLinear: 'Ritmo lineal',
     paceWeighted: 'Ritmo ponderado',
+    paceInfoLinear: 'Lineal reparte el presupuesto de forma uniforme por dias del periodo.',
+    paceInfoWeighted: 'Ponderado usa el patron historico de gasto dentro del periodo (si existe historico).',
     paceExplainAbove: '{pct}% mas vs esperado (dia {dayMonth})',
     paceExplainBelow: '{pct}% menos vs esperado (dia {dayMonth})',
     paceExplainOnTrack: 'En linea (dia {dayMonth})',

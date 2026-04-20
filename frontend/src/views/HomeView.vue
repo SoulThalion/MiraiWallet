@@ -71,14 +71,20 @@
         </p>
         <div class="mt-2 space-y-2">
           <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
-            <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('home.paceWeighted') }}</p>
+            <div class="flex items-center gap-1.5">
+              <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('home.paceWeighted') }}</p>
+              <InfoTip :text="t('stats.paceInfoWeighted')" :aria-label="t('stats.paceInfoWeighted')" />
+            </div>
             <p class="mt-1 text-[11px] dark:text-dark-txt2 text-light-txt2">
               <span :class="['font-semibold', paceStatusClass(paceWeightedStatus)]">{{ paceStatusLabel(t, 'stats', paceWeightedStatus, pacePctWeighted, paceActualSpent, paceExpectedWeighted) }}</span>
               <span> · {{ paceExplain(paceActualSpent, paceExpectedWeighted) }}</span>
             </p>
           </div>
           <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
-            <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('home.paceLinear') }}</p>
+            <div class="flex items-center gap-1.5">
+              <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('home.paceLinear') }}</p>
+              <InfoTip :text="t('stats.paceInfoLinear')" :aria-label="t('stats.paceInfoLinear')" />
+            </div>
             <p class="mt-1 text-[11px] dark:text-dark-txt2 text-light-txt2">
               <span :class="['font-semibold', paceStatusClass(paceLinearStatus)]">{{ paceStatusLabel(t, 'stats', paceLinearStatus, pacePctLinear, paceActualSpent, paceExpectedLinear) }}</span>
               <span> · {{ paceExplain(paceActualSpent, paceExpectedLinear) }}</span>
@@ -258,13 +264,13 @@ const homeKpis = computed<BalanceStat[]>(() => {
 })
 
 const homeAlertsSummary = computed(() => {
-  const out = { danger: 0, warning: 0, info: 0, success: 0, total: 0 }
+  const out = { danger: 0, warning: 0, info: 0, total: 0 }
 
   for (const a of store.alerts) {
     if (a.type === 'danger') out.danger += 1
     else if (a.type === 'warning') out.warning += 1
     else if (a.type === 'info') out.info += 1
-    else if (a.type === 'success') out.success += 1
+    else if (a.type === 'success') out.info += 1
   }
 
   const pace = store.budgetPace
@@ -285,13 +291,12 @@ const homeAlertsSummary = computed(() => {
   const cur = store.monthExpenses
   const mwd = store.expenseMonthsWithData
   if (avg >= 0.01 && cur > 0 && mwd >= 1 && cur / avg >= 1.12) out.warning += 1
-  else if (avg >= 0.01 && cur > 0 && mwd >= 1 && cur / avg <= 0.88) out.success += 1
+  else if (avg >= 0.01 && cur > 0 && mwd >= 1 && cur / avg <= 0.88) out.info += 1
 
   if (store.monthNetCashflow < 0 && store.monthExpenses > 0) out.warning += 1
-  if (store.statementSnapshot && (store.statementSnapshot.firstDate || store.statementSnapshot.lastDate)) out.info += 1
   if (store.balance < 0) out.danger += 1
 
-  out.total = out.danger + out.warning + out.info + out.success
+  out.total = out.danger + out.warning + out.info
   return out
 })
 

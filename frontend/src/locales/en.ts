@@ -343,6 +343,8 @@ const en = {
     paceDaysProgress: 'Day {elapsed}/{total} ({pct}% of period)',
     paceLinear: 'Linear pace',
     paceWeighted: 'Weighted pace',
+    paceInfoLinear: 'Linear spreads budget uniformly across period days.',
+    paceInfoWeighted: 'Weighted uses historical intra-period spending pattern (when history exists).',
     paceExplainAbove: '{pct}% above expected ({dayMonth})',
     paceExplainBelow: '{pct}% below expected ({dayMonth})',
     paceExplainOnTrack: 'On track ({dayMonth})',

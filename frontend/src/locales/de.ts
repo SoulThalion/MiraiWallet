@@ -343,6 +343,8 @@ const de = {
     paceDaysProgress: 'Tag {elapsed}/{total} ({pct}% des Zeitraums)',
     paceLinear: 'Linearer Rhythmus',
     paceWeighted: 'Gewichteter Rhythmus',
+    paceInfoLinear: 'Linear verteilt das Budget gleichmaessig ueber alle Tage des Zeitraums.',
+    paceInfoWeighted: 'Gewichtet nutzt das historische Ausgabemuster innerhalb des Zeitraums (falls vorhanden).',
     paceExplainAbove: '{pct}% ueber Erwartung ({dayMonth})',
     paceExplainBelow: '{pct}% unter Erwartung ({dayMonth})',
     paceExplainOnTrack: 'Im Rahmen ({dayMonth})',
