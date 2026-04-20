@@ -95,6 +95,15 @@
                   <div class="inline-flex items-center gap-1.5">
                     <button
                       type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-brand-blue transition-colors hover:bg-brand-blue/10 dark:border-brand-blue/35"
+                      :title="t('stats.recategorize')"
+                      :aria-label="t('stats.recategorize')"
+                      @click="openRecategorizeRecurring(row)"
+                    >
+                      🏷️
+                    </button>
+                    <button
+                      type="button"
                       class="inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
                       :class="row.isSavings ? 'border-brand-green/40 text-brand-green hover:bg-brand-green/10' : 'border-brand-green/20 text-brand-green hover:bg-brand-green/10'"
                       :title="row.isSavings ? t('stats.unmarkAsSavings') : t('stats.markAsSavings')"
@@ -416,6 +425,61 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="recategorizeModalRow"
+        class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recurring-recategorize-title"
+        @click.self="recategorizeModalRow = null"
+      >
+        <div
+          class="w-full max-h-[90dvh] overflow-y-auto rounded-t-2xl border border-brand-blue/10 bg-light-card p-5 shadow-xl dark:border-white/[0.07] dark:bg-dark-card sm:max-w-md sm:rounded-2xl"
+          @click.stop
+        >
+          <p id="recurring-recategorize-title" class="font-display text-base font-bold dark:text-dark-txt text-light-txt">
+            {{ t('stats.recategorizeTitle') }}
+          </p>
+          <p class="mt-2 text-xs leading-relaxed dark:text-dark-txt2 text-light-txt2">
+            {{ t('stats.recategorizeHint') }}
+          </p>
+          <label class="mt-3 block">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.category') }}</span>
+            <select v-model="recategorizeCategoryId" class="mw-input w-full text-sm">
+              <option value="">{{ t('stats.noCategory') }}</option>
+              <option v-for="c in expenseCategoriesForRecurring" :key="`b-rc-${c.id}`" :value="c.id">{{ c.icon }} {{ c.name }}</option>
+            </select>
+          </label>
+          <label v-if="recategorizeCategoryId" class="mt-3 block">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.subcategory') }}</span>
+            <select v-model="recategorizeSubcategoryId" class="mw-input w-full text-sm">
+              <option value="">{{ t('stats.noSubcategories') }}</option>
+              <option v-for="s in recategorizeSubcategoryOptions" :key="`b-rs-${s.id}`" :value="s.id">{{ s.icon }} {{ s.name }}</option>
+            </select>
+          </label>
+          <div class="mt-5 flex gap-2">
+            <button
+              type="button"
+              class="flex-1 rounded-xl border border-brand-blue/15 py-3 text-sm font-semibold dark:border-white/[0.08] dark:text-dark-txt2"
+              :disabled="recategorizeBusy"
+              @click="recategorizeModalRow = null"
+            >
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="flex-1 rounded-xl bg-brand-blue py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
+              :disabled="recategorizeBusy"
+              @click="confirmRecategorizeRecurring"
+            >
+              {{ recategorizeBusy ? t('stats.applying') : t('common.save') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -469,6 +533,10 @@ const recurringExcludedCategoryIds = ref<string[]>([])
 const recurringSavingsCategoryIds = ref<string[]>([])
 const recurringSaving = ref(false)
 const recurringSavingPatternKey = ref<string | null>(null)
+const recategorizeModalRow = ref<StatsRecurringExpenseDto | null>(null)
+const recategorizeCategoryId = ref('')
+const recategorizeSubcategoryId = ref('')
+const recategorizeBusy = ref(false)
 const budgetTotalDraft = ref(0)
 const categoryBudgetDraft = ref<Record<string, number>>({})
 const subcategoryBudgetDraft = ref<Record<string, Record<string, number>>>({})
@@ -500,6 +568,10 @@ const expenseCategories = computed(() => allBudgetCategories.value)
 const expenseCategoriesForRecurring = computed(() =>
   store.categories.filter(c => Boolean(c.id) && c.categoryType !== 'income')
 )
+const recategorizeSubcategoryOptions = computed(() => {
+  const category = expenseCategoriesForRecurring.value.find(c => c.id === recategorizeCategoryId.value)
+  return category?.subcategories ?? []
+})
 const categoryBudgetSum = computed(() =>
   expenseCategories.value.reduce((sum, c) => sum + Math.max(0, Number(categoryBudgetDraft.value[c.id!] ?? 0)), 0)
 )
@@ -950,6 +1022,32 @@ async function dismissRecurringPattern(row: StatsRecurringExpenseDto): Promise<v
   }
 }
 
+function openRecategorizeRecurring(row: StatsRecurringExpenseDto): void {
+  recategorizeModalRow.value = row
+  recategorizeCategoryId.value = row.categoryId ?? ''
+  recategorizeSubcategoryId.value = row.subcategoryId ?? ''
+}
+
+async function confirmRecategorizeRecurring(): Promise<void> {
+  const row = recategorizeModalRow.value
+  if (!row?.patternKey) return
+  recategorizeBusy.value = true
+  try {
+    await api.setRecurringPatternCategory(
+      row.patternKey,
+      recategorizeCategoryId.value || null,
+      recategorizeSubcategoryId.value || null
+    )
+    recategorizeModalRow.value = null
+    await loadRecurringOverview()
+    toast.success(t('stats.saved'))
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'stats.couldNotApply')))
+  } finally {
+    recategorizeBusy.value = false
+  }
+}
+
 function onToggleCategoryIncluded(categoryId: string, included: boolean): void {
   const next = new Set(excludedCategoryIds.value)
   if (included) next.delete(categoryId)
@@ -994,6 +1092,15 @@ watch(
   },
   { immediate: true, deep: true }
 )
+
+watch(recategorizeCategoryId, (id) => {
+  if (!id) {
+    recategorizeSubcategoryId.value = ''
+    return
+  }
+  const exists = recategorizeSubcategoryOptions.value.some(s => s.id === recategorizeSubcategoryId.value)
+  if (!exists) recategorizeSubcategoryId.value = ''
+})
 
 watch(
   () => recoProfile.value,
