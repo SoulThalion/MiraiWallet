@@ -29,6 +29,64 @@ export function dueByYmdFromList(dueList: StatsRecurringDueItemDto[]): Map<strin
   return m
 }
 
+/** Suma días a `YYYY-MM-DD` en calendario local. */
+export function addDaysYmd(ymd: string, deltaDays: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
+  if (!m) return ymd.trim()
+  const dt = new Date(parseInt(m[1]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[3]!, 10) + deltaDays)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
+/** Lunes de la semana ISO (columna 0 = lunes, igual que el calendario mensual). */
+export function mondayOfWeekContaining(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
+  if (!m) return ymd.trim()
+  const dt = new Date(parseInt(m[1]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[3]!, 10))
+  const dow = dt.getDay()
+  const deltaToMonday = (dow + 6) % 7
+  dt.setDate(dt.getDate() - deltaToMonday)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
+export function weekYmdBoundsFromMonday(weekMondayYmd: string): { from: string; to: string } {
+  return { from: weekMondayYmd.trim(), to: addDaysYmd(weekMondayYmd, 6) }
+}
+
+export function itemsDueInYmdRange(
+  items: StatsRecurringDueItemDto[],
+  fromYmd: string,
+  toYmd: string,
+): StatsRecurringDueItemDto[] {
+  return items.filter((it) => it.dueDate >= fromYmd && it.dueDate <= toYmd)
+}
+
+/** Una fila de 7 días (lunes → domingo) con los mismos `CalCell` que el mes. */
+export function buildCalendarWeekRow(
+  weekMondayYmd: string,
+  dueList: StatsRecurringDueItemDto[],
+  todayYmd: string,
+  t: (key: string) => string,
+): { headers: string[]; row: CalCell[] } {
+  const headers = calWeekdayHeaders(t)
+  const map = dueByYmdFromList(dueList)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekMondayYmd.trim())
+  if (!m) return { headers, row: [] }
+  const start = new Date(parseInt(m[1]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[3]!, 10))
+  const row: CalCell[] = []
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(start)
+    dt.setDate(start.getDate() + i)
+    const ymd = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    row.push({
+      dayNum: dt.getDate(),
+      ymd,
+      items: map.get(ymd) ?? [],
+      isToday: ymd === todayYmd,
+    })
+  }
+  return { headers, row }
+}
+
 export function buildCalendarMonthGrid(
   ym: string,
   dueList: StatsRecurringDueItemDto[],

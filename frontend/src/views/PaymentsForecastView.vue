@@ -72,10 +72,65 @@
                     {{ t('forecast.calendarAllMovements') }}
                   </button>
                 </div>
+                <div
+                  class="inline-flex shrink-0 rounded-lg border p-0.5 dark:border-white/[0.08] border-brand-blue/15"
+                  role="group"
+                >
+                  <button
+                    type="button"
+                    class="rounded-md px-2 py-1 text-[10px] font-semibold transition-colors"
+                    :class="
+                      calendarPeriod === 'month'
+                        ? 'bg-brand-blue/15 text-brand-blue dark:bg-brand-blue/25 dark:text-brand-blue'
+                        : 'dark:text-dark-txt2 text-light-txt2 hover:text-brand-blue'
+                    "
+                    :aria-pressed="calendarPeriod === 'month'"
+                    @click="setCalendarPeriod('month')"
+                  >
+                    {{ t('forecast.calendarMonthView') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-md px-2 py-1 text-[10px] font-semibold transition-colors"
+                    :class="
+                      calendarPeriod === 'week'
+                        ? 'bg-brand-blue/15 text-brand-blue dark:bg-brand-blue/25 dark:text-brand-blue'
+                        : 'dark:text-dark-txt2 text-light-txt2 hover:text-brand-blue'
+                    "
+                    :aria-pressed="calendarPeriod === 'week'"
+                    @click="setCalendarPeriod('week')"
+                  >
+                    {{ t('forecast.calendarWeekView') }}
+                  </button>
+                </div>
               </div>
-              <p class="text-[10px] font-medium tabular-nums dark:text-dark-txt2 text-light-txt2">
+              <div
+                v-if="calendarPeriod === 'month'"
+                class="text-[10px] font-medium tabular-nums dark:text-dark-txt2 text-light-txt2"
+              >
                 {{ t('stats.recurringCalendarMonthLabel', { ym: calendarMainYm }) }}
-              </p>
+              </div>
+              <div v-else class="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-brand-blue transition-colors hover:bg-brand-blue/10 dark:border-brand-blue/35"
+                  :aria-label="t('forecast.prevWeek')"
+                  @click="shiftWeek(-1)"
+                >
+                  ‹
+                </button>
+                <span class="max-w-[11rem] truncate text-center text-[10px] font-medium tabular-nums dark:text-dark-txt2 text-light-txt2 sm:max-w-none">
+                  {{ weekRangeLabel }}
+                </span>
+                <button
+                  type="button"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-brand-blue transition-colors hover:bg-brand-blue/10 dark:border-brand-blue/35"
+                  :aria-label="t('forecast.nextWeek')"
+                  @click="shiftWeek(1)"
+                >
+                  ›
+                </button>
+              </div>
             </div>
             <p
               v-if="calendarMode === 'all' && calendarTxLoading"
@@ -86,25 +141,56 @@
             <p v-if="calendarMode === 'all' && calendarTxError" class="mb-2 text-[10px] text-red-400">
               {{ calendarTxError }}
             </p>
-            <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
-              <div v-for="(h, hi) in calendarMainGrid.headers" :key="`cal-h-${hi}`" class="py-1">{{ h }}</div>
-            </div>
-            <div class="space-y-1">
-              <div v-for="(row, ri) in calendarMainGrid.weekRows" :key="`cal-w-${ri}`" class="grid grid-cols-7 gap-1">
+            <template v-if="calendarPeriod === 'month'">
+              <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
+                <div v-for="(h, hi) in calendarMainGrid.headers" :key="`cal-h-${hi}`" class="py-1">{{ h }}</div>
+              </div>
+              <div class="space-y-1">
+                <div v-for="(row, ri) in calendarMainGrid.weekRows" :key="`cal-w-${ri}`" class="grid grid-cols-7 gap-1">
+                  <div
+                    v-for="(cell, ci) in row"
+                    :key="cell.ymd ?? `cal-pad-${ri}-${ci}`"
+                    :class="[
+                      'min-h-[5rem] rounded-lg border p-1.5 text-left sm:min-h-[6rem] md:min-h-[6.5rem] dark:border-white/[0.06] border-brand-blue/10',
+                      cell.isToday ? 'ring-2 ring-brand-blue/50 dark:ring-brand-blue/40' : '',
+                      cell.dayNum ? 'dark:bg-dark-surf/80 bg-light-surf/80' : 'bg-transparent',
+                    ]"
+                  >
+                    <span v-if="cell.dayNum != null" class="text-sm font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ cell.dayNum }}</span>
+                    <div class="mt-1 space-y-0.5">
+                      <div
+                        v-for="(it, ii) in cell.items.slice(0, 4)"
+                        :key="`c-it-${cell.ymd}-${ii}`"
+                        :class="['truncate rounded border-l-2 pl-1 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2', dueSourceStripeClass(it.source)]"
+                        :title="`${it.label} · ${formatEuro(it.amount, false)}`"
+                      >
+                        {{ it.label }}
+                      </div>
+                      <div v-if="cell.items.length > 4" class="text-[10px] dark:text-dark-txt3 text-light-txt3">+{{ cell.items.length - 4 }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
+                <div v-for="(h, hi) in calendarWeekGrid.headers" :key="`wk-h-${hi}`" class="py-1">{{ h }}</div>
+              </div>
+              <div class="grid grid-cols-7 gap-1">
                 <div
-                  v-for="(cell, ci) in row"
-                  :key="cell.ymd ?? `cal-pad-${ri}-${ci}`"
+                  v-for="(cell, ci) in calendarWeekGrid.row"
+                  :key="cell.ymd ?? `wk-cell-${ci}`"
                   :class="[
                     'min-h-[5rem] rounded-lg border p-1.5 text-left sm:min-h-[6rem] md:min-h-[6.5rem] dark:border-white/[0.06] border-brand-blue/10',
                     cell.isToday ? 'ring-2 ring-brand-blue/50 dark:ring-brand-blue/40' : '',
-                    cell.dayNum ? 'dark:bg-dark-surf/80 bg-light-surf/80' : 'bg-transparent',
+                    cell.dayNum != null ? 'dark:bg-dark-surf/80 bg-light-surf/80' : 'bg-transparent',
                   ]"
                 >
                   <span v-if="cell.dayNum != null" class="text-sm font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ cell.dayNum }}</span>
                   <div class="mt-1 space-y-0.5">
                     <div
                       v-for="(it, ii) in cell.items.slice(0, 4)"
-                      :key="`c-it-${cell.ymd}-${ii}`"
+                      :key="`wk-it-${cell.ymd}-${ii}`"
                       :class="['truncate rounded border-l-2 pl-1 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2', dueSourceStripeClass(it.source)]"
                       :title="`${it.label} · ${formatEuro(it.amount, false)}`"
                     >
@@ -114,7 +200,7 @@
                   </div>
                 </div>
               </div>
-            </div>
+            </template>
             <p class="mt-2 text-[10px] dark:text-dark-txt3 text-light-txt3">{{ t('stats.recurringCalendarLegend') }}</p>
           </div>
 
@@ -251,17 +337,27 @@ import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPerio
 import MwMonthStepper from '@/components/MwMonthStepper.vue'
 import InfoTip from '@/components/InfoTip.vue'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
-import { buildCalendarMonthGrid, dueSourceStripeClass } from '@/utils/paymentForecastCalendar'
+import {
+  addDaysYmd,
+  buildCalendarMonthGrid,
+  buildCalendarWeekRow,
+  dueSourceStripeClass,
+  itemsDueInYmdRange,
+  mondayOfWeekContaining,
+  weekYmdBoundsFromMonday,
+} from '@/utils/paymentForecastCalendar'
 
 const { formatEuro, roundMoney } = useCurrency()
 const wallet = useWalletStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
 }
 
 const FORECAST_CALENDAR_MODE_LS = 'miraiwallet.forecast.calendarMode'
+const FORECAST_CALENDAR_PERIOD_LS = 'miraiwallet.forecast.calendarPeriod'
+const FORECAST_WEEK_MONDAY_LS = 'miraiwallet.forecast.weekMonday'
 
 function readForecastCalendarMode(): 'recurring' | 'all' {
   try {
@@ -273,13 +369,36 @@ function readForecastCalendarMode(): 'recurring' | 'all' {
   return 'recurring'
 }
 
+function readForecastCalendarPeriod(): 'month' | 'week' {
+  try {
+    const v = localStorage.getItem(FORECAST_CALENDAR_PERIOD_LS)
+    if (v === 'month' || v === 'week') return v
+  } catch {
+    /* ignorar */
+  }
+  return 'month'
+}
+
+function readWeekMondayInitial(ym: string): string {
+  try {
+    const v = localStorage.getItem(FORECAST_WEEK_MONDAY_LS)
+    if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+  } catch {
+    /* ignorar */
+  }
+  return mondayOfWeekContaining(`${ym}-01`)
+}
+
 const selectedForecastYm = ref(defaultSelectedYm())
 const forecastMain = ref<StatsMonthOverviewDto | null>(null)
 const forecastLoading = ref(false)
 const forecastError = ref<string | null>(null)
 
 const calendarMode = ref<'recurring' | 'all'>(readForecastCalendarMode())
-const calendarTxAll = ref<StatsRecurringDueItemDto[]>([])
+const calendarPeriod = ref<'month' | 'week'>(readForecastCalendarPeriod())
+const selectedWeekMondayYmd = ref(readWeekMondayInitial(selectedForecastYm.value))
+
+const calendarMovementItems = ref<StatsRecurringDueItemDto[]>([])
 const calendarTxLoading = ref(false)
 const calendarTxError = ref<string | null>(null)
 let loadCalendarTxSeq = 0
@@ -291,19 +410,69 @@ const todayYmd = computed(() => {
 
 const calendarMainYm = computed(() => forecastMain.value?.month ?? selectedForecastYm.value)
 
-const calendarItemsForGrid = computed<StatsRecurringDueItemDto[]>(() => {
-  if (calendarMode.value === 'all') return calendarTxAll.value
-  return forecastMain.value?.recurringDueCalendar ?? []
+const recurringDueMonthList = computed(() => forecastMain.value?.recurringDueCalendar ?? [])
+
+const calendarItemsForMonthGrid = computed<StatsRecurringDueItemDto[]>(() => {
+  if (calendarMode.value === 'all') return calendarMovementItems.value
+  return recurringDueMonthList.value
+})
+
+const calendarItemsForWeekGrid = computed<StatsRecurringDueItemDto[]>(() => {
+  if (calendarMode.value === 'all') return calendarMovementItems.value
+  const { from, to } = weekYmdBoundsFromMonday(selectedWeekMondayYmd.value)
+  return itemsDueInYmdRange(recurringDueMonthList.value, from, to)
 })
 
 const calendarMainGrid = computed(() =>
   buildCalendarMonthGrid(
     calendarMainYm.value,
-    calendarItemsForGrid.value,
+    calendarItemsForMonthGrid.value,
     todayYmd.value,
     t,
   ),
 )
+
+const calendarWeekGrid = computed(() =>
+  buildCalendarWeekRow(
+    selectedWeekMondayYmd.value,
+    calendarItemsForWeekGrid.value,
+    todayYmd.value,
+    t,
+  ),
+)
+
+const weekRangeLabel = computed(() => formatWeekRangeLabel(selectedWeekMondayYmd.value, locale.value))
+
+function formatWeekRangeLabel(weekMondayYmd: string, loc: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekMondayYmd.trim())
+  if (!m) return weekMondayYmd
+  const y = parseInt(m[1]!, 10)
+  const mo = parseInt(m[2]!, 10) - 1
+  const d = parseInt(m[3]!, 10)
+  const start = new Date(y, mo, d)
+  const end = new Date(y, mo, d + 6)
+  const tag = loc === 'en' ? 'en-GB' : loc === 'de' ? 'de-DE' : 'es-ES'
+  const oy = start.getFullYear()
+  const ey = end.getFullYear()
+  const om = start.getMonth()
+  const em = end.getMonth()
+  if (oy !== ey) {
+    return `${start.toLocaleDateString(tag, { day: 'numeric', month: 'short', year: 'numeric' })} – ${end.toLocaleDateString(tag, { day: 'numeric', month: 'short', year: 'numeric' })}`
+  }
+  if (om !== em) {
+    return `${start.toLocaleDateString(tag, { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString(tag, { day: 'numeric', month: 'short', year: 'numeric' })}`
+  }
+  return `${start.getDate()}–${end.toLocaleDateString(tag, { day: 'numeric', month: 'long', year: 'numeric' })}`
+}
+
+function monthEndYmd(ym: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(ym.trim())
+  if (!match) return `${ym}-28`
+  const y = parseInt(match[1]!, 10)
+  const mo = parseInt(match[2]!, 10) - 1
+  const last = new Date(y, mo + 1, 0).getDate()
+  return `${ym}-${String(last).padStart(2, '0')}`
+}
 
 const recurringAutoPatternCount = computed(() => forecastMain.value?.recurringExpenses?.length ?? 0)
 
@@ -342,21 +511,40 @@ function setCalendarMode(mode: 'recurring' | 'all'): void {
   }
 }
 
-async function loadCalendarMonthTransactions(ym: string): Promise<void> {
+function setCalendarPeriod(period: 'month' | 'week'): void {
+  if (calendarPeriod.value === period) return
+  calendarPeriod.value = period
+  try {
+    localStorage.setItem(FORECAST_CALENDAR_PERIOD_LS, period)
+  } catch {
+    /* ignorar */
+  }
+}
+
+function persistWeekMonday(ymd: string): void {
+  try {
+    localStorage.setItem(FORECAST_WEEK_MONDAY_LS, ymd)
+  } catch {
+    /* ignorar */
+  }
+}
+
+function shiftWeek(delta: number): void {
+  const next = addDaysYmd(selectedWeekMondayYmd.value, delta * 7)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return
+  selectedWeekMondayYmd.value = next
+  persistWeekMonday(next)
+}
+
+async function loadCalendarMovementRange(from: string, to: string): Promise<void> {
   const seq = ++loadCalendarTxSeq
   calendarTxLoading.value = true
   calendarTxError.value = null
-  const br = /^(\d{4})-(\d{2})$/.exec(ym.trim())
-  if (!br) {
-    calendarTxAll.value = []
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
+    calendarMovementItems.value = []
     calendarTxLoading.value = false
     return
   }
-  const y = parseInt(br[1]!, 10)
-  const mo = parseInt(br[2]!, 10) - 1
-  const from = `${ym}-01`
-  const lastD = new Date(y, mo + 1, 0).getDate()
-  const to = `${ym}-${String(lastD).padStart(2, '0')}`
   try {
     const items: StatsRecurringDueItemDto[] = []
     let page = 1
@@ -384,11 +572,11 @@ async function loadCalendarMonthTransactions(ym: string): Promise<void> {
       page += 1
     }
     if (seq !== loadCalendarTxSeq) return
-    calendarTxAll.value = items
+    calendarMovementItems.value = items
   } catch (e: unknown) {
     if (seq !== loadCalendarTxSeq) return
     calendarTxError.value = t(resolveApiErrorI18nKey(e, 'stats.loadStatsError'))
-    calendarTxAll.value = []
+    calendarMovementItems.value = []
   } finally {
     if (seq === loadCalendarTxSeq) calendarTxLoading.value = false
   }
@@ -429,19 +617,40 @@ async function loadForecastMonth(ym: string): Promise<void> {
 watch(selectedForecastYm, (ym) => {
   forecastSimResult.value = null
   void loadForecastMonth(ym)
+  const mon = mondayOfWeekContaining(`${ym}-01`)
+  selectedWeekMondayYmd.value = mon
+  persistWeekMonday(mon)
 })
 
 watch(
-  () => [calendarMode.value, calendarMainYm.value] as const,
-  ([mode, ym]) => {
-    if (mode === 'all' && /^(\d{4})-(\d{2})$/.test(ym)) {
-      void loadCalendarMonthTransactions(ym)
-    } else {
+  () =>
+    [calendarMode.value, calendarPeriod.value, selectedForecastYm.value, selectedWeekMondayYmd.value] as const,
+  ([mode, period, ymSel, weekMon]) => {
+    if (mode !== 'all') {
       loadCalendarTxSeq += 1
       calendarTxLoading.value = false
       calendarTxError.value = null
-      calendarTxAll.value = []
+      calendarMovementItems.value = []
+      return
     }
+    let from: string
+    let to: string
+    if (period === 'month') {
+      if (!/^(\d{4})-(\d{2})$/.test(ymSel)) {
+        calendarMovementItems.value = []
+        return
+      }
+      from = `${ymSel}-01`
+      to = monthEndYmd(ymSel)
+    } else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(weekMon)) {
+        calendarMovementItems.value = []
+        return
+      }
+      from = weekMon
+      to = addDaysYmd(weekMon, 6)
+    }
+    void loadCalendarMovementRange(from, to)
   },
   { immediate: true },
 )

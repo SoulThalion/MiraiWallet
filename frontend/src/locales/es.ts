@@ -104,6 +104,10 @@ const es = {
     calendarAllMovements: 'Todos los movimientos',
     calendarMovementsLoading: 'Cargando movimientos…',
     dueSourceMovement: 'Movimiento',
+    calendarMonthView: 'Mes',
+    calendarWeekView: 'Semana',
+    prevWeek: 'Semana anterior',
+    nextWeek: 'Semana siguiente',
   },
   budgets: {
     title: 'Presupuestos',

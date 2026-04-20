@@ -104,6 +104,10 @@ const de = {
     calendarAllMovements: 'Alle Bewegungen',
     calendarMovementsLoading: 'Bewegungen werden geladen…',
     dueSourceMovement: 'Buchung',
+    calendarMonthView: 'Monat',
+    calendarWeekView: 'Woche',
+    prevWeek: 'Vorherige Woche',
+    nextWeek: 'Naechste Woche',
   },
   budgets: {
     title: 'Budgets',
