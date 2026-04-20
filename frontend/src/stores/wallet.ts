@@ -6,6 +6,7 @@ import {
   ApiCategory,
   ApiAlert,
   ApiBudget,
+  BudgetPaceDto,
   DashboardData,
   StatementSnapshot,
   AuthResult,
@@ -107,6 +108,7 @@ export const useWalletStore = defineStore('wallet', () => {
   /** Neto del periodo fiscal cargado (`income − expenses` de esa fila). */
   const monthNetCashflow = ref<number>(0)
   const monthTransfersToSavings = ref<number>(0)
+  const budgetPace = ref<BudgetPaceDto | null>(null)
   /** Último extracto importado (ING) con saldos de periodo, si existe. */
   const statementSnapshot = ref<StatementSnapshot | null>(null)
   const transactions = ref<Transaction[]>([])
@@ -258,13 +260,15 @@ export const useWalletStore = defineStore('wallet', () => {
       yearlyAverageExpense.value = Number(data.yearlyAverageExpense) || 0
       expenseMonthsWithData.value = Number(data.expenseMonthsWithData) || 0
 
+      // Period KPIs in Home must come from the selected fiscal month row,
+      // not from all-time totals returned in dashboard `income/expenses`.
       const periodYm = String(data.month ?? ym).trim()
       const periodParts = /^(\d{4})-(\d{2})$/.exec(periodYm)
       const periodMm = periodParts?.[2] ?? ym.split('-')[1] ?? '01'
-      const periodRow = data.monthlySummary.find(m => m.month === periodMm)
-      monthIncome.value = periodRow?.income ?? 0
-      monthExpenses.value = periodRow?.expenses ?? 0
-      monthNetCashflow.value = periodRow?.net ?? 0
+      const periodRow = data.monthlySummary.find(m => String(m.month).padStart(2, '0') === periodMm)
+      monthIncome.value = Number(periodRow?.income) || 0
+      monthExpenses.value = Number(periodRow?.expenses) || 0
+      monthNetCashflow.value = Number(periodRow?.net) || 0
 
       const byId = new Map<string, number>()
       const byName = new Map<string, number>()
@@ -382,6 +386,15 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
+  async function loadBudgetPace(month?: string): Promise<void> {
+    try {
+      budgetPace.value = await api.getBudgetPace(month ?? currentPeriodYm())
+    } catch (err) {
+      console.error('Error loading budget pace:', err)
+      budgetPace.value = null
+    }
+  }
+
   async function initialize(): Promise<void> {
     if (!localStorage.getItem('token')) return
     if (!user.value) await loadUser()
@@ -394,7 +407,8 @@ export const useWalletStore = defineStore('wallet', () => {
     await Promise.all([
       loadTransactions(),
       loadBudgets(ym),
-      loadAlerts()
+      loadAlerts(),
+      loadBudgetPace(ym),
     ])
   }
 
@@ -417,6 +431,23 @@ export const useWalletStore = defineStore('wallet', () => {
       0
     )
   )
+
+  const totalBudgetUsagePct = computed<number>(() => {
+    const total = totalBudget.value
+    if (total <= 0) return 0
+    return Math.min(999, Math.round((totalBudgetedSpentThisMonth.value / total) * 100))
+  })
+
+  const alertsSummary = computed(() => {
+    const out = { total: alerts.value.length, danger: 0, warning: 0, info: 0, success: 0 }
+    for (const a of alerts.value) {
+      if (a.type === 'danger') out.danger += 1
+      else if (a.type === 'warning') out.warning += 1
+      else if (a.type === 'info') out.info += 1
+      else if (a.type === 'success') out.success += 1
+    }
+    return out
+  })
 
   const donutSegments = computed<DonutSegment[]>(() => {
     const total = totalSpent.value
@@ -519,11 +550,14 @@ export const useWalletStore = defineStore('wallet', () => {
     monthExpenses,
     monthNetCashflow,
     monthTransfersToSavings,
+    budgetPace,
     statementSnapshot,
     bestMonth,
     totalBudget,
     totalSpent,
     totalBudgetedSpentThisMonth,
+    totalBudgetUsagePct,
+    alertsSummary,
     donutSegments,
     maxBar,
 
@@ -538,6 +572,7 @@ export const useWalletStore = defineStore('wallet', () => {
     loadCategories,
     loadBudgets,
     loadAlerts,
+    loadBudgetPace,
     applyAuth,
     clearSession,
     logout,
