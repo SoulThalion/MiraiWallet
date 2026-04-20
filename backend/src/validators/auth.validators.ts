@@ -93,4 +93,22 @@ export const updateProfileRules = [
     .optional()
     .isUUID()
     .withMessage('Each recurringSavingsSubcategoryIds entry must be a UUID'),
+  body('budgetPaceMode')
+    .optional()
+    .isIn(['flexible', 'strict', 'custom'])
+    .withMessage('budgetPaceMode must be flexible, strict or custom'),
+  body('budgetPaceThresholds')
+    .optional({ nullable: true })
+    .custom((v) => {
+      if (v == null) return true
+      if (typeof v !== 'object' || Array.isArray(v)) return false
+      const warn = Number((v as { warnPct?: unknown }).warnPct)
+      const risk = Number((v as { riskPct?: unknown }).riskPct)
+      const critical = Number((v as { criticalPct?: unknown }).criticalPct)
+      if (![warn, risk, critical].every(Number.isFinite)) return false
+      if (warn < 1 || risk < 1 || critical < 1) return false
+      if (!(warn < risk && risk < critical)) return false
+      return critical <= 300
+    })
+    .withMessage('budgetPaceThresholds must define warnPct < riskPct < criticalPct (1-300)'),
 ]

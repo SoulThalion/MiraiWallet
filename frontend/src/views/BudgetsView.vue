@@ -8,6 +8,94 @@
 
       <div class="mw-card">
         <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex items-center gap-1.5">
+            <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('budgets.paceTitle') }}</p>
+            <InfoTip :text="t('budgets.paceInfoGeneral')" :aria-label="t('budgets.paceInfoGeneral')" />
+          </div>
+          <span class="text-xs dark:text-dark-txt2 text-light-txt2">
+            {{ budgetPace ? t('budgets.paceDaysProgress', { elapsed: budgetPace.daysElapsed, total: budgetPace.daysTotal, pct: budgetPace.periodProgressPct }) : '—' }}
+          </span>
+        </div>
+
+        <div class="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label>
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.paceMode') }}</span>
+            <select v-model="paceModeDraft" class="mw-input w-full text-sm">
+              <option value="flexible">{{ t('budgets.paceModeFlexible') }}</option>
+              <option value="strict">{{ t('budgets.paceModeStrict') }}</option>
+              <option value="custom">{{ t('budgets.paceModeCustom') }}</option>
+            </select>
+          </label>
+          <label v-if="paceModeDraft === 'custom'">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.paceWarnPct') }}</span>
+            <input v-model.number="paceThresholdDraft.warnPct" type="number" min="1" max="300" class="mw-input w-full tabular-nums" />
+          </label>
+          <label v-if="paceModeDraft === 'custom'">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.paceRiskPct') }}</span>
+            <input v-model.number="paceThresholdDraft.riskPct" type="number" min="1" max="300" class="mw-input w-full tabular-nums" />
+          </label>
+          <label v-if="paceModeDraft === 'custom'" class="sm:col-span-1">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.paceCriticalPct') }}</span>
+            <input v-model.number="paceThresholdDraft.criticalPct" type="number" min="1" max="300" class="mw-input w-full tabular-nums" />
+          </label>
+        </div>
+
+        <p v-if="paceError" class="mb-3 text-xs text-red-400">{{ paceError }}</p>
+        <p v-else-if="paceLoading" class="mb-3 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('common.loading') }}</p>
+
+        <div v-if="budgetPace" class="space-y-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+              <div class="flex items-center gap-1.5">
+                <p class="font-semibold">{{ t('budgets.paceLinear') }}</p>
+                <InfoTip :text="t('budgets.paceInfoLinear')" :aria-label="t('budgets.paceInfoLinear')" />
+              </div>
+              <p class="mt-1">{{ t('budgets.paceActualVsExpected', { actual: formatEuro(budgetPace.actualSpent, false), expected: formatEuro(budgetPace.expectedSpentLinear, false) }) }}</p>
+              <p :class="['mt-1 font-semibold', statusClass(budgetPace.statusLinear)]">
+                {{ statusLabel(budgetPace.statusLinear) }} · {{ budgetPace.pacePctLinear > 0 ? '+' : '' }}{{ budgetPace.pacePctLinear.toFixed(1) }}%
+              </p>
+            </div>
+            <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+              <div class="flex items-center gap-1.5">
+                <p class="font-semibold">{{ t('budgets.paceWeighted') }}</p>
+                <InfoTip :text="t('budgets.paceInfoWeighted')" :aria-label="t('budgets.paceInfoWeighted')" />
+              </div>
+              <p class="mt-1">{{ t('budgets.paceActualVsExpected', { actual: formatEuro(budgetPace.actualSpent, false), expected: formatEuro(budgetPace.expectedSpentWeighted, false) }) }}</p>
+              <p :class="['mt-1 font-semibold', statusClass(budgetPace.statusWeighted)]">
+                {{ statusLabel(budgetPace.statusWeighted) }} · {{ budgetPace.pacePctWeighted > 0 ? '+' : '' }}{{ budgetPace.pacePctWeighted.toFixed(1) }}%
+              </p>
+            </div>
+          </div>
+
+          <div class="max-h-56 overflow-y-auto rounded-xl border dark:border-white/[0.08] border-brand-blue/10">
+            <table class="w-full text-xs">
+              <thead class="dark:bg-dark-surf bg-light-surf dark:text-dark-txt3 text-light-txt3">
+                <tr>
+                  <th class="px-2 py-2 text-left">{{ t('budgets.category') }}</th>
+                  <th class="px-2 py-2 text-right">{{ t('budgets.paceReal') }}</th>
+                  <th class="px-2 py-2 text-right">{{ t('budgets.paceExpectedLinear') }}</th>
+                  <th class="px-2 py-2 text-right">{{ t('budgets.paceExpectedWeighted') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in budgetPace.categories"
+                  :key="`pace-cat-${row.categoryId}`"
+                  class="border-t dark:border-white/[0.06] border-brand-blue/8"
+                >
+                  <td class="px-2 py-2">{{ row.icon }} {{ row.name }}</td>
+                  <td class="px-2 py-2 text-right tabular-nums">{{ formatEuro(row.actualSpent, false) }}</td>
+                  <td class="px-2 py-2 text-right tabular-nums">{{ formatEuro(row.expectedSpentLinear, false) }}</td>
+                  <td class="px-2 py-2 text-right tabular-nums">{{ formatEuro(row.expectedSpentWeighted, false) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="mw-card">
+        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('budgets.configure') }}</p>
           <button
             type="button"
@@ -216,10 +304,16 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
 import { api } from '@/services/api'
-import type { BudgetRecommendationProfile, BudgetRecommendationResult } from '@/services/api'
+import type {
+  BudgetPaceDto,
+  BudgetPaceMode,
+  BudgetRecommendationProfile,
+  BudgetRecommendationResult,
+} from '@/services/api'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 import { useCurrency } from '@/composables/useCurrency'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
+import InfoTip from '@/components/InfoTip.vue'
 
 const store = useWalletStore()
 const { t } = useI18n()
@@ -244,6 +338,11 @@ const excludedCategoryIds = ref<Set<string>>(new Set())
 const excludedSubcategoryIds = ref<Set<string>>(new Set())
 const loadedExcludedCategoryIds = ref<Set<string>>(new Set())
 const loadedExcludedSubcategoryIds = ref<Set<string>>(new Set())
+const budgetPace = ref<BudgetPaceDto | null>(null)
+const paceLoading = ref(false)
+const paceError = ref<string | null>(null)
+const paceModeDraft = ref<BudgetPaceMode>('flexible')
+const paceThresholdDraft = ref({ warnPct: 10, riskPct: 20, criticalPct: 35 })
 
 const budgetMonth = computed(() => fiscalYmForDate(new Date(), monthCycleConfigFromSession(store.user)))
 const allBudgetCategories = computed(() =>
@@ -283,7 +382,18 @@ const excludeDirty = computed(() => {
   for (const id of excludedSubcategoryIds.value) if (!loadedExcludedSubcategoryIds.value.has(id)) return true
   return false
 })
-const hasChanges = computed(() => budgetDirty.value || excludeDirty.value)
+const paceConfigDirty = computed(() => {
+  const mode = store.user?.budgetPaceMode ?? 'flexible'
+  if (paceModeDraft.value !== mode) return true
+  if (paceModeDraft.value !== 'custom') return false
+  const current = store.user?.budgetPaceThresholds ?? { warnPct: 10, riskPct: 20, criticalPct: 35 }
+  return (
+    Math.abs(Number(current.warnPct) - Number(paceThresholdDraft.value.warnPct)) > 0.001 ||
+    Math.abs(Number(current.riskPct) - Number(paceThresholdDraft.value.riskPct)) > 0.001 ||
+    Math.abs(Number(current.criticalPct) - Number(paceThresholdDraft.value.criticalPct)) > 0.001
+  )
+})
+const hasChanges = computed(() => budgetDirty.value || excludeDirty.value || paceConfigDirty.value)
 const PROFILE_DEFAULT_TARGET_PCT: Record<BudgetRecommendationProfile, number> = {
   conservative: 25,
   balanced: 20,
@@ -299,6 +409,32 @@ const selectedProfileDescription = computed(() => {
 function subcategorySum(categoryId: string): number {
   const row = subcategoryBudgetDraft.value[categoryId] ?? {}
   return Object.values(row).reduce((sum, v) => sum + Math.max(0, Number(v || 0)), 0)
+}
+
+function statusClass(status: string): string {
+  if (status === 'critical') return 'text-red-500'
+  if (status === 'risk') return 'text-orange-500'
+  if (status === 'warn') return 'text-amber-500'
+  return 'text-brand-green'
+}
+
+function statusLabel(status: string): string {
+  if (status === 'critical') return t('budgets.paceStatusCritical')
+  if (status === 'risk') return t('budgets.paceStatusRisk')
+  if (status === 'warn') return t('budgets.paceStatusWarn')
+  return t('budgets.paceStatusOk')
+}
+
+async function loadBudgetPace(): Promise<void> {
+  paceLoading.value = true
+  paceError.value = null
+  try {
+    budgetPace.value = await api.getBudgetPace(budgetMonth.value)
+  } catch (e: unknown) {
+    paceError.value = t(resolveApiErrorI18nKey(e, 'errors.common.unknown'))
+  } finally {
+    paceLoading.value = false
+  }
 }
 
 function distributeToTotal(total: number): void {
@@ -337,6 +473,9 @@ async function reloadBudgets(): Promise<void> {
   budgetMsg.value = ''
   try {
     await store.loadCategories()
+    paceModeDraft.value = (store.user?.budgetPaceMode ?? 'flexible')
+    const th = store.user?.budgetPaceThresholds ?? { warnPct: 10, riskPct: 20, criticalPct: 35 }
+    paceThresholdDraft.value = { warnPct: Number(th.warnPct), riskPct: Number(th.riskPct), criticalPct: Number(th.criticalPct) }
     excludedCategoryIds.value = new Set(store.user?.budgetExcludedCategoryIds ?? [])
     excludedSubcategoryIds.value = new Set(store.user?.budgetExcludedSubcategoryIds ?? [])
     loadedExcludedCategoryIds.value = new Set(excludedCategoryIds.value)
@@ -365,6 +504,7 @@ async function reloadBudgets(): Promise<void> {
     categoryBudgetDraft.value = catDraft
     subcategoryBudgetDraft.value = subDraft
     budgetTotalDraft.value = categoryBudgetSum.value
+    await loadBudgetPace()
   } catch (e: unknown) {
     budgetError.value = t(resolveApiErrorI18nKey(e, 'errors.common.unknown'))
   } finally {
@@ -377,11 +517,32 @@ async function saveBudgets(): Promise<void> {
   budgetError.value = null
   budgetMsg.value = ''
   try {
-    if (excludeDirty.value) {
-      await api.updateProfile({
-        budgetExcludedCategoryIds: Array.from(excludedCategoryIds.value),
-        budgetExcludedSubcategoryIds: Array.from(excludedSubcategoryIds.value),
-      })
+    if (excludeDirty.value || paceConfigDirty.value) {
+      const profilePayload: {
+        budgetExcludedCategoryIds?: string[]
+        budgetExcludedSubcategoryIds?: string[]
+        budgetPaceMode?: BudgetPaceMode
+        budgetPaceThresholds?: { warnPct: number; riskPct: number; criticalPct: number }
+      } = {}
+      if (excludeDirty.value) {
+        profilePayload.budgetExcludedCategoryIds = Array.from(excludedCategoryIds.value)
+        profilePayload.budgetExcludedSubcategoryIds = Array.from(excludedSubcategoryIds.value)
+      }
+      if (paceConfigDirty.value) {
+        profilePayload.budgetPaceMode = paceModeDraft.value
+        if (paceModeDraft.value === 'custom') {
+          const warnPct = Number(paceThresholdDraft.value.warnPct)
+          const riskPct = Number(paceThresholdDraft.value.riskPct)
+          const criticalPct = Number(paceThresholdDraft.value.criticalPct)
+          if (!(warnPct < riskPct && riskPct < criticalPct)) {
+            budgetError.value = t('budgets.paceThresholdOrderError')
+            budgetSaving.value = false
+            return
+          }
+          profilePayload.budgetPaceThresholds = { warnPct, riskPct, criticalPct }
+        }
+      }
+      await api.updateProfile(profilePayload)
       await store.loadUser()
       loadedExcludedCategoryIds.value = new Set(excludedCategoryIds.value)
       loadedExcludedSubcategoryIds.value = new Set(excludedSubcategoryIds.value)
@@ -428,6 +589,7 @@ async function saveBudgets(): Promise<void> {
     ])
     await store.loadBudgets(budgetMonth.value)
     await reloadBudgets()
+    await loadBudgetPace()
     budgetMsg.value = t('budgets.saved')
   } catch (e: unknown) {
     budgetError.value = t(resolveApiErrorI18nKey(e, 'errors.common.unknown'))
@@ -530,6 +692,7 @@ watch(
   () => [budgetMonth.value, store.user?.id],
   () => {
     void reloadBudgets()
+    void loadBudgetPace()
     if (recommendations.value) void loadRecommendations()
   },
   { immediate: true }

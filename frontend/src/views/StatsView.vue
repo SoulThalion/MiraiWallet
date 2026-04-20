@@ -116,9 +116,64 @@
         </p>
       </div>
 
+      <div class="mw-card md:col-span-2 lg:col-span-3" v-if="budgetPace">
+        <div class="mb-1 flex items-center gap-1.5">
+          <p class="font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.paceTitle') }}</p>
+          <InfoTip :text="t('stats.paceInfoGeneral')" :aria-label="t('stats.paceInfoGeneral')" />
+        </div>
+        <p class="mb-3 text-[10px] dark:text-dark-txt2 text-light-txt2">
+          {{ t('stats.paceDaysProgress', { elapsed: budgetPace.daysElapsed, total: budgetPace.daysTotal, pct: budgetPace.periodProgressPct }) }}
+        </p>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <div class="flex items-center gap-1.5">
+              <p class="font-semibold">{{ t('stats.paceLinear') }}</p>
+              <InfoTip :text="t('stats.paceInfoLinear')" :aria-label="t('stats.paceInfoLinear')" />
+            </div>
+            <p class="mt-1">{{ t('stats.paceActualVsExpected', { actual: formatEuro(budgetPace.actualSpent, false), expected: formatEuro(budgetPace.expectedSpentLinear, false) }) }}</p>
+            <p :class="['mt-1 font-semibold', paceBadgeClass(budgetPace.statusLinear)]">
+              {{ paceStatusLabel(budgetPace.statusLinear) }} · {{ budgetPace.pacePctLinear > 0 ? '+' : '' }}{{ budgetPace.pacePctLinear.toFixed(1) }}%
+            </p>
+          </div>
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <div class="flex items-center gap-1.5">
+              <p class="font-semibold">{{ t('stats.paceWeighted') }}</p>
+              <InfoTip :text="t('stats.paceInfoWeighted')" :aria-label="t('stats.paceInfoWeighted')" />
+            </div>
+            <p class="mt-1">{{ t('stats.paceActualVsExpected', { actual: formatEuro(budgetPace.actualSpent, false), expected: formatEuro(budgetPace.expectedSpentWeighted, false) }) }}</p>
+            <p :class="['mt-1 font-semibold', paceBadgeClass(budgetPace.statusWeighted)]">
+              {{ paceStatusLabel(budgetPace.statusWeighted) }} · {{ budgetPace.pacePctWeighted > 0 ? '+' : '' }}{{ budgetPace.pacePctWeighted.toFixed(1) }}%
+            </p>
+          </div>
+        </div>
+        <div class="mt-3 max-h-56 overflow-y-auto rounded-xl border dark:border-white/[0.08] border-brand-blue/10">
+          <table class="w-full text-xs">
+            <thead class="dark:bg-dark-surf bg-light-surf dark:text-dark-txt3 text-light-txt3">
+              <tr>
+                <th class="px-2 py-2 text-left">{{ t('stats.category') }}</th>
+                <th class="px-2 py-2 text-right">{{ t('stats.paceLinearPct') }}</th>
+                <th class="px-2 py-2 text-right">{{ t('stats.paceWeightedPct') }}</th>
+                <th class="px-2 py-2 text-right">{{ t('stats.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in budgetPaceCategories" :key="`stats-pace-${row.categoryId}`" class="border-t dark:border-white/[0.06] border-brand-blue/8">
+                <td class="px-2 py-2">{{ row.icon }} {{ row.name }}</td>
+                <td class="px-2 py-2 text-right tabular-nums">{{ row.pacePctLinear > 0 ? '+' : '' }}{{ row.pacePctLinear.toFixed(1) }}%</td>
+                <td class="px-2 py-2 text-right tabular-nums">{{ row.pacePctWeighted > 0 ? '+' : '' }}{{ row.pacePctWeighted.toFixed(1) }}%</td>
+                <td :class="['px-2 py-2 text-right font-semibold', paceBadgeClass(row.statusWeighted)]">{{ paceStatusLabel(row.statusWeighted) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Desglose -->
       <div class="mw-card md:col-span-2 lg:col-span-3">
-        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.breakdownByCategory') }}</p>
+        <div class="mb-1 flex items-center gap-1.5">
+          <p class="font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.breakdownByCategory') }}</p>
+          <InfoTip :text="t('stats.breakdownInfo')" :aria-label="t('stats.breakdownInfo')" />
+        </div>
         <p class="mb-4 text-[10px] dark:text-dark-txt2 text-light-txt2">
           {{ t('stats.monthExpenseVsBudget') }} · {{ selectedMonthLabel }}
         </p>
@@ -683,6 +738,7 @@ import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import DonutChart from '@/components/DonutChart.vue'
 import BarChart from '@/components/BarChart.vue'
 import MwMonthStepper from '@/components/MwMonthStepper.vue'
+import InfoTip from '@/components/InfoTip.vue'
 import IconPigMoney from '@/icons/IconPigMoney.vue'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 
@@ -818,6 +874,22 @@ const monthBudgetTotal = computed(() => roundMoney(overview.value?.totals.monthB
 
 const statsMonthSpendTotal = computed(() => roundMoney(overview.value?.totals.monthExpenseTotal ?? 0))
 const statsMonthIncomeTotal = computed(() => roundMoney(overview.value?.totals.monthIncomeTotal ?? 0))
+const budgetPace = computed(() => overview.value?.budgetPace ?? null)
+const budgetPaceCategories = computed(() => (overview.value?.budgetPace?.categories ?? []).slice().sort((a, b) => b.pacePctWeighted - a.pacePctWeighted))
+
+function paceBadgeClass(status: string): string {
+  if (status === 'critical') return 'text-red-500'
+  if (status === 'risk') return 'text-orange-500'
+  if (status === 'warn') return 'text-amber-500'
+  return 'text-brand-green'
+}
+
+function paceStatusLabel(status: string): string {
+  if (status === 'critical') return t('stats.paceStatusCritical')
+  if (status === 'risk') return t('stats.paceStatusRisk')
+  if (status === 'warn') return t('stats.paceStatusWarn')
+  return t('stats.paceStatusOk')
+}
 
 const statsDonutSegments = computed<DonutSegment[]>(() => {
   const rows = distributionOverview.value?.categories.filter(c => roundMoney(c.spent) > 0) ?? []

@@ -123,6 +123,51 @@ export interface UpsertSubcategoryBudgetDto {
 }
 
 export type BudgetRecommendationProfile = 'conservative' | 'balanced' | 'flexible'
+export type BudgetPaceMode = 'flexible' | 'strict' | 'custom'
+export type BudgetPaceStatus = 'ok' | 'warn' | 'risk' | 'critical'
+
+export interface BudgetPaceThresholds {
+  warnPct: number
+  riskPct: number
+  criticalPct: number
+}
+
+export interface BudgetPaceCategoryDto {
+  categoryId: string
+  name: string
+  icon: string
+  color: string
+  budget: number
+  actualSpent: number
+  expectedSpentLinear: number
+  expectedSpentWeighted: number
+  pacePctLinear: number
+  pacePctWeighted: number
+  statusLinear: BudgetPaceStatus
+  statusWeighted: BudgetPaceStatus
+}
+
+export interface BudgetPaceDto {
+  month: string
+  asOfDate: string
+  daysElapsed: number
+  daysTotal: number
+  daysRemaining: number
+  periodProgressPct: number
+  budgetPaceMode: BudgetPaceMode
+  thresholds: BudgetPaceThresholds
+  actualSpent: number
+  totalBudget: number
+  expectedSpentLinear: number
+  expectedSpentWeighted: number
+  paceDeltaLinear: number
+  paceDeltaWeighted: number
+  pacePctLinear: number
+  pacePctWeighted: number
+  statusLinear: BudgetPaceStatus
+  statusWeighted: BudgetPaceStatus
+  categories: BudgetPaceCategoryDto[]
+}
 
 export interface BudgetRecommendationQueryDto {
   month: string
@@ -245,6 +290,7 @@ export interface StatsMonthOverviewDto {
   incomeSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
   /** Patrones de gasto repetido (últimos 36 meses, máx. 60 filas). */
   recurringExpenses: StatsRecurringExpenseDto[]
+  budgetPace?: BudgetPaceDto | null
 }
 
 export interface TokenPair {

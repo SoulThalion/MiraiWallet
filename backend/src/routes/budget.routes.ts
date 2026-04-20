@@ -5,6 +5,7 @@ import {
   upsertSubcategoryBudgetRules,
   budgetRecommendationQueryRules,
   applyBudgetRecommendationRules,
+  budgetPaceQueryRules,
 } from '../validators/budget.validators'
 import { validate }     from '../middlewares/validate.middleware'
 import { authenticate } from '../middlewares/auth.middleware'
@@ -20,5 +21,6 @@ router.put('/subcategories', upsertSubcategoryBudgetRules, validate, ctrl.upsert
 router.delete('/subcategories/:id', ctrl.removeSubcategory)
 router.get('/recommendations', budgetRecommendationQueryRules, validate, ctrl.recommendations)
 router.post('/recommendations/apply', applyBudgetRecommendationRules, validate, ctrl.applyRecommendations)
+router.get('/pace', budgetPaceQueryRules, validate, ctrl.pace)
 
 export default router

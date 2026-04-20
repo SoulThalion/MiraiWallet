@@ -38,6 +38,14 @@ export class User extends Model<
   declare recurringSavingsCategoryIds: CreationOptional<string[] | null>
   /** UUIDs de subcategorías marcadas globalmente como ahorro (JSON array). */
   declare recurringSavingsSubcategoryIds: CreationOptional<string[] | null>
+  /** Configuración de severidad para alertas de ritmo de gasto. */
+  declare budgetPaceMode: CreationOptional<'flexible' | 'strict' | 'custom'>
+  /** Umbrales personalizados de ritmo (% por encima del esperado). */
+  declare budgetPaceThresholds: CreationOptional<{
+    warnPct: number
+    riskPct: number
+    criticalPct: number
+  } | null>
   /** Overrides de clasificación por patrón recurrente (no muta transacciones). */
   declare recurringPatternCategoryOverrides: CreationOptional<Array<{
     patternKey: string
@@ -124,6 +132,16 @@ export function initUser(sequelize: Sequelize): void {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],
+      },
+      budgetPaceMode: {
+        type: DataTypes.ENUM('flexible', 'strict', 'custom'),
+        allowNull: false,
+        defaultValue: 'flexible',
+      },
+      budgetPaceThresholds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: { warnPct: 10, riskPct: 20, criticalPct: 35 },
       },
       recurringPatternCategoryOverrides: {
         type: DataTypes.JSON,

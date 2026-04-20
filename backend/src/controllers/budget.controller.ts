@@ -55,3 +55,10 @@ export const applyRecommendations = async (req: Request, res: Response, next: Ne
     ApiResponse.success(res, await recommendationService.applyRecommendations(uid(req), req.body))
   } catch (e) { next(e) }
 }
+
+export const pace = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const month = (req.query.month as string) ?? currentMonthLocal()
+    ApiResponse.success(res, await budgetService.getBudgetPace(uid(req), month))
+  } catch (e) { next(e) }
+}

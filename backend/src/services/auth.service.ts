@@ -122,6 +122,12 @@ export async function updateProfile(
     recurringSavingsPatternKeys?: string[] | null
     recurringSavingsCategoryIds?: string[] | null
     recurringSavingsSubcategoryIds?: string[] | null
+    budgetPaceMode?: 'flexible' | 'strict' | 'custom'
+    budgetPaceThresholds?: {
+      warnPct: number
+      riskPct: number
+      criticalPct: number
+    } | null
   },
 ): Promise<object> {
   const patch: Partial<{
@@ -137,6 +143,8 @@ export async function updateProfile(
     recurringSavingsPatternKeys: string[]
     recurringSavingsCategoryIds: string[]
     recurringSavingsSubcategoryIds: string[]
+    budgetPaceMode: 'flexible' | 'strict' | 'custom'
+    budgetPaceThresholds: { warnPct: number; riskPct: number; criticalPct: number }
   }> = {}
 
   if (typeof data.name === 'string') {
@@ -304,6 +312,39 @@ export async function updateProfile(
         if (!sub) throw ApiError.badRequest(ERROR_CODES.PROFILE_RECURRING_SAVINGS_SUBCATEGORY_UNKNOWN, 'Subcategoría desconocida para marcado de ahorro')
       }
       patch.recurringSavingsSubcategoryIds = ids
+    }
+  }
+
+  if (data.budgetPaceMode !== undefined) {
+    if (!['flexible', 'strict', 'custom'].includes(data.budgetPaceMode)) {
+      throw ApiError.badRequest(
+        ERROR_CODES.PROFILE_BUDGET_PACE_MODE_INVALID,
+        'budgetPaceMode debe ser flexible, strict o custom'
+      )
+    }
+    patch.budgetPaceMode = data.budgetPaceMode
+  }
+
+  if (data.budgetPaceThresholds !== undefined) {
+    if (data.budgetPaceThresholds === null) {
+      patch.budgetPaceThresholds = { warnPct: 10, riskPct: 20, criticalPct: 35 }
+    } else {
+      const warnPct = Number(data.budgetPaceThresholds.warnPct)
+      const riskPct = Number(data.budgetPaceThresholds.riskPct)
+      const criticalPct = Number(data.budgetPaceThresholds.criticalPct)
+      if (![warnPct, riskPct, criticalPct].every(Number.isFinite) || warnPct < 1 || riskPct < 1 || criticalPct < 1 || criticalPct > 300) {
+        throw ApiError.badRequest(
+          ERROR_CODES.PROFILE_BUDGET_PACE_THRESHOLDS_INVALID,
+          'budgetPaceThresholds debe contener números válidos entre 1 y 300'
+        )
+      }
+      if (!(warnPct < riskPct && riskPct < criticalPct)) {
+        throw ApiError.badRequest(
+          ERROR_CODES.PROFILE_BUDGET_PACE_THRESHOLDS_INVALID,
+          'Los umbrales deben cumplir warnPct < riskPct < criticalPct'
+        )
+      }
+      patch.budgetPaceThresholds = { warnPct, riskPct, criticalPct }
     }
   }
 

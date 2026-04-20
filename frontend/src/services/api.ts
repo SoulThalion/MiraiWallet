@@ -97,6 +97,51 @@ export interface ApiSubcategoryBudget {
 }
 
 export type BudgetRecommendationProfile = 'conservative' | 'balanced' | 'flexible'
+export type BudgetPaceMode = 'flexible' | 'strict' | 'custom'
+export type BudgetPaceStatus = 'ok' | 'warn' | 'risk' | 'critical'
+
+export interface BudgetPaceThresholds {
+  warnPct: number
+  riskPct: number
+  criticalPct: number
+}
+
+export interface BudgetPaceCategoryDto {
+  categoryId: string
+  name: string
+  icon: string
+  color: string
+  budget: number
+  actualSpent: number
+  expectedSpentLinear: number
+  expectedSpentWeighted: number
+  pacePctLinear: number
+  pacePctWeighted: number
+  statusLinear: BudgetPaceStatus
+  statusWeighted: BudgetPaceStatus
+}
+
+export interface BudgetPaceDto {
+  month: string
+  asOfDate: string
+  daysElapsed: number
+  daysTotal: number
+  daysRemaining: number
+  periodProgressPct: number
+  budgetPaceMode: BudgetPaceMode
+  thresholds: BudgetPaceThresholds
+  actualSpent: number
+  totalBudget: number
+  expectedSpentLinear: number
+  expectedSpentWeighted: number
+  paceDeltaLinear: number
+  paceDeltaWeighted: number
+  pacePctLinear: number
+  pacePctWeighted: number
+  statusLinear: BudgetPaceStatus
+  statusWeighted: BudgetPaceStatus
+  categories: BudgetPaceCategoryDto[]
+}
 
 export interface BudgetRecommendationSubLine {
   subcategoryId: string
@@ -295,6 +340,7 @@ export interface StatsMonthOverviewDto {
   incomeCategoryYearAvg: StatsYearAvgCategoryDto[]
   incomeSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
   recurringExpenses: StatsRecurringExpenseDto[]
+  budgetPace?: BudgetPaceDto | null
 }
 
 export interface PaginationMeta {
@@ -342,6 +388,8 @@ export interface SessionUser {
   /** Subcategorías marcadas globalmente como ahorro. */
   recurringSavingsSubcategoryIds?: string[]
   recurringPatternCategoryOverrides?: RecurringPatternCategoryOverride[]
+  budgetPaceMode?: BudgetPaceMode
+  budgetPaceThresholds?: BudgetPaceThresholds | null
 }
 
 export interface IngBankImportResult {
@@ -593,6 +641,11 @@ class ApiClient {
     return response.data.data
   }
 
+  async getBudgetPace(month?: string): Promise<BudgetPaceDto> {
+    const response = await this.client.get<ApiSuccessBody<BudgetPaceDto>>('/budgets/pace', { params: month ? { month } : {} })
+    return response.data.data
+  }
+
   async getAccounts(): Promise<ApiAccount[]> {
     const response = await this.client.get<ApiSuccessBody<ApiAccount[]>>('/accounts')
     return response.data.data
@@ -644,6 +697,8 @@ class ApiClient {
     recurringSavingsPatternKeys?: string[] | null
     recurringSavingsCategoryIds?: string[] | null
     recurringSavingsSubcategoryIds?: string[] | null
+    budgetPaceMode?: BudgetPaceMode
+    budgetPaceThresholds?: BudgetPaceThresholds | null
   }): Promise<SessionUser> {
     const response = await this.client.patch<ApiSuccessBody<SessionUser>>('/auth/me', payload)
     return response.data.data

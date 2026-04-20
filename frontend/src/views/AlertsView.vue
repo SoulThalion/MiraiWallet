@@ -32,7 +32,10 @@
       <div class="lg:col-span-2 flex flex-col gap-4">
         <section>
           <div class="flex items-center justify-between mb-2">
-            <h2 class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.autoDetected') }}</h2>
+            <div class="flex items-center gap-1.5">
+              <h2 class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.autoDetected') }}</h2>
+              <InfoTip :text="t('alerts.autoDetectedInfo')" :aria-label="t('alerts.autoDetectedInfo')" />
+            </div>
             <RouterLink to="/stats" class="text-xs text-brand-blue font-semibold">{{ t('alerts.goToStats') }} →</RouterLink>
           </div>
           <p class="text-xs dark:text-dark-txt2 text-light-txt2 mb-3">
@@ -98,7 +101,10 @@
       <div class="lg:col-span-1 flex flex-col gap-4">
         <div class="mw-card">
           <div class="flex justify-between items-center mb-4">
-            <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.periodBudget') }}</p>
+            <div class="flex items-center gap-1.5">
+              <p class="font-display font-bold text-sm dark:text-dark-txt text-light-txt">{{ t('alerts.periodBudget') }}</p>
+              <InfoTip :text="t('alerts.periodBudgetInfo')" :aria-label="t('alerts.periodBudgetInfo')" />
+            </div>
             <p class="text-xs dark:text-dark-txt2 text-light-txt2 tabular-nums">
               {{ formatEuro(store.totalBudgetedSpentThisMonth) }} / {{ formatEuro(store.totalBudget) }}
             </p>
@@ -109,9 +115,12 @@
                 class="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-brand-blue-dark to-brand-blue"
                 :style="{ width: budgetPct + '%' }" />
             </div>
-            <p class="text-xs text-right dark:text-dark-txt2 text-light-txt2">
-              {{ t('alerts.usedBudgetPercent', { pct: budgetPct }) }}
-            </p>
+            <div class="flex items-center justify-end gap-1">
+              <p class="text-xs text-right dark:text-dark-txt2 text-light-txt2">
+                {{ t('alerts.usedBudgetPercent', { pct: budgetPct }) }}
+              </p>
+              <InfoTip :text="t('alerts.usedBudgetPercentInfo')" :aria-label="t('alerts.usedBudgetPercentInfo')" />
+            </div>
           </div>
           <div class="max-h-[min(52vh,28rem)] overflow-y-auto pr-1 -mr-1">
             <BudgetBar
@@ -140,17 +149,20 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWalletStore } from '@/stores/wallet'
+import { api, type BudgetPaceDto } from '@/services/api'
 import { useCurrency } from '@/composables/useCurrency'
 import { fiscalYmForDate, monthCycleConfigFromSession } from '@/utils/monthPeriod'
 import { formatYearMonthEs } from '@/utils/yearMonthDisplay'
 import AlertCard from '@/components/AlertCard.vue'
 import BudgetBar from '@/components/BudgetBar.vue'
+import InfoTip from '@/components/InfoTip.vue'
 
 const store = useWalletStore()
 const { formatEuro, formatPct } = useCurrency()
 const { t } = useI18n()
 
 const refreshing = ref(false)
+const budgetPace = ref<BudgetPaceDto | null>(null)
 
 const periodYm = computed(() => fiscalYmForDate(new Date(), monthCycleConfigFromSession(store.user)))
 const periodLabel = computed(() => formatYearMonthEs(periodYm.value))
@@ -241,6 +253,40 @@ const kpiRow = computed(() => [
 
 const derivedInsights = computed<DerivedInsight[]>(() => {
   const out: DerivedInsight[] = []
+  const pace = budgetPace.value
+
+  if (pace) {
+    const weighted = pace.statusWeighted
+    if (weighted === 'critical' || weighted === 'risk' || weighted === 'warn') {
+      out.push({
+        key: 'pace-weighted',
+        type: weighted === 'critical' ? 'danger' : 'warning',
+        badge: t('alerts.badge.pace'),
+        title: t('alerts.derived.paceWeightedTitle'),
+        body: t('alerts.derived.paceWeightedBody', {
+          elapsed: pace.daysElapsed,
+          total: pace.daysTotal,
+          pct: pace.pacePctWeighted.toFixed(1),
+        }),
+        amount: `${pace.pacePctWeighted > 0 ? '+' : ''}${pace.pacePctWeighted.toFixed(1)}%`,
+      })
+    }
+    const linear = pace.statusLinear
+    if (linear === 'critical' || linear === 'risk' || linear === 'warn') {
+      out.push({
+        key: 'pace-linear',
+        type: linear === 'critical' ? 'danger' : 'warning',
+        badge: t('alerts.badge.pace'),
+        title: t('alerts.derived.paceLinearTitle'),
+        body: t('alerts.derived.paceLinearBody', {
+          elapsed: pace.daysElapsed,
+          total: pace.daysTotal,
+          pct: pace.pacePctLinear.toFixed(1),
+        }),
+        amount: `${pace.pacePctLinear > 0 ? '+' : ''}${pace.pacePctLinear.toFixed(1)}%`,
+      })
+    }
+  }
 
   const over = store.categories
     .filter(c => c.budget > 0 && c.spentThisMonth > c.budget)
@@ -372,6 +418,11 @@ const derivedInsights = computed<DerivedInsight[]>(() => {
 })
 
 const dynamicTip = computed(() => {
+  const pace = budgetPace.value
+  if (pace && (pace.statusWeighted === 'critical' || pace.statusWeighted === 'risk' || pace.statusWeighted === 'warn')) {
+    return t('alerts.tip.paceWeighted', { pct: pace.pacePctWeighted.toFixed(1), elapsed: pace.daysElapsed, total: pace.daysTotal })
+  }
+
   const over = store.categories.filter(c => c.budget > 0 && c.spentThisMonth > c.budget)
   if (over.length) {
     const names = over
@@ -412,7 +463,12 @@ const dynamicTip = computed(() => {
 async function refresh(): Promise<void> {
   refreshing.value = true
   try {
-    await Promise.all([store.loadDashboard(), store.loadBudgets(), store.loadAlerts()])
+    await Promise.all([
+      store.loadDashboard(),
+      store.loadBudgets(),
+      store.loadAlerts(),
+      api.getBudgetPace(periodYm.value).then((v) => { budgetPace.value = v }).catch(() => { budgetPace.value = null }),
+    ])
   } finally {
     refreshing.value = false
   }

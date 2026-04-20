@@ -59,6 +59,8 @@ const ERROR_CODE_TO_I18N_KEY: Record<number, string> = {
   5024: 'errors.profile.recurringSavingsSubcategoryIdsInvalid',
   5025: 'errors.profile.recurringSavingsSubcategoryIdInvalid',
   5026: 'errors.profile.recurringSavingsSubcategoryUnknown',
+  5027: 'errors.profile.budgetPaceModeInvalid',
+  5028: 'errors.profile.budgetPaceThresholdsInvalid',
 
   1001: 'errors.validation.requestValidationFailed',
   1002: 'errors.validation.entityValidationFailed',

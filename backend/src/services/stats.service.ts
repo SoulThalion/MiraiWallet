@@ -2,6 +2,7 @@ import { Op } from 'sequelize'
 import { Account, Budget, Category, RecurringPatternDismissal, Subcategory, SubcategoryBudget, Transaction, User } from '../models'
 import * as accountService     from './account.service'
 import * as transactionService from './transaction.service'
+import * as budgetService from './budget.service'
 import type { StatsMonthOverviewDto, StatsRecurringExpenseDto } from '../types'
 import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds } from '../utils/monthPeriod'
 import { ApiError } from '../utils/ApiError'
@@ -370,7 +371,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const year = parseInt(yStr, 10)
   const selectedMm = mStr
 
-  const [summaryRows, allCategories, budgets, subBudgets, recurringExpenses, monthCycleCfg, userPrefs] =
+  const [summaryRows, allCategories, budgets, subBudgets, recurringExpenses, monthCycleCfg, userPrefs, budgetPace] =
     await Promise.all([
       transactionService.monthlySummary(userId, year),
       Category.findAll({
@@ -396,6 +397,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
           'recurringPatternCategoryOverrides',
         ],
       }),
+      budgetService.getBudgetPace(userId, month).catch(() => null),
     ])
   const patternCategoryOverrides = transactionService.buildPatternCategoryOverrideMap(
     userPrefs?.recurringPatternCategoryOverrides as unknown
@@ -590,6 +592,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
     incomeCategoryYearAvg: yearAvgs.incomeCategories,
     incomeSubcategoryYearAvg: yearAvgs.incomeSubcategories,
     recurringExpenses,
+    budgetPace,
   }
 }
 
