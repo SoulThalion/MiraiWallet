@@ -43,6 +43,7 @@ function dayOfMonthFromDateOnly(dateVal: unknown): number {
   return parseInt(br[3]!, 10)
 }
 
+/** Clave exacta por movimiento (día = día del cargo). Compatible con datos guardados antes del margen ±1 día en detección. */
 export function recurringPatternKeyFromTransaction(tx: Pick<Transaction, 'categoryId' | 'subcategoryId' | 'amount' | 'description' | 'date'>): string | null {
   const catId = tx.categoryId ?? 'none'
   const subId = tx.subcategoryId ?? 'none'
@@ -54,6 +55,74 @@ export function recurringPatternKeyFromTransaction(tx: Pick<Transaction, 'catego
   const desc = normalizeRecurringDescriptionKey(tx.description)
   if (!desc) return null
   return `${catId}\t${subId}\t${desc}\t${amt}\t${day}`
+}
+
+/** Agrupación de recurrentes automáticos sin día: `cat\tsub\tdesc\tamt`. */
+export function recurringExpenseBaseKeyFromTransaction(tx: Pick<Transaction, 'categoryId' | 'subcategoryId' | 'amount' | 'description' | 'date'>): string | null {
+  const catId = tx.categoryId ?? 'none'
+  const subId = tx.subcategoryId ?? 'none'
+  const rawAmt = Number(tx.amount)
+  if (!Number.isFinite(rawAmt)) return null
+  const amt = roundMoney2(Math.abs(rawAmt))
+  const desc = normalizeRecurringDescriptionKey(tx.description)
+  if (!desc) return null
+  return `${catId}\t${subId}\t${desc}\t${amt}`
+}
+
+/** Parsea `patternKey` con 5 segmentos tab (último = día ancla 1–31). */
+export function parseRecurringPatternTabKey(patternKey: string): { baseKey: string; anchorDay: number } | null {
+  const parts = patternKey.split('\t')
+  if (parts.length !== 5) return null
+  const anchorDay = parseInt(parts[4]!, 10)
+  if (!Number.isFinite(anchorDay) || anchorDay < 1 || anchorDay > 31) return null
+  return { baseKey: parts.slice(0, 4).join('\t'), anchorDay }
+}
+
+export function buildRecurringPatternKey(baseKey: string, anchorDay: number): string {
+  const d = Math.min(31, Math.max(1, Math.round(anchorDay)))
+  return `${baseKey}\t${d}`
+}
+
+/** Misma base y día del mes dentro de ±1 respecto al ancla del patrón (solo día de calendario, sin cruzar meses). */
+export function transactionMatchesRecurringPatternKey(
+  tx: Pick<Transaction, 'categoryId' | 'subcategoryId' | 'amount' | 'description' | 'date'>,
+  patternKey: string,
+): boolean {
+  const parsed = parseRecurringPatternTabKey(patternKey)
+  if (!parsed) return false
+  const txBase = recurringExpenseBaseKeyFromTransaction(tx)
+  if (!txBase || txBase !== parsed.baseKey) return false
+  const txDay = dayOfMonthFromDateOnly(tx.date)
+  if (txDay < 1 || txDay > 31) return false
+  return Math.abs(txDay - parsed.anchorDay) <= 1
+}
+
+export function patternCategoryOverrideForTransaction(
+  tx: Pick<Transaction, 'categoryId' | 'subcategoryId' | 'amount' | 'description' | 'date'>,
+  overrideMap: Map<string, PatternCategoryOverride>,
+): PatternCategoryOverride | undefined {
+  const exact = recurringPatternKeyFromTransaction(tx)
+  if (exact) {
+    const hit = overrideMap.get(exact)
+    if (hit) return hit
+  }
+  for (const o of overrideMap.values()) {
+    if (transactionMatchesRecurringPatternKey(tx, o.patternKey)) return o
+  }
+  return undefined
+}
+
+export function transactionMatchesAnySavingsPatternKey(
+  tx: Pick<Transaction, 'categoryId' | 'subcategoryId' | 'amount' | 'description' | 'date' | 'type'>,
+  savingsPatterns: Set<string>,
+): boolean {
+  if (!savingsPatterns.size) return false
+  const exact = recurringPatternKeyFromTransaction(tx)
+  if (exact && savingsPatterns.has(exact)) return true
+  for (const k of savingsPatterns) {
+    if (transactionMatchesRecurringPatternKey(tx, k)) return true
+  }
+  return false
 }
 
 export interface PatternCategoryOverride {
@@ -374,8 +443,7 @@ export async function categoryBreakdown(
   const overrideCategoryById = new Map(overrideCategories.map(c => [c.id, c]))
   const map: Record<string, CategoryBreakdownRow> = {}
   for (const tx of txs) {
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? overrideMap.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, overrideMap)
     const cat = override?.categoryId ? overrideCategoryById.get(override.categoryId) : null
     const key = cat?.id ?? override?.categoryId ?? tx.categoryId ?? 'uncategorized'
     if (!map[key]) {
@@ -418,8 +486,7 @@ export async function categoryIncomeBreakdownMonth(
   const overrideCategoryById = new Map(overrideCategories.map(c => [c.id, c]))
   const map: Record<string, CategoryBreakdownRow> = {}
   for (const tx of txs) {
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? overrideMap.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, overrideMap)
     const cat = override?.categoryId ? overrideCategoryById.get(override.categoryId) : null
     const key = cat?.id ?? override?.categoryId ?? tx.categoryId ?? 'uncategorized'
     if (!map[key]) {
@@ -469,8 +536,7 @@ export async function subcategoryBreakdownMonth(
   const overrideCategoryById = new Map(overrideCategories.map(c => [c.id, c]))
   const overrideSubById = new Map(overrideSubcategories.map(s => [s.id, s]))
   const normalized = txs.map((tx) => {
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? overrideMap.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, overrideMap)
     if (!override) return tx
     const cat = override.categoryId ? overrideCategoryById.get(override.categoryId) : undefined
     const sub = override.subcategoryId ? overrideSubById.get(override.subcategoryId) : undefined
@@ -563,13 +629,12 @@ function lastNActiveFiscalMonths(
   const active = new Set<string>()
   for (const tx of txs) {
     if (kind === 'expense') {
-      const isSavingsTransfer = tx.type === 'transfer'
+        const isSavingsTransfer = tx.type === 'transfer'
         && (!!savingsPatterns?.size || !!savingsCategories?.size || !!savingsSubcategories?.size)
         && (() => {
           if (tx.subcategoryId && savingsSubcategories?.has(tx.subcategoryId)) return true
           if (tx.categoryId && savingsCategories?.has(tx.categoryId)) return true
-          const key = recurringPatternKeyFromTransaction(tx)
-          return !!key && (savingsPatterns?.has(key) ?? false)
+          return !!(savingsPatterns?.size && transactionMatchesAnySavingsPatternKey(tx, savingsPatterns))
         })()
       if (tx.type !== 'expense' && !isSavingsTransfer) continue
     } else if (tx.type !== kind) {
@@ -689,8 +754,7 @@ export async function rolling12ByCategoryAndSubcategory(
           && (() => {
             if (tx.subcategoryId && savingsSubcategories.has(tx.subcategoryId)) return true
             if (tx.categoryId && savingsCategories.has(tx.categoryId)) return true
-            const key = recurringPatternKeyFromTransaction(tx)
-            return !!key && savingsPatterns.has(key)
+            return transactionMatchesAnySavingsPatternKey(tx, savingsPatterns)
           })()
         if (tx.type !== 'expense' && !isSavingsTransfer) continue
       } else if (tx.type !== kind) {
@@ -732,12 +796,10 @@ export async function rolling12ByCategoryAndSubcategory(
       && (() => {
         if (tx.subcategoryId && savingsSubcategories.has(tx.subcategoryId)) return true
         if (tx.categoryId && savingsCategories.has(tx.categoryId)) return true
-        const key = recurringPatternKeyFromTransaction(tx)
-        return !!key && savingsPatterns.has(key)
+        return transactionMatchesAnySavingsPatternKey(tx, savingsPatterns)
       })()
 
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? patternOverrides.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, patternOverrides)
     let catId = tx.categoryId ?? 'uncategorized'
     let cname = tx.category?.name ?? 'Sin categoría'
     let cicon = tx.category?.icon ?? '💸'

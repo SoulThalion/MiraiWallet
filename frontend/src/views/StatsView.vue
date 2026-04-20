@@ -489,7 +489,6 @@ function defaultSelectedYm(): string {
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
 }
 
-const selectedMonthYm = ref(defaultSelectedYm())
 const selectedDistributionYm = ref(defaultSelectedYm())
 const selectedBarsYear = ref(parseInt(defaultSelectedYm().slice(0, 4), 10))
 
@@ -505,11 +504,14 @@ async function loadMonthOverview(ym: string): Promise<void> {
   monthLoading.value = true
   statsError.value = null
   try {
-    overview.value = await api.getStatsMonthOverview(ym)
+    const data = await api.getStatsMonthOverview(ym)
+    overview.value = data
+    distributionOverview.value = data
     yearExpandedCats.value = {}
   } catch (e: unknown) {
     statsError.value = t(resolveApiErrorI18nKey(e, 'stats.loadStatsError'))
     overview.value = null
+    distributionOverview.value = null
   } finally {
     monthLoading.value = false
   }
@@ -528,23 +530,11 @@ async function loadBarsOverview(year: number): Promise<void> {
   }
 }
 
-async function loadDistributionOverview(ym: string): Promise<void> {
-  try {
-    distributionOverview.value = await api.getStatsMonthOverview(ym)
-  } catch {
-    distributionOverview.value = null
-  }
-}
-
-watch(selectedMonthYm, (ym) => {
-  void loadMonthOverview(ym)
-})
-
 watch(selectedBarsYear, (y) => {
   void loadBarsOverview(y)
 })
 watch(selectedDistributionYm, (ym) => {
-  void loadDistributionOverview(ym)
+  void loadMonthOverview(ym)
 })
 
 watch(
@@ -556,37 +546,28 @@ watch(
   ],
   () => {
     const ym = defaultSelectedYm()
-    selectedMonthYm.value = ym
     selectedDistributionYm.value = ym
     selectedBarsYear.value = parseInt(ym.slice(0, 4), 10)
-    void Promise.all([
-      loadMonthOverview(selectedMonthYm.value),
-      loadBarsOverview(selectedBarsYear.value),
-      loadDistributionOverview(selectedDistributionYm.value),
-    ])
+    void Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
   }
 )
 
 onMounted(() => {
   if (!wallet.categories.length) void wallet.loadCategories()
-  void Promise.all([
-    loadMonthOverview(selectedMonthYm.value),
-    loadBarsOverview(selectedBarsYear.value),
-    loadDistributionOverview(selectedDistributionYm.value),
-  ])
+  void Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
 })
 
 const chartYear = computed(() => selectedBarsYear.value)
 const barYearMin = computed(() => new Date().getFullYear() - 15)
 const barYearMax = computed(() => new Date().getFullYear() + 1)
 
-const selectedMonthLabel = computed(() => formatYearMonthEs(selectedMonthYm.value))
+const selectedMonthLabel = computed(() => formatYearMonthEs(selectedDistributionYm.value))
 const selectedDistributionLabel = computed(() => formatYearMonthEs(selectedDistributionYm.value))
 
 const chartBars = computed<MonthlyData[]>(() => {
   const o = barsOverview.value
   if (!o) return []
-  const [selY, selM] = selectedMonthYm.value.split('-')
+  const [selY, selM] = selectedDistributionYm.value.split('-')
   const selectedForBars = String(chartYear.value) === String(selY) ? Number(selM) : 0
   const localeTag = locale.value === 'en' ? 'en-US' : locale.value === 'de' ? 'de-DE' : 'es-ES'
   return o.monthlyBars.map(b => ({
@@ -759,7 +740,7 @@ async function onToggleExcludeCategory(categoryId: string, checked: boolean): Pr
   try {
     const u = await api.updateProfile({ recurringExcludedCategoryIds: excludedCategoryIds.value })
     wallet.user = u
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     excludeError.value = t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError'))
@@ -780,7 +761,7 @@ async function onToggleSavingsCategory(categoryId: string, checked: boolean): Pr
   try {
     const u = await api.updateProfile({ recurringSavingsCategoryIds: savingsCategoryIds.value })
     wallet.user = u
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     savingsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
@@ -801,7 +782,7 @@ async function onToggleSavingsSubcategory(subcategoryId: string, checked: boolea
   try {
     const u = await api.updateProfile({ recurringSavingsSubcategoryIds: savingsSubcategoryIds.value })
     wallet.user = u
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     savingsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
@@ -822,7 +803,7 @@ async function onToggleExcludeSubcategory(subcategoryId: string, checked: boolea
   try {
     const u = await api.updateProfile({ recurringExcludedSubcategoryIds: excludedSubcategoryIds.value })
     wallet.user = u
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     excludeError.value = t(resolveApiErrorI18nKey(e, 'stats.saveExclusionError'))
@@ -856,7 +837,7 @@ async function confirmDismissRecurring(): Promise<void> {
   try {
     await api.dismissRecurringPattern(row.patternKey)
     dismissModalRow.value = null
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     dismissError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))
@@ -876,7 +857,7 @@ async function toggleRecurringSavings(row: StatsRecurringExpenseDto): Promise<vo
     if (!row.isSavings) nextKeys.add(row.patternKey)
     else nextKeys.delete(row.patternKey)
     wallet.user = await api.updateProfile({ recurringSavingsPatternKeys: [...nextKeys] })
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     statsError.value = t(resolveApiErrorI18nKey(e, 'stats.saveRecurringSavingsError'))
@@ -919,7 +900,7 @@ async function confirmRecategorizeRecurring(): Promise<void> {
       recategorizeSubcategoryId.value || null
     )
     recategorizeModalRow.value = null
-    await Promise.all([loadMonthOverview(selectedMonthYm.value), loadBarsOverview(selectedBarsYear.value)])
+    await Promise.all([loadMonthOverview(selectedDistributionYm.value), loadBarsOverview(selectedBarsYear.value)])
     toast.success(t('stats.saved'))
   } catch (e: unknown) {
     recategorizeError.value = t(resolveApiErrorI18nKey(e, 'stats.couldNotApply'))

@@ -5,12 +5,17 @@ import * as accountService     from './account.service'
 import * as transactionService from './transaction.service'
 import * as budgetService from './budget.service'
 import type {
+  PlannedCommitmentCadence,
+  PlannedCommitmentDto,
   RecurringManualRuleDto,
+  StatsForecastSimulateDto,
   StatsMonthOverviewDto,
+  StatsRecurringDueItemDto,
   StatsRecurringExpenseDto,
   StatsRecurringManualMatchDto,
+  StatsRecurringMissedDto,
 } from '../types'
-import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds } from '../utils/monthPeriod'
+import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds, type MonthCycleConfig } from '../utils/monthPeriod'
 import { ApiError } from '../utils/ApiError'
 import { ERROR_CODES } from '../errors/error-codes'
 
@@ -45,11 +50,21 @@ async function defaultFiscalYmForUser(userId: string): Promise<string> {
 const RECURRING_LOOKBACK_MONTHS = 36
 /** Los más recientes primero: si hay muchos movimientos, los patrones actuales (Netflix, etc.) no deben quedar fuera. */
 const RECURRING_MAX_TX = 20000
-const RECURRING_MAX_RESULTS = 60
+/** Tope de patrones devueltos (tras filtros). Subir con cuidado por tamaño de respuesta; antes 60 ocultaba detectados válidos. */
+const RECURRING_MAX_RESULTS = 400
 
 function calendarYmFromDateOnly(dateVal: unknown): string {
   const ymd = toDateOnlyString(dateVal)
   return ymd.length >= 7 ? ymd.slice(0, 7) : ''
+}
+
+/** Mes usado para «≥2 meses distintos» y duplicados en el mismo periodo: alineado al ciclo fiscal del usuario si no es calendario natural. */
+function recurringDetectorMonthYm(dateVal: unknown, cfg: MonthCycleConfig): string {
+  const ymd = toDateOnlyString(dateVal)
+  if (!ymd || ymd.length < 7) return ''
+  if (cfg.mode === 'calendar') return ymd.slice(0, 7)
+  const f = dateToFiscalYm(dateVal, cfg)
+  return f && /^\d{4}-(0[1-9]|1[0-2])$/.test(f) ? f : ymd.slice(0, 7)
 }
 
 function dayOfMonthFromDateOnly(dateVal: unknown): number {
@@ -59,8 +74,9 @@ function dayOfMonthFromDateOnly(dateVal: unknown): number {
   return parseInt(br[3]!, 10)
 }
 
-function recurringExpenseGroupKey(tx: Transaction): string | null {
-  return transactionService.recurringPatternKeyFromTransaction(tx)
+/** Agrupa automáticos por concepto/importe sin día (margen ±1 día se aplica después). */
+function recurringExpenseBaseGroupKey(tx: Transaction): string | null {
+  return transactionService.recurringExpenseBaseKeyFromTransaction(tx)
 }
 
 function normalizeConcept(value: string): string {
@@ -210,18 +226,21 @@ async function bestMonthRolling(
   return { label: `${monthLabelEs(mm)} ${y}`, amount: roundMoney2(bestAmount) }
 }
 
-async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurringExpenseDto[]> {
-  const user = await User.findByPk(userId, {
-    attributes: [
-      'id',
-      'recurringExcludedCategoryIds',
-      'recurringExcludedSubcategoryIds',
-      'recurringSavingsPatternKeys',
-      'recurringSavingsCategoryIds',
-      'recurringSavingsSubcategoryIds',
-      'recurringPatternCategoryOverrides',
-    ],
-  })
+export async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurringExpenseDto[]> {
+  const [user, monthCycleCfg] = await Promise.all([
+    User.findByPk(userId, {
+      attributes: [
+        'id',
+        'recurringExcludedCategoryIds',
+        'recurringExcludedSubcategoryIds',
+        'recurringSavingsPatternKeys',
+        'recurringSavingsCategoryIds',
+        'recurringSavingsSubcategoryIds',
+        'recurringPatternCategoryOverrides',
+      ],
+    }),
+    getMonthCycleConfigForUser(userId),
+  ])
   const rawExcludedCat = user?.recurringExcludedCategoryIds as unknown
   const excludedCategorySet = new Set<string>(
     Array.isArray(rawExcludedCat) ? rawExcludedCat.map(x => String(x)).filter(Boolean) : [],
@@ -276,9 +295,9 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
   for (const tx of txs) {
     if (tx.categoryId && excludedCategorySet.has(tx.categoryId)) continue
     if (tx.subcategoryId && excludedSubcategorySet.has(tx.subcategoryId)) continue
-    const key = recurringExpenseGroupKey(tx)
+    const key = recurringExpenseBaseGroupKey(tx)
     if (!key) continue
-    const ym = calendarYmFromDateOnly(tx.date)
+    const ym = recurringDetectorMonthYm(tx.date, monthCycleCfg)
     if (!/^\d{4}-\d{2}$/.test(ym)) continue
     const acc = groups.get(key) ?? { txs: [], months: new Set() }
     acc.txs.push(tx)
@@ -286,9 +305,51 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
     groups.set(key, acc)
   }
 
+  const resolveOverrideForPattern = (patternKey: string, baseKey: string, anchorDay: number) => {
+    let override = overrideMap.get(patternKey)
+    if (override) return override
+    for (const o of overrideMap.values()) {
+      const p = transactionService.parseRecurringPatternTabKey(o.patternKey)
+      if (p && p.baseKey === baseKey && Math.abs(p.anchorDay - anchorDay) <= 1) return o
+    }
+    return undefined
+  }
+
   const out: StatsRecurringExpenseDto[] = []
-  for (const [, acc] of groups) {
+  for (const [baseKey, acc] of groups) {
     if (acc.txs.length < 2 || acc.months.size < 2) continue
+
+    const byYm = new Map<string, Transaction[]>()
+    for (const t of acc.txs) {
+      const ym = recurringDetectorMonthYm(t.date, monthCycleCfg)
+      if (!/^\d{4}-\d{2}$/.test(ym)) continue
+      const arr = byYm.get(ym) ?? []
+      arr.push(t)
+      byYm.set(ym, arr)
+    }
+    let skipMultiSameMonth = false
+    for (const arr of byYm.values()) {
+      if (arr.length > 1) {
+        skipMultiSameMonth = true
+        break
+      }
+    }
+    if (skipMultiSameMonth) continue
+
+    const ymsSorted = [...byYm.keys()].sort()
+    const dayList = ymsSorted.map((ym) => dayOfMonthFromDateOnly(byYm.get(ym)![0]!.date))
+    const minD = Math.min(...dayList)
+    const maxD = Math.max(...dayList)
+    if (maxD - minD > 2) continue
+
+    const sortedDays = [...dayList].sort((a, b) => a - b)
+    const mid = Math.floor(sortedDays.length / 2)
+    const anchorDayRaw = sortedDays.length % 2 === 1
+      ? sortedDays[mid]!
+      : Math.round((sortedDays[mid - 1]! + sortedDays[mid]!) / 2)
+    const anchorDay = Math.min(31, Math.max(1, anchorDayRaw))
+    const patternKey = transactionService.buildRecurringPatternKey(baseKey, anchorDay)
+
     const sorted = [...acc.txs].sort((a, b) =>
       toDateOnlyString(a.date).localeCompare(toDateOnlyString(b.date)),
     )
@@ -296,10 +357,8 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
     const dates = sorted.map(t => toDateOnlyString(t.date))
     const firstDate = dates[0]!
     const lastDate = dates[dates.length - 1]!
-    const day = dayOfMonthFromDateOnly(first.date)
-    const patternKey = recurringExpenseGroupKey(first)
-    if (!patternKey) continue
-    const override = overrideMap.get(patternKey)
+
+    const override = resolveOverrideForPattern(patternKey, baseKey, anchorDay)
     const effectiveCat = override?.categoryId ? catById.get(override.categoryId) : null
     const effectiveSub = override?.subcategoryId ? subById.get(override.subcategoryId) : null
     const effectiveCatFromSub = effectiveSub ? catById.get(effectiveSub.categoryId) : null
@@ -311,6 +370,9 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
     const subcategoryName = effectiveSub?.name ?? (
       subcategoryId ? (first.subcategory?.name ?? null) : null
     )
+    const isSavingsPattern =
+      savingsPatternSet.has(patternKey)
+      || [...savingsPatternSet].some((k) => transactionService.transactionMatchesRecurringPatternKey(first, k))
     out.push({
       categoryId,
       subcategoryId,
@@ -320,27 +382,48 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
       categoryColor,
       description:      first.description.trim().replace(/\s+/g, ' '),
       amount:           roundMoney2(Math.abs(Number(first.amount))),
-      dayOfMonth:       day,
+      dayOfMonth:       anchorDay,
       occurrenceCount:  acc.txs.length,
       distinctMonthCount: acc.months.size,
       firstDate,
       lastDate,
       patternKey,
       isSavings:
-        savingsPatternSet.has(patternKey)
+        isSavingsPattern
         || (first.subcategoryId ? savingsSubcategorySet.has(first.subcategoryId) : false)
         || (first.categoryId ? savingsCategorySet.has(first.categoryId) : false),
     })
   }
 
+  const findDismissState = (row: StatsRecurringExpenseDto): { dismissYm: string | undefined; keysToClear: string[] } => {
+    const keysToClear: string[] = []
+    let dismissYm = dismissalMap.get(row.patternKey)
+    if (dismissYm) keysToClear.push(row.patternKey)
+    else {
+      const rp = transactionService.parseRecurringPatternTabKey(row.patternKey)
+      if (rp) {
+        for (const [dKey, ym] of dismissalMap) {
+          const dp = transactionService.parseRecurringPatternTabKey(dKey)
+          if (dp && dp.baseKey === rp.baseKey) {
+            dismissYm = ym
+            keysToClear.push(dKey)
+            break
+          }
+        }
+      }
+    }
+    return { dismissYm, keysToClear }
+  }
+
   const keysToClearDismissal: string[] = []
   const visible: StatsRecurringExpenseDto[] = []
   for (const row of out) {
-    const dismissYm = dismissalMap.get(row.patternKey)
+    const { dismissYm, keysToClear } = findDismissState(row)
     const lastYm = row.lastDate.slice(0, 7)
     if (dismissYm) {
       if (lastYm > dismissYm) {
-        keysToClearDismissal.push(row.patternKey)
+        keysToClearDismissal.push(...keysToClear)
+        if (keysToClear.length === 0) keysToClearDismissal.push(row.patternKey)
         visible.push(row)
       }
     } else {
@@ -514,6 +597,310 @@ export async function deleteRecurringManualRule(userId: string, ruleIdRaw: strin
   await user.update({ recurringManualRules: next })
 }
 
+const CADENCES: PlannedCommitmentCadence[] = ['monthly', 'quarterly', 'semiannual', 'annual']
+
+function parsePlannedCommitments(raw: unknown): PlannedCommitmentDto[] {
+  if (!Array.isArray(raw)) return []
+  const out: PlannedCommitmentDto[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    const id = String(row.id ?? '').trim()
+    const label = String(row.label ?? '').trim()
+    const amount = Number(row.amount)
+    const kind = String(row.kind ?? '') as PlannedCommitmentDto['kind']
+    if (!id || !label || !Number.isFinite(amount) || amount < 0) continue
+    if (kind !== 'one_shot' && kind !== 'recurring') continue
+    const categoryId = row.categoryId == null ? null : String(row.categoryId).trim()
+    const subcategoryId = row.subcategoryId == null ? null : String(row.subcategoryId).trim()
+    if (kind === 'one_shot') {
+      const dueYm = String(row.dueYm ?? '').trim()
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(dueYm)) continue
+      const dueDay = row.dueDay == null ? null : Number(row.dueDay)
+      if (dueDay != null && (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31)) continue
+      out.push({
+        id, label, amount, categoryId: categoryId || null, subcategoryId: subcategoryId || null,
+        kind: 'one_shot', dueYm, dueDay,
+      })
+      continue
+    }
+    const cadence = String(row.cadence ?? '') as PlannedCommitmentCadence
+    if (!CADENCES.includes(cadence) || cadence === 'monthly') continue
+    const anchorYm = row.anchorYm == null ? null : String(row.anchorYm).trim()
+    if (anchorYm && !/^\d{4}-(0[1-9]|1[0-2])$/.test(anchorYm)) continue
+    const anchorDay = row.anchorDay == null ? null : Number(row.anchorDay)
+    if (anchorDay != null && (!Number.isFinite(anchorDay) || anchorDay < 1 || anchorDay > 31)) continue
+    out.push({
+      id, label, amount, categoryId: categoryId || null, subcategoryId: subcategoryId || null,
+      kind: 'recurring', cadence, anchorYm: anchorYm || null, anchorDay,
+    })
+  }
+  return out
+}
+
+export async function listPlannedCommitments(userId: string): Promise<PlannedCommitmentDto[]> {
+  const user = await User.findByPk(userId, { attributes: ['id', 'plannedCommitments'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  return parsePlannedCommitments(user.plannedCommitments as unknown)
+}
+
+export async function createPlannedCommitment(userId: string, payload: Partial<PlannedCommitmentDto>): Promise<PlannedCommitmentDto> {
+  const user = await User.findByPk(userId, { attributes: ['id', 'plannedCommitments'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  const next: PlannedCommitmentDto = {
+    id: randomUUID(),
+    label: String(payload.label ?? '').trim(),
+    amount: Number(payload.amount),
+    categoryId: payload.categoryId ? String(payload.categoryId).trim() : null,
+    subcategoryId: payload.subcategoryId ? String(payload.subcategoryId).trim() : null,
+    kind: (payload.kind === 'recurring' ? 'recurring' : 'one_shot'),
+    dueYm: payload.dueYm ? String(payload.dueYm).trim() : null,
+    dueDay: payload.dueDay == null ? null : Number(payload.dueDay),
+    cadence: payload.cadence ?? null,
+    anchorYm: payload.anchorYm ? String(payload.anchorYm).trim() : null,
+    anchorDay: payload.anchorDay == null ? null : Number(payload.anchorDay),
+  }
+  const parsed = parsePlannedCommitments([{ ...next } as Record<string, unknown>])[0]
+  if (!parsed) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'Compromiso planificado inválido')
+  const all = parsePlannedCommitments(user.plannedCommitments as unknown)
+  all.push(parsed)
+  await user.update({ plannedCommitments: all as unknown as User['plannedCommitments'] })
+  return parsed
+}
+
+export async function updatePlannedCommitment(
+  userId: string,
+  idRaw: string,
+  payload: Partial<PlannedCommitmentDto>,
+): Promise<PlannedCommitmentDto> {
+  const cid = String(idRaw ?? '').trim()
+  if (!cid) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'id inválido')
+  const user = await User.findByPk(userId, { attributes: ['id', 'plannedCommitments'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  const all = parsePlannedCommitments(user.plannedCommitments as unknown)
+  const idx = all.findIndex((c) => c.id === cid)
+  if (idx < 0) throw ApiError.notFound(ERROR_CODES.VALIDATION_FAILED, 'Compromiso no encontrado')
+  const cur = all[idx]!
+  const merged: PlannedCommitmentDto = {
+    ...cur,
+    ...payload,
+    id: cur.id,
+    label: payload.label != null ? String(payload.label).trim() : cur.label,
+    amount: payload.amount == null ? cur.amount : Number(payload.amount),
+  }
+  const parsed = parsePlannedCommitments([merged as unknown as Record<string, unknown>])[0]
+  if (!parsed) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'Compromiso planificado inválido')
+  all[idx] = parsed
+  await user.update({ plannedCommitments: all as unknown as User['plannedCommitments'] })
+  return parsed
+}
+
+export async function deletePlannedCommitment(userId: string, idRaw: string): Promise<void> {
+  const cid = String(idRaw ?? '').trim()
+  if (!cid) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'id inválido')
+  const user = await User.findByPk(userId, { attributes: ['id', 'plannedCommitments'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  const all = parsePlannedCommitments(user.plannedCommitments as unknown)
+  const next = all.filter((c) => c.id !== cid)
+  if (next.length === all.length) throw ApiError.notFound(ERROR_CODES.VALIDATION_FAILED, 'Compromiso no encontrado')
+  await user.update({ plannedCommitments: next as unknown as User['plannedCommitments'] })
+}
+
+function calendarDaysInMonth(ym: string): number {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym)
+  if (!m) return 31
+  const y = parseInt(m[1]!, 10)
+  const mo = parseInt(m[2]!, 10)
+  return new Date(y, mo, 0).getDate()
+}
+
+function buildRecurringDueCalendar(
+  month: string,
+  recurringExpenses: StatsRecurringExpenseDto[],
+  manualRules: RecurringManualRuleDto[],
+  planned: PlannedCommitmentDto[],
+): StatsRecurringDueItemDto[] {
+  const dim = calendarDaysInMonth(month)
+  const out: StatsRecurringDueItemDto[] = []
+  for (const p of recurringExpenses) {
+    const d = Math.min(p.dayOfMonth, dim)
+    out.push({
+      dueDate: `${month}-${String(d).padStart(2, '0')}`,
+      label: p.description,
+      amount: p.amount,
+      source: 'auto',
+      patternKey: p.patternKey,
+    })
+  }
+  for (const r of manualRules) {
+    const mid = Math.min(31, Math.max(1, Math.round((r.fromDay + r.toDay) / 2)))
+    const d = Math.min(mid, dim)
+    const amt = r.maxAmount ?? r.minAmount ?? 0
+    out.push({
+      dueDate: `${month}-${String(d).padStart(2, '0')}`,
+      label: r.conceptPattern,
+      amount: roundMoney2(Number(amt) || 0),
+      source: 'manual',
+      ruleId: r.id,
+    })
+  }
+  for (const c of planned) {
+    if (c.kind === 'one_shot' && c.dueYm === month) {
+      const dd = Math.min(c.dueDay ?? 15, dim)
+      out.push({
+        dueDate: `${month}-${String(dd).padStart(2, '0')}`,
+        label: c.label,
+        amount: c.amount,
+        source: 'planned',
+        commitmentId: c.id,
+      })
+    }
+  }
+  out.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  return out
+}
+
+function addDaysToYmd(ymd: string, days: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
+  if (!m) return ymd
+  const y = parseInt(m[1]!, 10)
+  const mo = parseInt(m[2]!, 10)
+  const d = parseInt(m[3]!, 10)
+  const dt = new Date(y, mo - 1, d + days)
+  return toDateOnlyString(dt)
+}
+
+function addMonthsToYm(ym: string, add: number): string | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym.trim())
+  if (!m) return null
+  const y = parseInt(m[1]!, 10)
+  const mo = parseInt(m[2]!, 10)
+  const dt = new Date(y, mo - 1 + add, 1)
+  return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}`
+}
+
+/**
+ * Primer día en [today, today+horizonDays) donde |día_civil − ancla| ≤ 1 (misma lógica relajada que patrones auto).
+ * Una fila por patrón / regla / puntual planificado en la ventana.
+ */
+function buildRecurringDueUpcomingWindow(
+  recurringExpenses: StatsRecurringExpenseDto[],
+  manualRules: RecurringManualRuleDto[],
+  planned: PlannedCommitmentDto[],
+  todayYmd: string,
+  horizonDays: number,
+): StatsRecurringDueItemDto[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(todayYmd)) return []
+  const lastYmd = addDaysToYmd(todayYmd, Math.max(0, horizonDays - 1))
+  const out: StatsRecurringDueItemDto[] = []
+
+  for (const p of recurringExpenses) {
+    const anchor = p.dayOfMonth
+    if (anchor < 1 || anchor > 31) continue
+    for (let i = 0; i < horizonDays; i++) {
+      const ymd = addDaysToYmd(todayYmd, i)
+      const ym = ymd.slice(0, 7)
+      const dom = Number(ymd.slice(8, 10))
+      const dim = calendarDaysInMonth(ym)
+      if (dom < 1 || dom > dim) continue
+      if (Math.abs(dom - anchor) > 1) continue
+      out.push({
+        dueDate: ymd,
+        label: p.description,
+        amount: p.amount,
+        source: 'auto',
+        patternKey: p.patternKey,
+      })
+      break
+    }
+  }
+
+  for (const r of manualRules) {
+    for (let i = 0; i < horizonDays; i++) {
+      const ymd = addDaysToYmd(todayYmd, i)
+      const ym = ymd.slice(0, 7)
+      const dom = Number(ymd.slice(8, 10))
+      const dim = calendarDaysInMonth(ym)
+      const mid = Math.min(31, Math.max(1, Math.round((r.fromDay + r.toDay) / 2)))
+      const dDue = Math.min(mid, dim)
+      if (dom !== dDue) continue
+      const amt = r.maxAmount ?? r.minAmount ?? 0
+      out.push({
+        dueDate: ymd,
+        label: r.conceptPattern,
+        amount: roundMoney2(Number(amt) || 0),
+        source: 'manual',
+        ruleId: r.id,
+      })
+      break
+    }
+  }
+
+  for (const c of planned) {
+    if (c.kind === 'one_shot' && c.dueYm && isYm(c.dueYm)) {
+      const ym = c.dueYm
+      const dim = calendarDaysInMonth(ym)
+      const dd = Math.min(c.dueDay ?? 15, dim)
+      const ymd = `${ym}-${String(dd).padStart(2, '0')}`
+      if (ymd >= todayYmd && ymd <= lastYmd) {
+        out.push({
+          dueDate: ymd,
+          label: c.label,
+          amount: c.amount,
+          source: 'planned',
+          commitmentId: c.id,
+        })
+      }
+    } else if (c.kind === 'recurring' && c.cadence && c.cadence !== 'monthly' && c.anchorYm && isYm(c.anchorYm)) {
+      const monthsStep = c.cadence === 'quarterly' ? 3 : c.cadence === 'semiannual' ? 6 : 12
+      let curYm: string | null = c.anchorYm
+      const dom0 = c.anchorDay == null
+        ? 15
+        : Math.min(Math.max(1, c.anchorDay), calendarDaysInMonth(c.anchorYm))
+      for (let guard = 0; guard < 120 && curYm; guard++) {
+        const dimC = calendarDaysInMonth(curYm)
+        const dom = Math.min(dom0, dimC)
+        const ymdR = `${curYm}-${String(dom).padStart(2, '0')}`
+        if (ymdR > lastYmd) break
+        if (ymdR >= todayYmd) {
+          out.push({
+            dueDate: ymdR,
+            label: c.label,
+            amount: c.amount,
+            source: 'planned',
+            commitmentId: c.id,
+          })
+          break
+        }
+        curYm = addMonthsToYm(curYm, monthsStep)
+      }
+    }
+  }
+
+  out.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.label.localeCompare(b.label))
+  return out
+}
+
+export async function simulateExpenseForecast(
+  userId: string,
+  month: string,
+  expenseMultiplierPct: number,
+): Promise<StatsForecastSimulateDto> {
+  if (!isYm(month)) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'Mes inválido')
+  const patternCategoryOverrides = transactionService.buildPatternCategoryOverrideMap(
+    (await User.findByPk(userId, { attributes: ['recurringPatternCategoryOverrides'] }))?.recurringPatternCategoryOverrides as unknown,
+  )
+  const rows = await transactionService.categoryBreakdown(userId, month, { patternCategoryOverrides })
+  const baseline = roundMoney2(Math.abs(rows.reduce((s, r) => s + (Number.isFinite(r.total) ? r.total : 0), 0)))
+  const mult = 1 + (Number(expenseMultiplierPct) || 0) / 100
+  return {
+    month,
+    expenseMultiplierPct: Number(expenseMultiplierPct) || 0,
+    baselineMonthExpenseTotal: baseline,
+    simulatedMonthExpenseTotal: roundMoney2(Math.max(0, baseline * mult)),
+  }
+}
+
 export async function setRecurringPatternSavings(userId: string, patternKeyRaw: string, isSavings: boolean): Promise<void> {
   const patternKey = patternKeyRaw.trim().slice(0, 400)
   if (!patternKey) throw ApiError.badRequest(ERROR_CODES.IMPORT_PATTERN_KEY_REQUIRED, 'patternKey es obligatorio')
@@ -621,6 +1008,7 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
           'recurringSavingsCategoryIds',
           'recurringSavingsSubcategoryIds',
           'recurringPatternCategoryOverrides',
+          'plannedCommitments',
         ],
       }),
       budgetService.getBudgetPace(userId, month).catch(() => null),
@@ -794,6 +1182,53 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const monthIncomeTotal = roundMoney2(incomeRows.reduce((s, r) => s + r.total, 0))
   const monthBudgetTotal = roundMoney2([...budgetMap.values()].reduce((s, v) => s + v, 0))
 
+  const plannedList = parsePlannedCommitments(userPrefs?.plannedCommitments as unknown)
+  const recurringDueCalendar = buildRecurringDueCalendar(month, recurringExpenses, recurringManualRules, plannedList)
+  const recurringForecastTotal = roundMoney2(
+    recurringExpenses.reduce((s, r) => s + r.amount, 0)
+      + recurringManualMatches.reduce((s, m) => s + m.latestAmount, 0),
+  )
+  const absMonthExpense = Math.abs(monthExpenseTotal) || 0
+  const recurringAutoSum = recurringExpenses.reduce((s, r) => s + r.amount, 0)
+  const kpiRecurringCoveragePct = absMonthExpense > 0
+    ? roundMoney2(Math.min(100, (recurringAutoSum / absMonthExpense) * 100))
+    : null
+
+  const nowYmd = toDateOnlyString(new Date())
+  const recurringDueUpcoming = buildRecurringDueUpcomingWindow(
+    recurringExpenses,
+    recurringManualRules,
+    plannedList,
+    nowYmd,
+    21,
+  )
+  const currentFiscalYm = dateToFiscalYm(nowYmd, monthCycleCfg)
+  let recurringMissed: StatsRecurringMissedDto[] = []
+  if (currentFiscalYm === month && absMonthExpense > 0) {
+    const { from: mFrom, to: mTo } = ymToDateBounds(month, monthCycleCfg)
+    const todayD = dayOfMonthFromDateOnly(nowYmd)
+    const monthTxs = await Transaction.findAll({
+      where: {
+        userId,
+        isExcluded: false,
+        type: { [Op.in]: ['expense', 'transfer'] as const },
+        date: { [Op.between]: [mFrom, mTo] },
+      },
+      attributes: ['categoryId', 'subcategoryId', 'description', 'amount', 'date'],
+    })
+    for (const row of recurringExpenses) {
+      if (row.isSavings) continue
+      const hit = monthTxs.some((tx) => transactionService.transactionMatchesRecurringPatternKey(tx, row.patternKey))
+      if (!hit && todayD >= row.dayOfMonth + 2) {
+        recurringMissed.push({
+          patternKey: row.patternKey,
+          description: row.description,
+          dayOfMonth: row.dayOfMonth,
+        })
+      }
+    }
+  }
+
   return {
     month,
     year,
@@ -821,6 +1256,12 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
     recurringManualMatches,
     recurringManualRules,
     budgetPace,
+    recurringDueCalendar,
+    recurringDueUpcoming,
+    recurringForecastTotal,
+    recurringMissed,
+    kpiRecurringCoveragePct,
+    plannedCommitments: plannedList,
   }
 }
 

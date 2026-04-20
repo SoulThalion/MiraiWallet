@@ -33,6 +33,8 @@ import { useWalletStore } from '@/stores/wallet'
 const props = withDefaults(defineProps<{
   modelValue: string | number
   mode?: 'month' | 'year'
+  /** Si es true, el mes máximo por defecto deja de ser el mes fiscal actual (útil para previsión). */
+  allowFuture?: boolean
   minYm?: string
   maxYm?: string
   minYear?: number
@@ -41,6 +43,7 @@ const props = withDefaults(defineProps<{
   nextAriaLabel?: string
 }>(), {
   mode: 'month',
+  allowFuture: false,
   minYm: '2000-01',
   maxYm: '',
   minYear: 2000,
@@ -57,6 +60,10 @@ const { t } = useI18n()
 const wallet = useWalletStore()
 
 const effectiveMaxYm = computed(() => {
+  if (props.allowFuture) {
+    if (props.maxYm && /^\d{4}-(0[1-9]|1[0-2])$/.test(props.maxYm)) return props.maxYm
+    return '2099-12'
+  }
   if (props.maxYm && /^\d{4}-(0[1-9]|1[0-2])$/.test(props.maxYm)) return props.maxYm
   return fiscalYmForDate(new Date(), monthCycleConfigFromSession(wallet.user))
 })

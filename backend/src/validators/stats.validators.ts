@@ -8,6 +8,43 @@ export const statsMonthOverviewRules = [
     .withMessage('month must be YYYY-MM'),
 ]
 
+export const statsForecastSimulateRules = [
+  query('month')
+    .isString()
+    .matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .withMessage('month must be YYYY-MM'),
+  query('expenseMultiplierPct')
+    .optional()
+    .isFloat({ min: -90, max: 400 })
+    .withMessage('expenseMultiplierPct must be between -90 and 400'),
+]
+
+export const statsPlannedCommitmentCreateRules = [
+  body('label').trim().notEmpty().isLength({ max: 200 }).withMessage('label required'),
+  body('amount').isFloat({ min: 0 }).withMessage('amount must be >= 0'),
+  body('kind').isIn(['one_shot', 'recurring']).withMessage('kind invalid'),
+  body('dueYm').optional().matches(/^\d{4}-(0[1-9]|1[0-2])$/).withMessage('dueYm YYYY-MM'),
+  body('dueDay').optional().isInt({ min: 1, max: 31 }),
+  body('cadence').optional().isIn(['monthly', 'quarterly', 'semiannual', 'annual']),
+  body('anchorYm').optional().matches(/^\d{4}-(0[1-9]|1[0-2])$/),
+  body('anchorDay').optional().isInt({ min: 1, max: 31 }),
+  body('categoryId').optional({ nullable: true }).isUUID(),
+  body('subcategoryId').optional({ nullable: true }).isUUID(),
+]
+
+export const statsPlannedCommitmentUpdateRules = [
+  body('label').optional().trim().notEmpty().isLength({ max: 200 }),
+  body('amount').optional().isFloat({ min: 0 }),
+  body('kind').optional().isIn(['one_shot', 'recurring']),
+  body('dueYm').optional().matches(/^\d{4}-(0[1-9]|1[0-2])$/),
+  body('dueDay').optional().isInt({ min: 1, max: 31 }),
+  body('cadence').optional().isIn(['monthly', 'quarterly', 'semiannual', 'annual']),
+  body('anchorYm').optional().matches(/^\d{4}-(0[1-9]|1[0-2])$/),
+  body('anchorDay').optional().isInt({ min: 1, max: 31 }),
+  body('categoryId').optional({ nullable: true }).isUUID(),
+  body('subcategoryId').optional({ nullable: true }).isUUID(),
+]
+
 export const statsRecurringDismissRules = [
   body('patternKey')
     .trim()

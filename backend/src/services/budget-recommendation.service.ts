@@ -4,6 +4,7 @@ import { ApplyBudgetRecommendationDto, BudgetRecommendationProfile, BudgetRecomm
 import { ApiError } from '../utils/ApiError'
 import { ERROR_CODES } from '../errors/error-codes'
 import * as transactionService from './transaction.service'
+import * as statsService from './stats.service'
 
 interface SuggestionLine {
   categoryId: string
@@ -40,6 +41,15 @@ interface RecommendationResult {
   suggestedTotalBudget: number
   estimatedSavingsAmount: number
   lines: SuggestionLine[]
+  /** Suma mensual por categoría de patrones auto + reglas manuales + planificado (piso). */
+  recurringFloorByCategoryId: Record<string, number>
+  horizons: {
+    monthlySuggestedTotal: number
+    semesterSuggestedTotal: number
+    annualSuggestedTotal: number
+    /** v1: semestre/año = escala lineal desde el total mensual sugerido (×6 / ×12). */
+    linearScaledFromMonthly: boolean
+  }
 }
 
 const PROFILE_DEFAULT_SAVINGS: Record<BudgetRecommendationProfile, number> = {
@@ -112,12 +122,41 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
     SubcategoryBudget.findAll({ where: { userId: user.id, month: dto.month } }),
   ])
   const patternOverrides = transactionService.buildPatternCategoryOverrideMap(user.recurringPatternCategoryOverrides as unknown)
-  const rolling = await transactionService.rolling12ByCategoryAndSubcategory(user.id, dto.month, {
+  const [rolling, autoPatterns, manualRules, plannedCommitments] = await Promise.all([
+    transactionService.rolling12ByCategoryAndSubcategory(user.id, dto.month, {
     includeTransferPatternKeys: user.recurringSavingsPatternKeys ?? [],
     includeTransferCategoryIds: user.recurringSavingsCategoryIds ?? [],
     includeTransferSubcategoryIds: user.recurringSavingsSubcategoryIds ?? [],
     patternCategoryOverrides: patternOverrides,
-  })
+    }),
+    statsService.findRecurringExpensePatterns(user.id),
+    statsService.listRecurringManualRules(user.id),
+    statsService.listPlannedCommitments(user.id),
+  ])
+
+  const recurringFloorByCategoryId: Record<string, number> = {}
+  const addFloor = (categoryId: string | null | undefined, amt: number) => {
+    if (!categoryId) return
+    const v = round2(Math.max(0, amt))
+    if (v <= 0) return
+    recurringFloorByCategoryId[categoryId] = round2((recurringFloorByCategoryId[categoryId] ?? 0) + v)
+  }
+  for (const p of autoPatterns) {
+    if (p.isSavings) continue
+    addFloor(p.categoryId ?? undefined, p.amount)
+  }
+  for (const r of manualRules) {
+    const nominal = r.maxAmount ?? r.minAmount ?? 0
+    addFloor(r.categoryId, Number(nominal) || 0)
+  }
+  for (const c of plannedCommitments) {
+    if (c.kind === 'one_shot' && c.dueYm === dto.month) {
+      addFloor(c.categoryId ?? undefined, c.amount)
+    } else if (c.kind === 'recurring' && c.cadence) {
+      const monthsIn = c.cadence === 'quarterly' ? 3 : c.cadence === 'semiannual' ? 6 : 12
+      addFloor(c.categoryId ?? undefined, c.amount / monthsIn)
+    }
+  }
 
   const excludedCategoryIds = new Set(user.budgetExcludedCategoryIds ?? [])
   const excludedSubcategoryIds = new Set(user.budgetExcludedSubcategoryIds ?? [])
@@ -172,7 +211,8 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
       ? (Number(cat.monthlyBudget ?? 0) || 0) / fallbackWeightBase
       : 1 / Math.max(1, categoriesForRecommendation.length)
     const budgetByWeight = suggestedTotalBudget * (categoryWeightTotal > 0 ? weight : fallbackWeight)
-    let suggested = round2(Math.max(baseline, budgetByWeight, budgetMap.get(catId) ?? 0))
+    const floorCat = recurringFloorByCategoryId[catId] ?? 0
+    let suggested = round2(Math.max(baseline, budgetByWeight, budgetMap.get(catId) ?? 0, floorCat))
     const reasons: string[] = []
     if (excludedCategoryIds.has(catId)) {
       suggested = 0
@@ -183,6 +223,9 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
     } else {
       reasons.push(`Media móvil ${round2(mean)} EUR en ${rolling.expenseMonthsDivisor} mes(es) con datos`)
       reasons.push(`Ajuste ${profile} con objetivo ahorro ${round2(targetSavingsRate * 100)}%`)
+      if (floorCat > 0) {
+        reasons.push(`Piso recurrentes/planificado ~${round2(floorCat)} EUR en esta categoría`)
+      }
     }
 
     const subcategories = (cat.subcategories ?? []).map((sub) => {
@@ -231,6 +274,8 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
     }
   })
 
+  const monthlySuggestedTotal = round2(lines.reduce((s, l) => s + l.suggestedBudget, 0))
+
   return {
     month: dto.month,
     profile,
@@ -240,6 +285,13 @@ async function buildRecommendation(user: User, dto: BudgetRecommendationQueryDto
     suggestedTotalBudget: round2(suggestedTotalBudget),
     estimatedSavingsAmount: round2(incomeAverage * targetSavingsRate),
     lines,
+    recurringFloorByCategoryId,
+    horizons: {
+      monthlySuggestedTotal,
+      semesterSuggestedTotal: round2(monthlySuggestedTotal * 6),
+      annualSuggestedTotal: round2(monthlySuggestedTotal * 12),
+      linearScaledFromMonthly: true,
+    },
   }
 }
 

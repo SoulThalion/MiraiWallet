@@ -38,6 +38,7 @@ const navItemsLeft = computed<NavItem[]>(() => [
 ])
 const navItemsRight = computed<NavItem[]>(() => [
   { name: 'stats', to: '/stats', icon: '📊', label: t('nav.shortStats') },
+  { name: 'forecast', to: '/forecast', icon: '🗓️', label: t('nav.shortForecast') },
   { name: 'alerts', to: '/alerts', icon: '🔔', label: t('nav.alerts') },
   { name: 'settings', to: '/settings', icon: '⚙️', label: t('nav.settings') },
 ])

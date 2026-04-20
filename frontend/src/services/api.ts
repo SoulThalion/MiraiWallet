@@ -179,6 +179,14 @@ export interface BudgetRecommendationResult {
   suggestedTotalBudget: number
   estimatedSavingsAmount: number
   lines: BudgetRecommendationLine[]
+  /** Piso mensual por categoría: patrones auto + manuales + compromisos H (EUR). */
+  recurringFloorByCategoryId?: Record<string, number>
+  horizons?: {
+    monthlySuggestedTotal: number
+    semesterSuggestedTotal: number
+    annualSuggestedTotal: number
+    linearScaledFromMonthly: boolean
+  }
 }
 
 export interface ApiAccount {
@@ -341,6 +349,46 @@ export interface StatsRecurringManualMatchDto {
   lastDate: string
 }
 
+export type PlannedCommitmentKind = 'one_shot' | 'recurring'
+export type PlannedCommitmentCadence = 'monthly' | 'quarterly' | 'semiannual' | 'annual'
+
+export interface PlannedCommitmentDto {
+  id: string
+  label: string
+  amount: number
+  categoryId?: string | null
+  subcategoryId?: string | null
+  kind: PlannedCommitmentKind
+  dueYm?: string | null
+  dueDay?: number | null
+  cadence?: PlannedCommitmentCadence | null
+  anchorYm?: string | null
+  anchorDay?: number | null
+}
+
+export interface StatsRecurringDueItemDto {
+  dueDate: string
+  label: string
+  amount: number
+  source: 'auto' | 'manual' | 'planned'
+  patternKey?: string
+  ruleId?: string
+  commitmentId?: string
+}
+
+export interface StatsRecurringMissedDto {
+  patternKey: string
+  description: string
+  dayOfMonth: number
+}
+
+export interface StatsForecastSimulateDto {
+  month: string
+  expenseMultiplierPct: number
+  simulatedMonthExpenseTotal: number
+  baselineMonthExpenseTotal: number
+}
+
 export interface RecurringPatternCategoryOverride {
   patternKey: string
   categoryId: string
@@ -374,6 +422,12 @@ export interface StatsMonthOverviewDto {
   recurringManualMatches: StatsRecurringManualMatchDto[]
   recurringManualRules: RecurringManualRuleDto[]
   budgetPace?: BudgetPaceDto | null
+  recurringDueCalendar?: StatsRecurringDueItemDto[]
+  recurringDueUpcoming?: StatsRecurringDueItemDto[]
+  recurringForecastTotal?: number
+  recurringMissed?: StatsRecurringMissedDto[]
+  kpiRecurringCoveragePct?: number | null
+  plannedCommitments?: PlannedCommitmentDto[]
 }
 
 export interface PaginationMeta {
@@ -591,6 +645,60 @@ class ApiClient {
 
   async deleteRecurringManualRule(ruleId: string): Promise<void> {
     await this.client.delete(`/stats/recurring-manual-rules/${ruleId}`)
+  }
+
+  async getForecastSimulate(params: { month: string; expenseMultiplierPct?: number }): Promise<StatsForecastSimulateDto> {
+    const response = await this.client.get<ApiSuccessBody<StatsForecastSimulateDto>>('/stats/forecast-simulate', {
+      params: { month: params.month, expenseMultiplierPct: params.expenseMultiplierPct ?? 0 },
+    })
+    return response.data.data
+  }
+
+  async getPlannedCommitments(): Promise<PlannedCommitmentDto[]> {
+    const response = await this.client.get<ApiSuccessBody<PlannedCommitmentDto[]>>('/stats/planned-commitments')
+    return response.data.data
+  }
+
+  async createPlannedCommitment(payload: {
+    label: string
+    amount: number
+    kind: PlannedCommitmentKind
+    dueYm?: string | null
+    dueDay?: number | null
+    cadence?: PlannedCommitmentCadence | null
+    anchorYm?: string | null
+    anchorDay?: number | null
+    categoryId?: string | null
+    subcategoryId?: string | null
+  }): Promise<PlannedCommitmentDto> {
+    const response = await this.client.post<ApiSuccessBody<PlannedCommitmentDto>>('/stats/planned-commitments', payload)
+    return response.data.data
+  }
+
+  async updatePlannedCommitment(
+    commitmentId: string,
+    payload: Partial<{
+      label: string
+      amount: number
+      kind: PlannedCommitmentKind
+      dueYm: string | null
+      dueDay: number | null
+      cadence: PlannedCommitmentCadence | null
+      anchorYm: string | null
+      anchorDay: number | null
+      categoryId: string | null
+      subcategoryId: string | null
+    }>,
+  ): Promise<PlannedCommitmentDto> {
+    const response = await this.client.patch<ApiSuccessBody<PlannedCommitmentDto>>(
+      `/stats/planned-commitments/${commitmentId}`,
+      payload,
+    )
+    return response.data.data
+  }
+
+  async deletePlannedCommitment(commitmentId: string): Promise<void> {
+    await this.client.delete(`/stats/planned-commitments/${commitmentId}`)
   }
 
   async getTransactions(params?: {

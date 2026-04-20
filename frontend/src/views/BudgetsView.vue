@@ -13,7 +13,10 @@
       />
 
       <div v-show="activeBudgetTab === 'recurring'" class="mw-card -mt-4 rounded-tl-none rounded-tr-2xl md:-mt-6">
-        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.recurringExpenses') }}</p>
+        <div class="mb-1 flex items-center gap-1.5">
+          <p class="font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.recurringExpenses') }}</p>
+          <InfoTip :text="t('budgets.recurringAnchorHint')" :aria-label="t('budgets.recurringAnchorHint')" />
+        </div>
         <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
           {{ t('stats.recurringHint') }}
         </p>
@@ -83,8 +86,8 @@
             </thead>
             <tbody>
               <tr
-                v-for="row in recurringExpensesList"
-                :key="row.patternKey || `${row.description}-${row.dayOfMonth}-${row.amount}`"
+                v-for="(row, rIdx) in recurringExpensesList"
+                :key="row.patternKey || `r-${rIdx}-${row.categoryId ?? 'x'}-${row.subcategoryId ?? 'n'}-${row.dayOfMonth}-${row.amount}-${row.description}`"
                 class="border-t dark:border-white/[0.06] border-brand-blue/8 dark:text-dark-txt text-light-txt"
               >
                 <td class="px-3 py-2 tabular-nums font-medium">{{ row.dayOfMonth }}</td>
@@ -237,6 +240,103 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div v-show="activeBudgetTab === 'planned'" class="mw-card -mt-4 rounded-tl-none rounded-tr-2xl md:-mt-6">
+        <div class="mb-2 flex items-center gap-1.5">
+          <p class="font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('budgets.plannedTitle') }}</p>
+          <InfoTip :text="t('budgets.plannedHint')" :aria-label="t('budgets.plannedHint')" />
+        </div>
+        <div class="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <label class="sm:col-span-2">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedName') }}</span>
+            <input v-model="plannedDraft.label" type="text" class="mw-input w-full text-sm" maxlength="200" />
+          </label>
+          <label>
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.amount') }}</span>
+            <input v-model.number="plannedDraft.amount" type="number" min="0" step="0.01" class="mw-input w-full tabular-nums" />
+          </label>
+          <label>
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedKind') }}</span>
+            <select v-model="plannedDraft.kind" class="mw-input w-full text-sm">
+              <option value="one_shot">{{ t('budgets.plannedKindOneShot') }}</option>
+              <option value="recurring">{{ t('budgets.plannedKindRecurring') }}</option>
+            </select>
+          </label>
+          <label v-if="plannedDraft.kind === 'one_shot'" class="sm:col-span-1">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedDueMonth') }}</span>
+            <input v-model="plannedDueMonth" type="month" class="mw-input w-full text-sm" />
+          </label>
+          <label v-if="plannedDraft.kind === 'one_shot'" class="sm:col-span-1">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedDueDay') }}</span>
+            <input v-model.number="plannedDraft.dueDay" type="number" min="1" max="31" class="mw-input w-full tabular-nums" />
+          </label>
+          <template v-if="plannedDraft.kind === 'recurring'">
+            <label class="sm:col-span-1">
+              <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedCadence') }}</span>
+              <select v-model="plannedDraft.cadence" class="mw-input w-full text-sm">
+                <option value="quarterly">{{ t('budgets.plannedCadenceQuarterly') }}</option>
+                <option value="semiannual">{{ t('budgets.plannedCadenceSemiannual') }}</option>
+                <option value="annual">{{ t('budgets.plannedCadenceAnnual') }}</option>
+              </select>
+            </label>
+            <label class="sm:col-span-1">
+              <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedAnchorMonth') }}</span>
+              <input v-model="plannedAnchorMonth" type="month" class="mw-input w-full text-sm" />
+            </label>
+          </template>
+          <label class="sm:col-span-2">
+            <span class="mb-1 block text-xs font-semibold dark:text-dark-txt2 text-light-txt2">{{ t('stats.category') }}</span>
+            <select v-model="plannedDraft.categoryId" class="mw-input w-full text-sm">
+              <option value="">{{ t('stats.noCategory') }}</option>
+              <option v-for="c in expenseCategoriesForRecurring" :key="`pl-cat-${c.id}`" :value="c.id">{{ c.icon }} {{ c.name }}</option>
+            </select>
+          </label>
+        </div>
+        <div class="flex justify-end">
+          <button
+            type="button"
+            class="rounded-xl px-4 py-2 text-xs font-semibold text-white bg-gradient-to-br from-brand-blue-dark to-brand-blue shadow-glow disabled:opacity-40"
+            :disabled="plannedSaving"
+            @click="createPlannedCommitment"
+          >
+            {{ plannedSaving ? t('common.loading') : t('budgets.plannedCreate') }}
+          </button>
+        </div>
+        <div v-if="plannedLoading" class="mt-4 text-center text-xs dark:text-dark-txt2 text-light-txt2">{{ t('common.loading') }}</div>
+        <div v-else-if="!plannedCommitmentsList.length" class="mt-4 text-xs dark:text-dark-txt2 text-light-txt2">{{ t('budgets.plannedEmpty') }}</div>
+        <div v-else class="mt-4 overflow-x-auto rounded-xl border dark:border-white/[0.07] border-brand-blue/10">
+          <table class="w-full min-w-[520px] text-left text-xs">
+            <thead class="dark:bg-dark-surf bg-light-surf text-[10px] uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
+              <tr>
+                <th class="px-3 py-2 font-semibold">{{ t('budgets.plannedName') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('stats.amount') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('budgets.plannedKind') }}</th>
+                <th class="px-3 py-2 font-semibold">{{ t('budgets.plannedWhen') }}</th>
+                <th class="px-3 py-2 text-right font-semibold">{{ t('stats.action') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in plannedCommitmentsList" :key="row.id" class="border-t dark:border-white/[0.06] border-brand-blue/8 dark:text-dark-txt text-light-txt">
+                <td class="px-3 py-2">{{ row.label }}</td>
+                <td class="px-3 py-2 tabular-nums">{{ formatEuro(row.amount, false) }}</td>
+                <td class="px-3 py-2">{{ row.kind === 'one_shot' ? t('budgets.plannedKindOneShot') : t('budgets.plannedKindRecurring') }}</td>
+                <td class="px-3 py-2 text-[11px] dark:text-dark-txt2 text-light-txt2">{{ plannedWhenLabel(row) }}</td>
+                <td class="px-3 py-2 text-right">
+                  <button
+                    type="button"
+                    class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-400/35 text-red-400 transition-colors hover:bg-red-500/10"
+                    :title="t('stats.remove')"
+                    :disabled="plannedSaving"
+                    @click="removePlannedCommitment(row.id)"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -493,6 +593,15 @@
             <p>{{ t('budgets.recoSuggestedTotal') }}: <strong>{{ formatEuro(recommendations.suggestedTotalBudget, false) }}</strong></p>
             <p>{{ t('budgets.recoEstimatedSavings') }}: <strong>{{ formatEuro(recommendations.estimatedSavingsAmount, false) }}</strong></p>
           </div>
+          <div v-if="recommendations.horizons" class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <div class="mb-2 flex items-center gap-1.5">
+              <p class="font-semibold dark:text-dark-txt text-light-txt">{{ t('budgets.recoHorizonsTitle') }}</p>
+              <InfoTip :text="t('budgets.recoHorizonsInfo')" :aria-label="t('budgets.recoHorizonsInfo')" />
+            </div>
+            <p>{{ t('budgets.recoHorizonMonth') }}: <strong>{{ formatEuro(recommendations.horizons.monthlySuggestedTotal, false) }}</strong></p>
+            <p>{{ t('budgets.recoHorizonSemester') }}: <strong>{{ formatEuro(recommendations.horizons.semesterSuggestedTotal, false) }}</strong></p>
+            <p>{{ t('budgets.recoHorizonYear') }}: <strong>{{ formatEuro(recommendations.horizons.annualSuggestedTotal, false) }}</strong></p>
+          </div>
 
           <details v-for="line in recommendations.lines" :key="`reco-${line.categoryId}`" class="rounded-xl border dark:border-white/[0.08] border-brand-blue/10">
             <summary class="cursor-pointer list-none px-3 py-2">
@@ -607,6 +716,7 @@ import type {
   BudgetRecommendationResult,
   RecurringManualRuleDto,
   StatsRecurringExpenseDto,
+  PlannedCommitmentDto,
 } from '@/services/api'
 import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 import { useCurrency } from '@/composables/useCurrency'
@@ -617,7 +727,7 @@ import InfoTip from '@/components/InfoTip.vue'
 import IconPigMoney from '@/icons/IconPigMoney.vue'
 import BookmarkTabs from '@/components/BookmarkTabs.vue'
 
-type BudgetTabId = 'configure' | 'pace' | 'recurring' | 'recommendations'
+type BudgetTabId = 'configure' | 'pace' | 'recurring' | 'planned' | 'recommendations'
 
 const store = useWalletStore()
 const { t } = useI18n()
@@ -628,6 +738,7 @@ const budgetTabs = computed<Array<{ id: string; label: string }>>(() => [
   { id: 'configure', label: t('budgets.configure') },
   { id: 'pace', label: t('budgets.paceTitle') },
   { id: 'recurring', label: t('stats.recurringExpenses') },
+  { id: 'planned', label: t('budgets.plannedTab') },
   { id: 'recommendations', label: t('budgets.recommendationsTitle') },
 ])
 
@@ -641,6 +752,19 @@ const recoProfile = ref<BudgetRecommendationProfile>('balanced')
 const recoTargetSavingsPct = ref(20)
 const recommendations = ref<BudgetRecommendationResult | null>(null)
 const recurringLoading = ref(false)
+const plannedCommitmentsList = ref<PlannedCommitmentDto[]>([])
+const plannedLoading = ref(false)
+const plannedSaving = ref(false)
+const plannedDueMonth = ref('')
+const plannedAnchorMonth = ref('')
+const plannedDraft = ref({
+  label: '',
+  amount: 0,
+  kind: 'one_shot' as 'one_shot' | 'recurring',
+  dueDay: null as number | null,
+  cadence: 'annual' as 'quarterly' | 'semiannual' | 'annual',
+  categoryId: '',
+})
 const recurringExpensesList = ref<StatsRecurringExpenseDto[]>([])
 const recurringExcludedCategoryIds = ref<string[]>([])
 const recurringSavingsCategoryIds = ref<string[]>([])
@@ -1084,6 +1208,90 @@ async function loadRecurringManualRules(): Promise<void> {
   }
 }
 
+function plannedWhenLabel(row: PlannedCommitmentDto): string {
+  if (row.kind === 'one_shot') {
+    const ym = row.dueYm ?? ''
+    if (!ym) return '—'
+    const day = row.dueDay != null ? ` · ${t('stats.day')} ${row.dueDay}` : ''
+    return `${ym}${day}`
+  }
+  const cad = row.cadence ?? ''
+  const anchor = row.anchorYm ? ` · ${row.anchorYm}` : ''
+  return `${cad}${anchor}`
+}
+
+async function loadPlannedCommitments(): Promise<void> {
+  plannedLoading.value = true
+  try {
+    plannedCommitmentsList.value = await api.getPlannedCommitments()
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'errors.common.unknown')))
+  } finally {
+    plannedLoading.value = false
+  }
+}
+
+function resetPlannedDraft(): void {
+  plannedDraft.value = {
+    label: '',
+    amount: 0,
+    kind: 'one_shot',
+    dueDay: null,
+    cadence: 'annual',
+    categoryId: '',
+  }
+  plannedDueMonth.value = budgetMonth.value
+  plannedAnchorMonth.value = ''
+}
+
+async function createPlannedCommitment(): Promise<void> {
+  const d = plannedDraft.value
+  if (!d.label.trim()) {
+    toast.error(t('budgets.plannedNameRequired'))
+    return
+  }
+  if (d.kind === 'one_shot' && !plannedDueMonth.value) {
+    toast.error(t('budgets.plannedDueRequired'))
+    return
+  }
+  plannedSaving.value = true
+  try {
+    await api.createPlannedCommitment({
+      label: d.label.trim(),
+      amount: Number(d.amount),
+      kind: d.kind,
+      dueYm: d.kind === 'one_shot' ? plannedDueMonth.value : null,
+      dueDay: d.kind === 'one_shot' && d.dueDay != null && d.dueDay > 0 ? Number(d.dueDay) : null,
+      cadence: d.kind === 'recurring' ? d.cadence : null,
+      anchorYm: d.kind === 'recurring' && plannedAnchorMonth.value ? plannedAnchorMonth.value : null,
+      categoryId: d.categoryId || null,
+      subcategoryId: null,
+    })
+    await loadPlannedCommitments()
+    resetPlannedDraft()
+    toast.success(t('common.saved'))
+    if (recommendations.value) void loadRecommendations()
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'errors.common.unknown')))
+  } finally {
+    plannedSaving.value = false
+  }
+}
+
+async function removePlannedCommitment(id: string): Promise<void> {
+  plannedSaving.value = true
+  try {
+    await api.deletePlannedCommitment(id)
+    plannedCommitmentsList.value = plannedCommitmentsList.value.filter((x) => x.id !== id)
+    toast.success(t('common.saved'))
+    if (recommendations.value) void loadRecommendations()
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'errors.common.unknown')))
+  } finally {
+    plannedSaving.value = false
+  }
+}
+
 function resetManualRuleDraft(): void {
   manualRuleEditingId.value = null
   manualRuleDraft.value = {
@@ -1310,9 +1518,17 @@ watch(
     void loadBudgetPace()
     void loadRecurringOverview()
     void loadRecurringManualRules()
+    plannedDueMonth.value = budgetMonth.value
     if (recommendations.value) void loadRecommendations()
   },
   { immediate: true }
+)
+
+watch(
+  () => activeBudgetTab.value,
+  (tab) => {
+    if (tab === 'planned') void loadPlannedCommitments()
+  },
 )
 
 watch(

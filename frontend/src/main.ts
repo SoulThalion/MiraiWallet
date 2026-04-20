@@ -7,6 +7,7 @@ import i18n from '@/i18n'
 
 import HomeView from './views/HomeView.vue'
 import StatsView from './views/StatsView.vue'
+import PaymentsForecastView from './views/PaymentsForecastView.vue'
 import AlertsView from './views/AlertsView.vue'
 import AddView from './views/AddView.vue'
 import BudgetsView from './views/BudgetsView.vue'
@@ -24,6 +25,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/home', name: 'home', component: HomeView, meta: { requiresAuth: true } },
   { path: '/movements', name: 'movements', component: MovementsView, meta: { requiresAuth: true, fullHeight: true } },
   { path: '/stats', name: 'stats', component: StatsView, meta: { requiresAuth: true } },
+  { path: '/forecast', name: 'forecast', component: PaymentsForecastView, meta: { requiresAuth: true } },
   { path: '/alerts', name: 'alerts', component: AlertsView, meta: { requiresAuth: true } },
   { path: '/add', name: 'add', component: AddView, meta: { requiresAuth: true } },
   { path: '/budgets', name: 'budgets', component: BudgetsView, meta: { requiresAuth: true } },

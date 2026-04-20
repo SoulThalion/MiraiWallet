@@ -4,6 +4,9 @@ import { authenticate } from '../middlewares/auth.middleware'
 import { validate }     from '../middlewares/validate.middleware'
 import {
   statsMonthOverviewRules,
+  statsForecastSimulateRules,
+  statsPlannedCommitmentCreateRules,
+  statsPlannedCommitmentUpdateRules,
   statsRecurringDismissRules,
   statsRecurringSavingsRules,
   statsRecurringRecategorizeRules,
@@ -15,6 +18,11 @@ const router = Router()
 router.use(authenticate)
 router.get('/dashboard', ctrl.dashboard)
 router.get('/month-overview', statsMonthOverviewRules, validate, ctrl.monthOverview)
+router.get('/forecast-simulate', statsForecastSimulateRules, validate, ctrl.forecastSimulate)
+router.get('/planned-commitments', ctrl.listPlannedCommitments)
+router.post('/planned-commitments', statsPlannedCommitmentCreateRules, validate, ctrl.createPlannedCommitment)
+router.patch('/planned-commitments/:commitmentId', statsPlannedCommitmentUpdateRules, validate, ctrl.updatePlannedCommitment)
+router.delete('/planned-commitments/:commitmentId', ctrl.deletePlannedCommitment)
 router.post('/recurring-dismiss', statsRecurringDismissRules, validate, ctrl.dismissRecurringPattern)
 router.post('/recurring-savings', statsRecurringSavingsRules, validate, ctrl.setRecurringPatternSavings)
 router.post('/recurring-category', statsRecurringRecategorizeRules, validate, ctrl.setRecurringPatternCategory)

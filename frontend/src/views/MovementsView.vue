@@ -122,7 +122,7 @@
                   </button>
                   <MwAmountRangePicker v-model="amountRangeFilter" />
                 </th>
-                <th :class="[thSticky, 'w-24 min-w-[4.5rem] align-top text-center text-xs font-semibold']">
+                <th :class="[thSticky, 'min-w-[6.75rem] align-top text-center text-xs font-semibold']">
                   {{ t('movements.action') }}
                   <p class="mt-6 text-[10px] font-normal opacity-60">—</p>
                 </th>
@@ -174,30 +174,43 @@
                     {{ amountCell(tx) }}
                   </td>
                   <td class="py-2.5 px-2 text-center">
-                    <div class="flex flex-col items-center gap-1">
+                    <div class="inline-flex flex-wrap items-center justify-center gap-1.5">
                       <button
                         v-if="tx.importSource === 'manual'"
                         type="button"
-                        class="text-xs font-semibold text-brand-blue hover:underline disabled:opacity-50"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-sm text-brand-blue transition-colors hover:bg-brand-blue/10 disabled:opacity-50 dark:border-brand-blue/35"
+                        :title="t('movements.edit')"
+                        :aria-label="t('movements.edit')"
                         :disabled="Boolean(excludingTx[String(tx.id)])"
                         @click="openEdit(tx)"
                       >
-                        {{ t('movements.edit') }}
+                        ✎
                       </button>
                       <button
                         type="button"
-                        class="text-[11px] font-semibold hover:underline disabled:opacity-50"
-                        :class="tx.isExcluded ? 'text-amber-500' : 'text-red-400'"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-sm transition-colors disabled:opacity-50"
+                        :class="
+                          tx.isExcluded
+                            ? 'border-amber-500/40 text-amber-500 hover:bg-amber-500/10'
+                            : 'border-red-400/35 text-red-400 hover:bg-red-500/10'
+                        "
+                        :title="tx.isExcluded ? t('movements.restore') : t('movements.exclude')"
+                        :aria-label="tx.isExcluded ? t('movements.restore') : t('movements.exclude')"
                         :disabled="Boolean(excludingTx[String(tx.id)])"
                         @click="openExcludeConfirm(tx)"
                       >
-                        {{
-                          excludingTx[String(tx.id)]
-                            ? t('movements.saving')
-                            : tx.isExcluded
-                              ? t('movements.restore')
-                              : t('movements.exclude')
-                        }}
+                        {{ tx.isExcluded ? '↩' : '⛔' }}
+                      </button>
+                      <button
+                        v-if="canAddAsRecurring(tx)"
+                        type="button"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-blue/20 text-sm text-brand-blue transition-colors hover:bg-brand-blue/10 disabled:opacity-50 dark:border-brand-blue/35"
+                        :title="t('movements.addRecurringTooltip')"
+                        :aria-label="t('movements.addRecurringTooltip')"
+                        :disabled="Boolean(recurringSaving[String(tx.id)])"
+                        @click="addMovementAsRecurring(tx)"
+                      >
+                        🔁
                       </button>
                     </div>
                   </td>
@@ -435,6 +448,7 @@ const editing = ref<ApiTransaction | null>(null)
 const editError = ref('')
 const savingEdit = ref(false)
 const excludingTx = ref<Record<string, boolean>>({})
+const recurringSaving = ref<Record<string, boolean>>({})
 const excludeConfirm = ref<{ tx: ApiTransaction; toExcluded: boolean } | null>(null)
 
 const editForm = ref({
@@ -542,6 +556,63 @@ function amountCell(tx: ApiTransaction): string {
   if (tx.type === 'income') return `+€${abs}`
   if (tx.type === 'expense') return `-€${abs}`
   return `€${abs}`
+}
+
+/** Día del mes desde `YYYY-MM-DD` sin depender de la zona horaria del `Date`. */
+function dayOfMonthFromTxDate(iso: string): number {
+  const ymd = String(iso).slice(0, 10)
+  const br = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (br) return parseInt(br[3]!, 10)
+  try {
+    return new Date(iso).getUTCDate()
+  } catch {
+    return 1
+  }
+}
+
+function canAddAsRecurring(tx: ApiTransaction): boolean {
+  if (tx.type === 'income') return false
+  return Boolean(tx.category?.id)
+}
+
+async function addMovementAsRecurring(tx: ApiTransaction): Promise<void> {
+  const key = String(tx.id)
+  if (!canAddAsRecurring(tx)) {
+    toast.error(t('movements.addRecurringNeedCategory'))
+    return
+  }
+  const conceptPattern = String(tx.description ?? '').trim()
+  if (!conceptPattern) {
+    toast.error(t('movements.addRecurringNeedDescription'))
+    return
+  }
+  const dom = dayOfMonthFromTxDate(tx.date)
+  const fromDay = Math.max(1, dom - 1)
+  const toDay = Math.min(31, dom + 1)
+  const rawAbs = Math.abs(Number(tx.amount))
+  const absAmt = Math.round((rawAbs + Number.EPSILON) * 100) / 100
+  if (!Number.isFinite(absAmt) || absAmt <= 0) return
+
+  recurringSaving.value = { ...recurringSaving.value, [key]: true }
+  try {
+    await api.createRecurringManualRule({
+      conceptPattern,
+      fromDay,
+      toDay,
+      minAmount: absAmt,
+      maxAmount: absAmt,
+      categoryId: tx.category!.id,
+      subcategoryId: tx.subcategory?.id ?? null,
+    })
+    await store.loadUser()
+    toast.success(t('movements.addRecurringSuccess'))
+  } catch (e: unknown) {
+    toast.error(t(resolveApiErrorI18nKey(e, 'movements.couldNotSave')))
+  } finally {
+    const cp = { ...recurringSaving.value }
+    delete cp[key]
+    recurringSaving.value = cp
+  }
 }
 
 function buildListParams(pageNum: number): NonNullable<Parameters<typeof api.getTransactions>[0]> {

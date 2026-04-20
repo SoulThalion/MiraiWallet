@@ -12,7 +12,10 @@ import {
 } from '../types'
 import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds } from '../utils/monthPeriod'
 import { ERROR_CODES } from '../errors/error-codes'
-import { recurringPatternKeyFromTransaction } from './transaction.service'
+import {
+  patternCategoryOverrideForTransaction,
+  transactionMatchesAnySavingsPatternKey,
+} from './transaction.service'
 
 type SavingsPrefs = {
   recurringSavingsPatternKeys?: string[] | null
@@ -76,8 +79,7 @@ function shouldIncludeTransferAsSavings(tx: PaceTx, savingsCategories: Set<strin
   if (tx.type !== 'transfer') return true
   if (tx.subcategoryId && savingsSubcategories.has(tx.subcategoryId)) return true
   if (tx.categoryId && savingsCategories.has(tx.categoryId)) return true
-  const key = recurringPatternKeyFromTransaction(tx)
-  return Boolean(key && savingsPatterns.has(key))
+  return transactionMatchesAnySavingsPatternKey(tx, savingsPatterns)
 }
 
 export async function getBudgetPace(userId: string, month: string): Promise<BudgetPaceDto> {
@@ -169,8 +171,7 @@ export async function getBudgetPace(userId: string, month: string): Promise<Budg
 
   for (const tx of txs) {
     if (!shouldIncludeTransferAsSavings(tx, savingsCategories, savingsSubcategories, savingsPatterns)) continue
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? patternOverrides.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, patternOverrides)
     const effectiveCategoryId = override?.categoryId ?? tx.categoryId ?? null
     if (!effectiveCategoryId || excludedCategoryIds.has(effectiveCategoryId)) continue
     const budgetCategory = budgetMap.get(effectiveCategoryId)
@@ -293,12 +294,10 @@ export async function listWithSpending(userId: string, month: string) {
       } else if (tx.categoryId && savingsCategories.has(tx.categoryId)) {
         // ok
       } else {
-        const key = recurringPatternKeyFromTransaction(tx)
-        if (!key || !savingsPatterns.has(key)) continue
+        if (!transactionMatchesAnySavingsPatternKey(tx, savingsPatterns)) continue
       }
     }
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? patternOverrides.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, patternOverrides)
     const k = override?.categoryId ?? tx.categoryId ?? 'none'
     spentMap[k] = (spentMap[k] ?? 0) + tx.amount
   }
@@ -369,12 +368,10 @@ export async function listSubcategoryWithSpending(userId: string, month: string)
       } else if (tx.categoryId && savingsCategories.has(tx.categoryId)) {
         // ok
       } else {
-        const key = recurringPatternKeyFromTransaction(tx)
-        if (!key || !savingsPatterns.has(key)) continue
+        if (!transactionMatchesAnySavingsPatternKey(tx, savingsPatterns)) continue
       }
     }
-    const pKey = recurringPatternKeyFromTransaction(tx)
-    const override = pKey ? patternOverrides.get(pKey) : undefined
+    const override = patternCategoryOverrideForTransaction(tx, patternOverrides)
     const key = override?.subcategoryId ?? tx.subcategoryId ?? 'none'
     spentMap[key] = (spentMap[key] ?? 0) + tx.amount
   }

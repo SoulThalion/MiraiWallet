@@ -63,6 +63,8 @@ export class User extends Model<
     categoryId: string
     subcategoryId?: string | null
   }> | null>
+  /** Gastos puntuales planificados y recurrentes no mensuales (JSON). */
+  declare plannedCommitments: CreationOptional<Array<Record<string, unknown>> | null>
   declare createdAt:    CreationOptional<Date>
   declare updatedAt:    CreationOptional<Date>
 
@@ -160,6 +162,11 @@ export function initUser(sequelize: Sequelize): void {
         defaultValue: [],
       },
       recurringManualRules: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      plannedCommitments: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],

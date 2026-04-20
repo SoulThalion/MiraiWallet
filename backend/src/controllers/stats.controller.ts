@@ -79,3 +79,43 @@ export const deleteRecurringManualRule = async (req: Request, res: Response, nex
     ApiResponse.noContent(res)
   } catch (e) { next(e) }
 }
+
+export const forecastSimulate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    const month = String(req.query.month ?? '')
+    const pct = req.query.expenseMultiplierPct != null ? Number(req.query.expenseMultiplierPct) : 0
+    ApiResponse.success(res, await statsService.simulateExpenseForecast(userId, month, pct))
+  } catch (e) { next(e) }
+}
+
+export const listPlannedCommitments = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    ApiResponse.success(res, await statsService.listPlannedCommitments(userId))
+  } catch (e) { next(e) }
+}
+
+export const createPlannedCommitment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    ApiResponse.success(res, await statsService.createPlannedCommitment(userId, req.body ?? {}))
+  } catch (e) { next(e) }
+}
+
+export const updatePlannedCommitment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    const commitmentId = typeof req.params?.commitmentId === 'string' ? req.params.commitmentId : ''
+    ApiResponse.success(res, await statsService.updatePlannedCommitment(userId, commitmentId, req.body ?? {}))
+  } catch (e) { next(e) }
+}
+
+export const deletePlannedCommitment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    const commitmentId = typeof req.params?.commitmentId === 'string' ? req.params.commitmentId : ''
+    await statsService.deletePlannedCommitment(userId, commitmentId)
+    ApiResponse.noContent(res)
+  } catch (e) { next(e) }
+}

@@ -291,6 +291,48 @@ export interface StatsRecurringManualMatchDto {
   lastDate: string
 }
 
+export type PlannedCommitmentKind = 'one_shot' | 'recurring'
+export type PlannedCommitmentCadence = 'monthly' | 'quarterly' | 'semiannual' | 'annual'
+
+export interface PlannedCommitmentDto {
+  id: string
+  label: string
+  amount: number
+  categoryId?: string | null
+  subcategoryId?: string | null
+  kind: PlannedCommitmentKind
+  /** Obligatorio si `kind === 'one_shot'` */
+  dueYm?: string | null
+  dueDay?: number | null
+  /** Si `kind === 'recurring'` */
+  cadence?: PlannedCommitmentCadence | null
+  anchorYm?: string | null
+  anchorDay?: number | null
+}
+
+export interface StatsRecurringDueItemDto {
+  dueDate: string
+  label: string
+  amount: number
+  source: 'auto' | 'manual' | 'planned'
+  patternKey?: string
+  ruleId?: string
+  commitmentId?: string
+}
+
+export interface StatsRecurringMissedDto {
+  patternKey: string
+  description: string
+  dayOfMonth: number
+}
+
+export interface StatsForecastSimulateDto {
+  month: string
+  expenseMultiplierPct: number
+  simulatedMonthExpenseTotal: number
+  baselineMonthExpenseTotal: number
+}
+
 export interface StatsMonthOverviewDto {
   month: string
   year: number
@@ -324,6 +366,17 @@ export interface StatsMonthOverviewDto {
   recurringManualMatches: StatsRecurringManualMatchDto[]
   recurringManualRules: RecurringManualRuleDto[]
   budgetPace?: BudgetPaceDto | null
+  /** Vencimientos del mes (auto + manual + planificado puntual en este mes). */
+  recurringDueCalendar: StatsRecurringDueItemDto[]
+  /** Próximos vencimientos en ventana de días civiles desde hoy (auto ±1 día, manual, puntual H). */
+  recurringDueUpcoming: StatsRecurringDueItemDto[]
+  /** Estimación bruta de cargos recurrentes en el mes (auto + manual). */
+  recurringForecastTotal: number
+  /** Patrones auto con día ya pasado en el mes fiscal actual sin movimiento detectado (heurística simple). */
+  recurringMissed: StatsRecurringMissedDto[]
+  /** % del gasto del mes que coincide con importes de patrones auto (0–100 o null). */
+  kpiRecurringCoveragePct: number | null
+  plannedCommitments: PlannedCommitmentDto[]
 }
 
 export interface TokenPair {
