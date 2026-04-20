@@ -260,6 +260,37 @@ export interface StatsRecurringExpenseDto {
   isSavings: boolean
 }
 
+export interface RecurringManualRuleDto {
+  id: string
+  conceptPattern: string
+  fromDay: number
+  toDay: number
+  minAmount: number | null
+  maxAmount: number | null
+  categoryId: string
+  subcategoryId: string | null
+}
+
+export interface StatsRecurringManualMatchDto {
+  ruleId: string
+  conceptPattern: string
+  categoryId: string
+  subcategoryId: string | null
+  categoryName: string
+  subcategoryName: string | null
+  categoryIcon: string
+  categoryColor: string
+  fromDay: number
+  toDay: number
+  minAmount: number | null
+  maxAmount: number | null
+  sampleDescription: string
+  latestAmount: number
+  matchCount: number
+  firstDate: string
+  lastDate: string
+}
+
 export interface StatsMonthOverviewDto {
   month: string
   year: number
@@ -290,6 +321,8 @@ export interface StatsMonthOverviewDto {
   incomeSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
   /** Patrones de gasto repetido (últimos 36 meses, máx. 60 filas). */
   recurringExpenses: StatsRecurringExpenseDto[]
+  recurringManualMatches: StatsRecurringManualMatchDto[]
+  recurringManualRules: RecurringManualRuleDto[]
   budgetPace?: BudgetPaceDto | null
 }
 

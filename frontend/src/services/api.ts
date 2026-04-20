@@ -310,6 +310,37 @@ export interface StatsRecurringExpenseDto {
   isSavings: boolean
 }
 
+export interface RecurringManualRuleDto {
+  id: string
+  conceptPattern: string
+  fromDay: number
+  toDay: number
+  minAmount: number | null
+  maxAmount: number | null
+  categoryId: string
+  subcategoryId: string | null
+}
+
+export interface StatsRecurringManualMatchDto {
+  ruleId: string
+  conceptPattern: string
+  categoryId: string
+  subcategoryId: string | null
+  categoryName: string
+  subcategoryName: string | null
+  categoryIcon: string
+  categoryColor: string
+  fromDay: number
+  toDay: number
+  minAmount: number | null
+  maxAmount: number | null
+  sampleDescription: string
+  latestAmount: number
+  matchCount: number
+  firstDate: string
+  lastDate: string
+}
+
 export interface RecurringPatternCategoryOverride {
   patternKey: string
   categoryId: string
@@ -340,6 +371,8 @@ export interface StatsMonthOverviewDto {
   incomeCategoryYearAvg: StatsYearAvgCategoryDto[]
   incomeSubcategoryYearAvg: StatsYearAvgSubcategoryDto[]
   recurringExpenses: StatsRecurringExpenseDto[]
+  recurringManualMatches: StatsRecurringManualMatchDto[]
+  recurringManualRules: RecurringManualRuleDto[]
   budgetPace?: BudgetPaceDto | null
 }
 
@@ -388,6 +421,7 @@ export interface SessionUser {
   /** Subcategorías marcadas globalmente como ahorro. */
   recurringSavingsSubcategoryIds?: string[]
   recurringPatternCategoryOverrides?: RecurringPatternCategoryOverride[]
+  recurringManualRules?: RecurringManualRuleDto[]
   budgetPaceMode?: BudgetPaceMode
   budgetPaceThresholds?: BudgetPaceThresholds | null
 }
@@ -522,6 +556,41 @@ class ApiClient {
 
   async setRecurringPatternCategory(patternKey: string, categoryId: string | null, subcategoryId: string | null): Promise<void> {
     await this.client.post('/stats/recurring-category', { patternKey, categoryId, subcategoryId })
+  }
+
+  async getRecurringManualRules(): Promise<RecurringManualRuleDto[]> {
+    const response = await this.client.get<ApiSuccessBody<RecurringManualRuleDto[]>>('/stats/recurring-manual-rules')
+    return response.data.data
+  }
+
+  async createRecurringManualRule(payload: {
+    conceptPattern: string
+    fromDay: number
+    toDay: number
+    minAmount?: number | null
+    maxAmount?: number | null
+    categoryId: string
+    subcategoryId?: string | null
+  }): Promise<RecurringManualRuleDto> {
+    const response = await this.client.post<ApiSuccessBody<RecurringManualRuleDto>>('/stats/recurring-manual-rules', payload)
+    return response.data.data
+  }
+
+  async updateRecurringManualRule(ruleId: string, payload: Partial<{
+    conceptPattern: string
+    fromDay: number
+    toDay: number
+    minAmount: number | null
+    maxAmount: number | null
+    categoryId: string
+    subcategoryId: string | null
+  }>): Promise<RecurringManualRuleDto> {
+    const response = await this.client.patch<ApiSuccessBody<RecurringManualRuleDto>>(`/stats/recurring-manual-rules/${ruleId}`, payload)
+    return response.data.data
+  }
+
+  async deleteRecurringManualRule(ruleId: string): Promise<void> {
+    await this.client.delete(`/stats/recurring-manual-rules/${ruleId}`)
   }
 
   async getTransactions(params?: {

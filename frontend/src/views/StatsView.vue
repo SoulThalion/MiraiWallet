@@ -412,6 +412,45 @@
           </div>
         </div>
       </div>
+
+      <div class="mw-card md:col-span-2 lg:col-span-3">
+        <p class="mb-1 font-display text-sm font-bold dark:text-dark-txt text-light-txt">{{ t('stats.recurringManualDetectedTitle') }}</p>
+        <p class="mb-4 text-[10px] leading-relaxed dark:text-dark-txt2 text-light-txt2 max-w-3xl">
+          {{ t('stats.recurringManualDetectedHint') }}
+        </p>
+        <div v-if="recurringManualMatches.length === 0" class="py-6 text-center text-sm dark:text-dark-txt2 text-light-txt2">
+          {{ t('stats.recurringManualDetectedEmpty') }}
+        </div>
+        <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ t('stats.total') }}</p>
+            <p class="mt-1 text-lg font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ recurringManualMatches.length }}</p>
+          </div>
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ t('stats.amount') }}</p>
+            <p class="mt-1 text-lg font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ formatEuro(recurringManualLatestAmountSum, false) }}</p>
+          </div>
+          <div class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10">
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ t('stats.times') }}</p>
+            <p class="mt-1 text-lg font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ recurringManualMatchCountSum }}</p>
+          </div>
+        </div>
+        <div v-if="recurringManualMatches.length" class="mt-3 space-y-2">
+          <div
+            v-for="row in recurringManualTopByCount"
+            :key="`rec-manual-${row.ruleId}`"
+            class="rounded-xl border px-3 py-2 text-xs dark:border-white/[0.08] border-brand-blue/10"
+          >
+            <div class="mb-1 flex items-center justify-between gap-2">
+              <p class="min-w-0 truncate font-semibold dark:text-dark-txt text-light-txt">
+                {{ row.categoryIcon }} {{ row.categoryName }}<span v-if="row.subcategoryName"> · {{ row.subcategoryName }}</span> · {{ row.conceptPattern }}
+              </p>
+              <span class="shrink-0 tabular-nums">{{ row.matchCount }}x</span>
+            </div>
+            <p class="dark:text-dark-txt2 text-light-txt2">{{ row.sampleDescription }} · {{ formatEuro(row.latestAmount, false) }}</p>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -426,6 +465,7 @@ import {
   type StatsMonthCategoryDto,
   type StatsYearAvgSubcategoryDto,
   type StatsRecurringExpenseDto,
+  type StatsRecurringManualMatchDto,
 } from '@/services/api'
 import { useCurrency } from '@/composables/useCurrency'
 import { useWalletStore, type DonutSegment, type MonthlyData } from '@/stores/wallet'
@@ -642,6 +682,18 @@ const recurringAmountSum = computed(() =>
 )
 const recurringOccurrenceSum = computed(() =>
   recurringExpensesList.value.reduce((s, r) => s + (r.occurrenceCount ?? 0), 0)
+)
+const recurringManualMatches = computed<StatsRecurringManualMatchDto[]>(() => overview.value?.recurringManualMatches ?? [])
+const recurringManualTopByCount = computed(() =>
+  [...recurringManualMatches.value]
+    .sort((a, b) => b.matchCount - a.matchCount || b.lastDate.localeCompare(a.lastDate))
+    .slice(0, 5)
+)
+const recurringManualLatestAmountSum = computed(() =>
+  roundMoney(recurringManualMatches.value.reduce((s, r) => s + roundMoney(Number(r.latestAmount || 0)), 0))
+)
+const recurringManualMatchCountSum = computed(() =>
+  recurringManualMatches.value.reduce((s, r) => s + Number(r.matchCount || 0), 0)
 )
 const recurringTopByAmount = computed(() =>
   [...recurringExpensesList.value]

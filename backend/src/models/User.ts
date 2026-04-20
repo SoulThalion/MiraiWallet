@@ -52,6 +52,17 @@ export class User extends Model<
     categoryId: string
     subcategoryId?: string | null
   }> | null>
+  /** Reglas manuales para identificar recurrentes con rangos y patrón de concepto. */
+  declare recurringManualRules: CreationOptional<Array<{
+    id: string
+    conceptPattern: string
+    fromDay: number
+    toDay: number
+    minAmount?: number | null
+    maxAmount?: number | null
+    categoryId: string
+    subcategoryId?: string | null
+  }> | null>
   declare createdAt:    CreationOptional<Date>
   declare updatedAt:    CreationOptional<Date>
 
@@ -144,6 +155,11 @@ export function initUser(sequelize: Sequelize): void {
         defaultValue: { warnPct: 10, riskPct: 20, criticalPct: 35 },
       },
       recurringPatternCategoryOverrides: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+      },
+      recurringManualRules: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],

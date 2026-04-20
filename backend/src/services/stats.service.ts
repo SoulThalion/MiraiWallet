@@ -1,9 +1,15 @@
 import { Op } from 'sequelize'
+import { randomUUID } from 'crypto'
 import { Account, Budget, Category, RecurringPatternDismissal, Subcategory, SubcategoryBudget, Transaction, User } from '../models'
 import * as accountService     from './account.service'
 import * as transactionService from './transaction.service'
 import * as budgetService from './budget.service'
-import type { StatsMonthOverviewDto, StatsRecurringExpenseDto } from '../types'
+import type {
+  RecurringManualRuleDto,
+  StatsMonthOverviewDto,
+  StatsRecurringExpenseDto,
+  StatsRecurringManualMatchDto,
+} from '../types'
 import { dateToFiscalYm, getMonthCycleConfigForUser, toDateOnlyString, ymToDateBounds } from '../utils/monthPeriod'
 import { ApiError } from '../utils/ApiError'
 import { ERROR_CODES } from '../errors/error-codes'
@@ -55,6 +61,62 @@ function dayOfMonthFromDateOnly(dateVal: unknown): number {
 
 function recurringExpenseGroupKey(tx: Transaction): string | null {
   return transactionService.recurringPatternKeyFromTransaction(tx)
+}
+
+function normalizeConcept(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function parseManualRules(raw: unknown): RecurringManualRuleDto[] {
+  if (!Array.isArray(raw)) return []
+  const out: RecurringManualRuleDto[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    const id = String(row.id ?? '').trim()
+    const conceptPattern = String(row.conceptPattern ?? '').trim()
+    const fromDay = Number(row.fromDay)
+    const toDay = Number(row.toDay)
+    const minAmount = row.minAmount == null ? null : Number(row.minAmount)
+    const maxAmount = row.maxAmount == null ? null : Number(row.maxAmount)
+    const categoryId = String(row.categoryId ?? '').trim()
+    const subcategoryId = row.subcategoryId == null ? null : String(row.subcategoryId).trim()
+    if (!id || !conceptPattern || !categoryId) continue
+    if (!Number.isFinite(fromDay) || !Number.isFinite(toDay)) continue
+    if (fromDay < 1 || fromDay > 31 || toDay < 1 || toDay > 31) continue
+    if (minAmount == null && maxAmount == null) continue
+    if (minAmount != null && (!Number.isFinite(minAmount) || minAmount < 0)) continue
+    if (maxAmount != null && (!Number.isFinite(maxAmount) || maxAmount < 0)) continue
+    if (minAmount != null && maxAmount != null && minAmount > maxAmount) continue
+    out.push({
+      id,
+      conceptPattern,
+      fromDay,
+      toDay,
+      minAmount,
+      maxAmount,
+      categoryId,
+      subcategoryId: subcategoryId || null,
+    })
+  }
+  return out
+}
+
+function matchesDayRange(day: number, fromDay: number, toDay: number): boolean {
+  if (fromDay <= toDay) return day >= fromDay && day <= toDay
+  return day >= fromDay || day <= toDay
+}
+
+function txMatchesManualRule(tx: Transaction, rule: RecurringManualRuleDto): boolean {
+  const txDesc = normalizeConcept(String(tx.description ?? ''))
+  if (!txDesc || !txDesc.includes(normalizeConcept(rule.conceptPattern))) return false
+  const day = dayOfMonthFromDateOnly(tx.date)
+  if (!matchesDayRange(day, rule.fromDay, rule.toDay)) return false
+  const amount = Math.abs(Number(tx.amount))
+  if (!Number.isFinite(amount) || amount <= 0) return false
+  if (rule.minAmount != null && amount < rule.minAmount) return false
+  if (rule.maxAmount != null && amount > rule.maxAmount) return false
+  return true
 }
 
 /**
@@ -301,6 +363,157 @@ async function findRecurringExpensePatterns(userId: string): Promise<StatsRecurr
   return visible.slice(0, RECURRING_MAX_RESULTS)
 }
 
+async function findRecurringManualMatches(userId: string): Promise<StatsRecurringManualMatchDto[]> {
+  const user = await User.findByPk(userId, {
+    attributes: ['id', 'recurringManualRules'],
+  })
+  const rules = parseManualRules(user?.recurringManualRules as unknown)
+  if (!rules.length) return []
+
+  const since = new Date()
+  since.setMonth(since.getMonth() - RECURRING_LOOKBACK_MONTHS)
+  const fromYmd = `${since.getFullYear()}-${pad2(since.getMonth() + 1)}-${pad2(since.getDate())}`
+  const txs = await Transaction.findAll({
+    where: { userId, isExcluded: false, type: { [Op.in]: ['expense', 'transfer'] }, date: { [Op.gte]: fromYmd } },
+    order: [['date', 'DESC']],
+    limit: RECURRING_MAX_TX,
+  })
+
+  const [allCategories, allSubcategories] = await Promise.all([
+    Category.findAll({ where: { userId }, attributes: ['id', 'name', 'icon', 'color'] }),
+    Subcategory.findAll({ where: { userId }, attributes: ['id', 'name', 'categoryId'] }),
+  ])
+  const catById = new Map(allCategories.map(c => [c.id, c]))
+  const subById = new Map(allSubcategories.map(s => [s.id, s]))
+
+  const out: StatsRecurringManualMatchDto[] = []
+  for (const rule of rules) {
+    const cat = catById.get(rule.categoryId)
+    if (!cat) continue
+    const sub = rule.subcategoryId ? subById.get(rule.subcategoryId) : null
+    if (rule.subcategoryId && (!sub || sub.categoryId !== cat.id)) continue
+    const matches = txs.filter((tx) => txMatchesManualRule(tx, rule))
+    if (!matches.length) continue
+    const sorted = [...matches].sort((a, b) => toDateOnlyString(a.date).localeCompare(toDateOnlyString(b.date)))
+    const first = sorted[0]!
+    const last = sorted[sorted.length - 1]!
+    out.push({
+      ruleId: rule.id,
+      conceptPattern: rule.conceptPattern,
+      categoryId: cat.id,
+      subcategoryId: sub?.id ?? null,
+      categoryName: cat.name,
+      subcategoryName: sub?.name ?? null,
+      categoryIcon: cat.icon,
+      categoryColor: cat.color,
+      fromDay: rule.fromDay,
+      toDay: rule.toDay,
+      minAmount: rule.minAmount,
+      maxAmount: rule.maxAmount,
+      sampleDescription: String(last.description ?? '').trim(),
+      latestAmount: roundMoney2(Math.abs(Number(last.amount))),
+      matchCount: matches.length,
+      firstDate: toDateOnlyString(first.date),
+      lastDate: toDateOnlyString(last.date),
+    })
+  }
+  out.sort((a, b) => b.matchCount - a.matchCount || b.lastDate.localeCompare(a.lastDate))
+  return out.slice(0, RECURRING_MAX_RESULTS)
+}
+
+export async function listRecurringManualRules(userId: string): Promise<RecurringManualRuleDto[]> {
+  const user = await User.findByPk(userId, { attributes: ['id', 'recurringManualRules'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  return parseManualRules(user.recurringManualRules as unknown)
+}
+
+export async function createRecurringManualRule(
+  userId: string,
+  payload: Partial<RecurringManualRuleDto>,
+): Promise<RecurringManualRuleDto> {
+  const user = await User.findByPk(userId, { attributes: ['id', 'recurringManualRules'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+
+  const next: RecurringManualRuleDto = {
+    id: randomUUID(),
+    conceptPattern: String(payload.conceptPattern ?? '').trim(),
+    fromDay: Number(payload.fromDay),
+    toDay: Number(payload.toDay),
+    minAmount: payload.minAmount == null ? null : Number(payload.minAmount),
+    maxAmount: payload.maxAmount == null ? null : Number(payload.maxAmount),
+    categoryId: String(payload.categoryId ?? '').trim(),
+    subcategoryId: payload.subcategoryId ? String(payload.subcategoryId).trim() : null,
+  }
+  const parsed = parseManualRules([next])[0]
+  if (!parsed) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'Regla manual inválida')
+
+  const cat = await Category.findOne({ where: { id: parsed.categoryId, userId }, attributes: ['id'] })
+  if (!cat) throw ApiError.badRequest(ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoría inválida')
+  if (parsed.subcategoryId) {
+    const sub = await Subcategory.findOne({ where: { id: parsed.subcategoryId, userId }, attributes: ['id', 'categoryId'] })
+    if (!sub || sub.categoryId !== parsed.categoryId) {
+      throw ApiError.badRequest(ERROR_CODES.CATEGORY_NOT_FOUND, 'Subcategoría inválida para la categoría seleccionada')
+    }
+  }
+  const all = parseManualRules(user.recurringManualRules as unknown)
+  all.push(parsed)
+  await user.update({ recurringManualRules: all })
+  return parsed
+}
+
+export async function updateRecurringManualRule(
+  userId: string,
+  ruleIdRaw: string,
+  payload: Partial<RecurringManualRuleDto>,
+): Promise<RecurringManualRuleDto> {
+  const ruleId = String(ruleIdRaw ?? '').trim()
+  if (!ruleId) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'ruleId inválido')
+  const user = await User.findByPk(userId, { attributes: ['id', 'recurringManualRules'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  const all = parseManualRules(user.recurringManualRules as unknown)
+  const idx = all.findIndex((r) => r.id === ruleId)
+  if (idx < 0) throw ApiError.notFound(ERROR_CODES.VALIDATION_FAILED, 'Regla manual no encontrada')
+  const current = all[idx]!
+  const merged: RecurringManualRuleDto = {
+    ...current,
+    ...payload,
+    id: current.id,
+    conceptPattern: payload.conceptPattern != null ? String(payload.conceptPattern).trim() : current.conceptPattern,
+    categoryId: payload.categoryId != null ? String(payload.categoryId).trim() : current.categoryId,
+    subcategoryId: payload.subcategoryId === undefined
+      ? current.subcategoryId
+      : (payload.subcategoryId ? String(payload.subcategoryId).trim() : null),
+    fromDay: payload.fromDay == null ? current.fromDay : Number(payload.fromDay),
+    toDay: payload.toDay == null ? current.toDay : Number(payload.toDay),
+    minAmount: payload.minAmount === undefined ? current.minAmount : (payload.minAmount == null ? null : Number(payload.minAmount)),
+    maxAmount: payload.maxAmount === undefined ? current.maxAmount : (payload.maxAmount == null ? null : Number(payload.maxAmount)),
+  }
+  const parsed = parseManualRules([merged])[0]
+  if (!parsed) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'Regla manual inválida')
+  const cat = await Category.findOne({ where: { id: parsed.categoryId, userId }, attributes: ['id'] })
+  if (!cat) throw ApiError.badRequest(ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoría inválida')
+  if (parsed.subcategoryId) {
+    const sub = await Subcategory.findOne({ where: { id: parsed.subcategoryId, userId }, attributes: ['id', 'categoryId'] })
+    if (!sub || sub.categoryId !== parsed.categoryId) {
+      throw ApiError.badRequest(ERROR_CODES.CATEGORY_NOT_FOUND, 'Subcategoría inválida para la categoría seleccionada')
+    }
+  }
+  all[idx] = parsed
+  await user.update({ recurringManualRules: all })
+  return parsed
+}
+
+export async function deleteRecurringManualRule(userId: string, ruleIdRaw: string): Promise<void> {
+  const ruleId = String(ruleIdRaw ?? '').trim()
+  if (!ruleId) throw ApiError.badRequest(ERROR_CODES.VALIDATION_FAILED, 'ruleId inválido')
+  const user = await User.findByPk(userId, { attributes: ['id', 'recurringManualRules'] })
+  if (!user) throw ApiError.notFound(ERROR_CODES.USER_NOT_FOUND, 'Usuario')
+  const all = parseManualRules(user.recurringManualRules as unknown)
+  const next = all.filter((r) => r.id !== ruleId)
+  if (next.length === all.length) throw ApiError.notFound(ERROR_CODES.VALIDATION_FAILED, 'Regla manual no encontrada')
+  await user.update({ recurringManualRules: next })
+}
+
 export async function setRecurringPatternSavings(userId: string, patternKeyRaw: string, isSavings: boolean): Promise<void> {
   const patternKey = patternKeyRaw.trim().slice(0, 400)
   if (!patternKey) throw ApiError.badRequest(ERROR_CODES.IMPORT_PATTERN_KEY_REQUIRED, 'patternKey es obligatorio')
@@ -371,7 +584,18 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
   const year = parseInt(yStr, 10)
   const selectedMm = mStr
 
-  const [summaryRows, allCategories, budgets, subBudgets, recurringExpenses, monthCycleCfg, userPrefs, budgetPace] =
+  const [
+    summaryRows,
+    allCategories,
+    budgets,
+    subBudgets,
+    recurringExpenses,
+    recurringManualMatches,
+    recurringManualRules,
+    monthCycleCfg,
+    userPrefs,
+    budgetPace,
+  ] =
     await Promise.all([
       transactionService.monthlySummary(userId, year),
       Category.findAll({
@@ -387,6 +611,8 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
       Budget.findAll({ where: { userId, month } }),
       SubcategoryBudget.findAll({ where: { userId, month } }),
       findRecurringExpensePatterns(userId),
+      findRecurringManualMatches(userId),
+      listRecurringManualRules(userId),
       getMonthCycleConfigForUser(userId),
       User.findByPk(userId, {
         attributes: [
@@ -592,6 +818,8 @@ export async function monthOverview(userId: string, monthOverride?: string): Pro
     incomeCategoryYearAvg: yearAvgs.incomeCategories,
     incomeSubcategoryYearAvg: yearAvgs.incomeSubcategories,
     recurringExpenses,
+    recurringManualMatches,
+    recurringManualRules,
     budgetPace,
   }
 }

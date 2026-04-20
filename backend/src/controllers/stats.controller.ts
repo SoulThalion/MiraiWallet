@@ -48,3 +48,34 @@ export const setRecurringPatternCategory = async (req: Request, res: Response, n
     ApiResponse.noContent(res)
   } catch (e) { next(e) }
 }
+
+export const listRecurringManualRules = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    ApiResponse.success(res, await statsService.listRecurringManualRules(userId))
+  } catch (e) { next(e) }
+}
+
+export const createRecurringManualRule = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    ApiResponse.success(res, await statsService.createRecurringManualRule(userId, req.body ?? {}))
+  } catch (e) { next(e) }
+}
+
+export const updateRecurringManualRule = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    const ruleId = typeof req.params?.ruleId === 'string' ? req.params.ruleId : ''
+    ApiResponse.success(res, await statsService.updateRecurringManualRule(userId, ruleId, req.body ?? {}))
+  } catch (e) { next(e) }
+}
+
+export const deleteRecurringManualRule = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { user: User }).user.id
+    const ruleId = typeof req.params?.ruleId === 'string' ? req.params.ruleId : ''
+    await statsService.deleteRecurringManualRule(userId, ruleId)
+    ApiResponse.noContent(res)
+  } catch (e) { next(e) }
+}
