@@ -459,6 +459,7 @@ function readWeekMondayInitial(): string {
 
 const selectedForecastYm = ref(defaultSelectedYm())
 const forecastMain = ref<StatsMonthOverviewDto | null>(null)
+const forecastMainSecondary = ref<StatsMonthOverviewDto | null>(null) // For second month when week spans across months
 const forecastLoading = ref(false)
 const forecastError = ref<string | null>(null)
 
@@ -478,7 +479,23 @@ const todayYmd = computed(() => {
 
 const calendarMainYm = computed(() => forecastMain.value?.month ?? selectedForecastYm.value)
 
-const recurringDueMonthList = computed(() => forecastMain.value?.recurringDueCalendar ?? [])
+const recurringDueMonthList = computed(() => {
+  const primaryData = forecastMain.value?.recurringDueCalendar ?? []
+  const secondaryData = forecastMainSecondary.value?.recurringDueCalendar ?? []
+  
+  // Merge data from both months, removing duplicates based on dueDate and label
+  const allData = [...primaryData, ...secondaryData]
+  const uniqueData = new Map<string, StatsRecurringDueItemDto>()
+  
+  for (const item of allData) {
+    const key = `${item.dueDate}-${item.label}`
+    if (!uniqueData.has(key)) {
+      uniqueData.set(key, item)
+    }
+  }
+  
+  return Array.from(uniqueData.values())
+})
 
 const calendarItemsForMonthGrid = computed<StatsRecurringDueItemDto[]>(() => {
   if (calendarMode.value === 'all') return calendarMovementItems.value
@@ -600,8 +617,12 @@ function persistWeekMonday(ymd: string): void {
 function shiftWeek(delta: number): void {
   const next = addDaysYmd(selectedWeekMondayYmd.value, delta * 7)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return
+  
   selectedWeekMondayYmd.value = next
   persistWeekMonday(next)
+  
+  // Load data for all months that this week spans across
+  void loadForecastWeekData(next)
 }
 
 async function loadCalendarMovementRange(from: string, to: string): Promise<void> {
@@ -682,15 +703,54 @@ async function loadForecastMonth(ym: string): Promise<void> {
   }
 }
 
+async function loadForecastWeekData(weekMondayYmd: string): Promise<void> {
+  forecastLoading.value = true
+  forecastError.value = null
+  try {
+    // Determine which months this week spans across
+    const monthsInWeek = new Set<string>()
+    
+    for (let i = 0; i < 7; i++) {
+      const dayDate = addDaysYmd(weekMondayYmd, i)
+      const month = dayDate.slice(0, 7) // Extract YYYY-MM
+      monthsInWeek.add(month)
+    }
+    
+    const monthArray = Array.from(monthsInWeek)
+    
+    // Load primary month data
+    forecastMain.value = await api.getStatsMonthOverview(monthArray[0])
+    
+    // Load secondary month data if week spans across two months
+    if (monthArray.length > 1) {
+      forecastMainSecondary.value = await api.getStatsMonthOverview(monthArray[1])
+    } else {
+      forecastMainSecondary.value = null
+    }
+    
+  } catch (e: unknown) {
+    forecastError.value = t(resolveApiErrorI18nKey(e, 'stats.loadStatsError'))
+    forecastMain.value = null
+    forecastMainSecondary.value = null
+  } finally {
+    forecastLoading.value = false
+  }
+}
+
 watch(selectedForecastYm, (ym) => {
   forecastSimResult.value = null
   void loadForecastMonth(ym)
-  // Use current week instead of week containing first day of month
-  const today = new Date()
-  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  const mon = mondayOfWeekContaining(todayYmd)
-  selectedWeekMondayYmd.value = mon
-  persistWeekMonday(mon)
+  
+  // Only reset the week if the current selected week doesn't belong to the new month
+  // This preserves user's week selection when navigating across months
+  const currentWeekMonth = selectedWeekMondayYmd.value.slice(0, 7)
+  if (currentWeekMonth !== ym) {
+    // Find a week that belongs to the new month (use the first Monday of the month)
+    const firstDayOfMonth = `${ym}-01`
+    const mon = mondayOfWeekContaining(firstDayOfMonth)
+    selectedWeekMondayYmd.value = mon
+    persistWeekMonday(mon)
+  }
 })
 
 watch(
@@ -727,15 +787,34 @@ watch(
 )
 
 watch(
+  () => calendarPeriod.value,
+  (newPeriod) => {
+    if (newPeriod === 'week') {
+      void loadForecastWeekData(selectedWeekMondayYmd.value)
+    } else {
+      void loadForecastMonth(selectedForecastYm.value)
+    }
+  },
+)
+
+watch(
   () => [wallet.user?.monthCycleMode, wallet.user?.monthCycleStartDay, wallet.user?.monthCycleEndDay, wallet.user?.monthCycleAnchor],
   () => {
     const ym = defaultSelectedYm()
     if (ym !== selectedForecastYm.value) selectedForecastYm.value = ym
-    else void loadForecastMonth(ym)
+    else if (calendarPeriod.value === 'week') {
+      void loadForecastWeekData(selectedWeekMondayYmd.value)
+    } else {
+      void loadForecastMonth(ym)
+    }
   },
 )
 
 onMounted(() => {
-  void loadForecastMonth(selectedForecastYm.value)
+  if (calendarPeriod.value === 'week') {
+    void loadForecastWeekData(selectedWeekMondayYmd.value)
+  } else {
+    void loadForecastMonth(selectedForecastYm.value)
+  }
 })
 </script>
