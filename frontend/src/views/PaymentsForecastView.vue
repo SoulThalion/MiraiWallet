@@ -173,30 +173,95 @@
               </div>
             </template>
             <template v-else>
-              <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
-                <div v-for="(h, hi) in calendarWeekGrid.headers" :key="`wk-h-${hi}`" class="py-1">{{ h }}</div>
-              </div>
-              <div class="grid grid-cols-7 gap-1">
-                <div
-                  v-for="(cell, ci) in calendarWeekGrid.row"
-                  :key="cell.ymd ?? `wk-cell-${ci}`"
-                  :class="[
-                    'min-h-[5rem] rounded-lg border p-1.5 text-left sm:min-h-[6rem] md:min-h-[6.5rem] dark:border-white/[0.06] border-brand-blue/10',
-                    cell.isToday ? 'ring-2 ring-brand-blue/50 dark:ring-brand-blue/40' : '',
-                    cell.dayNum != null ? 'dark:bg-dark-surf/80 bg-light-surf/80' : 'bg-transparent',
-                  ]"
-                >
-                  <span v-if="cell.dayNum != null" class="text-sm font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ cell.dayNum }}</span>
-                  <div class="mt-1 space-y-0.5">
-                    <div
-                      v-for="(it, ii) in cell.items.slice(0, 4)"
-                      :key="`wk-it-${cell.ymd}-${ii}`"
-                      :class="['truncate rounded border-l-2 pl-1 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2', dueSourceStripeClass(it.source)]"
-                      :title="`${it.label} · ${formatEuro(it.amount, false)}`"
-                    >
-                      {{ it.label }}
+              <!-- Enhanced Weekly View with More Details -->
+              <div class="mb-3 space-y-2">
+                <!-- Week Summary -->
+                <div class="rounded-lg border border-brand-blue/20 bg-brand-blue/5 p-3 dark:border-brand-blue/30 dark:bg-brand-blue/10">
+                  <div class="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <span class="dark:text-dark-txt3 text-light-txt3">{{ t('forecast.weeklyTotalIncome') }}:</span>
+                      <span class="ml-2 font-semibold text-green-600 dark:text-green-400">{{ formatEuro(calendarDetailedWeekGrid.weekTotals.totalIncome, false) }}</span>
                     </div>
-                    <div v-if="cell.items.length > 4" class="text-[10px] dark:text-dark-txt3 text-light-txt3">+{{ cell.items.length - 4 }}</div>
+                    <div>
+                      <span class="dark:text-dark-txt3 text-light-txt3">{{ t('forecast.weeklyTotalExpense') }}:</span>
+                      <span class="ml-2 font-semibold text-red-600 dark:text-red-400">{{ formatEuro(calendarDetailedWeekGrid.weekTotals.totalExpense, false) }}</span>
+                    </div>
+                    <div>
+                      <span class="dark:text-dark-txt3 text-light-txt3">{{ t('forecast.weeklyNetAmount') }}:</span>
+                      <span :class="[
+                        'ml-2 font-semibold',
+                        calendarDetailedWeekGrid.weekTotals.netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      ]">
+                        {{ formatEuro(calendarDetailedWeekGrid.weekTotals.netAmount, true) }}
+                      </span>
+                    </div>
+                    <div>
+                      <span class="dark:text-dark-txt3 text-light-txt3">{{ t('forecast.weeklyItemCount') }}:</span>
+                      <span class="ml-2 font-semibold dark:text-dark-txt text-light-txt">{{ calendarDetailedWeekGrid.weekTotals.itemCount }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Week Headers -->
+                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide dark:text-dark-txt3 text-light-txt3">
+                  <div v-for="(h, hi) in calendarDetailedWeekGrid.headers" :key="`wk-h-${hi}`" class="py-1">{{ h }}</div>
+                </div>
+
+                <!-- Enhanced Week Days -->
+                <div class="grid grid-cols-7 gap-1">
+                  <div
+                    v-for="(cell, ci) in calendarDetailedWeekGrid.days"
+                    :key="cell.ymd ?? `wk-cell-${ci}`"
+                    :class="[
+                      'min-h-[8rem] rounded-lg border p-2 text-left sm:min-h-[9rem] md:min-h-[10rem] dark:border-white/[0.06] border-brand-blue/10',
+                      cell.isToday ? 'ring-2 ring-brand-blue/50 dark:ring-brand-blue/40' : '',
+                      cell.dayNum != null ? 'dark:bg-dark-surf/80 bg-light-surf/80' : 'bg-transparent',
+                    ]"
+                  >
+                    <!-- Day Number and Quick Stats -->
+                    <div v-if="cell.dayNum != null" class="mb-2">
+                      <span class="text-sm font-bold tabular-nums dark:text-dark-txt text-light-txt">{{ cell.dayNum }}</span>
+                      <div class="mt-1 space-y-0.5">
+                        <div v-if="cell.incomeAmount > 0" class="text-[10px] text-green-600 dark:text-green-400">
+                          ↑ {{ formatEuro(cell.incomeAmount, false) }}
+                        </div>
+                        <div v-if="cell.expenseAmount > 0" class="text-[10px] text-red-600 dark:text-red-400">
+                          ↓ {{ formatEuro(cell.expenseAmount, false) }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Items List -->
+                    <div class="space-y-0.5">
+                      <div
+                        v-for="(it, ii) in cell.items.slice(0, 6)"
+                        :key="`wk-it-${cell.ymd}-${ii}`"
+                        :class="['truncate rounded border-l-2 pl-1 text-[10px] leading-snug dark:text-dark-txt2 text-light-txt2', dueSourceStripeClass(it.source)]"
+                        :title="`${it.label} · ${formatEuro(it.amount, false)}`"
+                      >
+                        {{ it.label }}
+                      </div>
+                      <div v-if="cell.items.length > 6" class="text-[10px] dark:text-dark-txt3 text-light-txt3">
+                        +{{ cell.items.length - 6 }} {{ t('forecast.moreItems') }}
+                      </div>
+                    </div>
+
+                    <!-- Category Breakdown -->
+                    <div v-if="Object.keys(cell.itemCategories).length > 0" class="mt-2 pt-2 border-t dark:border-white/[0.08] border-brand-blue/10">
+                      <div class="space-y-0.5">
+                        <div
+                          v-for="([source, amount]) in Object.entries(cell.itemCategories).slice(0, 2)"
+                          :key="`cat-${cell.ymd}-${source}`"
+                          class="flex justify-between text-[9px] dark:text-dark-txt3 text-light-txt3"
+                        >
+                          <span>{{ dueSourceLabel(source) }}</span>
+                          <span class="tabular-nums">{{ formatEuro(Number(amount), false) }}</span>
+                        </div>
+                        <div v-if="Object.keys(cell.itemCategories).length > 2" class="text-[9px] dark:text-dark-txt3 text-light-txt3">
+                          +{{ Object.keys(cell.itemCategories).length - 2 }} {{ t('forecast.moreCategories') }}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -340,7 +405,7 @@ import { resolveApiErrorI18nKey } from '@/utils/apiErrorMap'
 import {
   addDaysYmd,
   buildCalendarMonthGrid,
-  buildCalendarWeekRow,
+  buildDetailedWeekGrid,
   dueSourceStripeClass,
   itemsDueInYmdRange,
   mondayOfWeekContaining,
@@ -379,14 +444,17 @@ function readForecastCalendarPeriod(): 'month' | 'week' {
   return 'month'
 }
 
-function readWeekMondayInitial(ym: string): string {
+function readWeekMondayInitial(): string {
   try {
     const v = localStorage.getItem(FORECAST_WEEK_MONDAY_LS)
     if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v
   } catch {
     /* ignorar */
   }
-  return mondayOfWeekContaining(`${ym}-01`)
+  // Default to current week instead of week containing first day of month
+  const today = new Date()
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  return mondayOfWeekContaining(todayYmd)
 }
 
 const selectedForecastYm = ref(defaultSelectedYm())
@@ -396,7 +464,7 @@ const forecastError = ref<string | null>(null)
 
 const calendarMode = ref<'recurring' | 'all'>(readForecastCalendarMode())
 const calendarPeriod = ref<'month' | 'week'>(readForecastCalendarPeriod())
-const selectedWeekMondayYmd = ref(readWeekMondayInitial(selectedForecastYm.value))
+const selectedWeekMondayYmd = ref(readWeekMondayInitial())
 
 const calendarMovementItems = ref<StatsRecurringDueItemDto[]>([])
 const calendarTxLoading = ref(false)
@@ -432,8 +500,8 @@ const calendarMainGrid = computed(() =>
   ),
 )
 
-const calendarWeekGrid = computed(() =>
-  buildCalendarWeekRow(
+const calendarDetailedWeekGrid = computed(() =>
+  buildDetailedWeekGrid(
     selectedWeekMondayYmd.value,
     calendarItemsForWeekGrid.value,
     todayYmd.value,
@@ -617,7 +685,10 @@ async function loadForecastMonth(ym: string): Promise<void> {
 watch(selectedForecastYm, (ym) => {
   forecastSimResult.value = null
   void loadForecastMonth(ym)
-  const mon = mondayOfWeekContaining(`${ym}-01`)
+  // Use current week instead of week containing first day of month
+  const today = new Date()
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const mon = mondayOfWeekContaining(todayYmd)
   selectedWeekMondayYmd.value = mon
   persistWeekMonday(mon)
 })

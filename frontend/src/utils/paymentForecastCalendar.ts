@@ -138,3 +138,102 @@ export function shiftYm(ym: string, deltaMonths: number): string {
   const nm = String(d.getMonth() + 1).padStart(2, '0')
   return `${ny}-${nm}`
 }
+
+export type DetailedWeekCell = CalCell & {
+  totalAmount: number
+  incomeAmount: number
+  expenseAmount: number
+  itemCategories: { [key: string]: number }
+}
+
+export type DetailedWeekGrid = {
+  headers: string[]
+  days: DetailedWeekCell[]
+  weekTotals: {
+    totalIncome: number
+    totalExpense: number
+    netAmount: number
+    itemCount: number
+  }
+}
+
+/** Enhanced weekly grid with more detailed financial information for weekly view */
+export function buildDetailedWeekGrid(
+  weekMondayYmd: string,
+  dueList: StatsRecurringDueItemDto[],
+  todayYmd: string,
+  t: (key: string) => string,
+): DetailedWeekGrid {
+  const headers = calWeekdayHeaders(t)
+  const map = dueByYmdFromList(dueList)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekMondayYmd.trim())
+  
+  if (!m) return { headers, days: [], weekTotals: { totalIncome: 0, totalExpense: 0, netAmount: 0, itemCount: 0 } }
+  
+  const start = new Date(parseInt(m[1]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[3]!, 10))
+  const days: DetailedWeekCell[] = []
+  let totalIncome = 0
+  let totalExpense = 0
+  let totalItemCount = 0
+  
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(start)
+    dt.setDate(start.getDate() + i)
+    const ymd = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    const dayItems = map.get(ymd) ?? []
+    
+    let dayIncome = 0
+    let dayExpense = 0
+    const categories: { [key: string]: number } = {}
+    
+    for (const item of dayItems) {
+      // Determine if income or expense based on source and label patterns
+      let isIncome = false
+      
+      if (item.source === 'movement') {
+        // For movements, check the label prefix (↑ for income, ↓ for expense)
+        isIncome = item.label.startsWith('↑')
+      } else {
+        // For recurring items (auto, manual, planned), treat as expenses by default
+        // Only treat as income if explicitly marked with ↑ in the label
+        isIncome = item.label.startsWith('↑')
+      }
+      
+      if (isIncome) {
+        dayIncome += item.amount
+        totalIncome += item.amount
+      } else {
+        dayExpense += item.amount
+        totalExpense += item.amount
+      }
+      
+      // Group by source type for category breakdown
+      const category = item.source
+      categories[category] = (categories[category] || 0) + item.amount
+    }
+    
+    totalItemCount += dayItems.length
+    
+    days.push({
+      dayNum: dt.getDate(),
+      ymd,
+      items: dayItems,
+      isToday: ymd === todayYmd,
+      totalAmount: dayIncome - dayExpense,
+      incomeAmount: dayIncome,
+      expenseAmount: dayExpense,
+      itemCategories: categories
+    })
+  }
+  
+  return {
+    headers,
+    days,
+    weekTotals: {
+      totalIncome,
+      totalExpense,
+      netAmount: totalIncome - totalExpense,
+      itemCount: totalItemCount
+    }
+  }
+}

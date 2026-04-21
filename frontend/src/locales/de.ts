@@ -108,6 +108,12 @@ const de = {
     calendarWeekView: 'Woche',
     prevWeek: 'Vorherige Woche',
     nextWeek: 'Naechste Woche',
+    weeklyTotalIncome: 'Woechentliches Einkommen',
+    weeklyTotalExpense: 'Woechentliche Ausgaben',
+    weeklyNetAmount: 'Woechentliches Saldo',
+    weeklyItemCount: 'Gesamtzahl',
+    moreItems: 'weitere Eintraege',
+    moreCategories: 'weitere Kategorien',
   },
   budgets: {
     title: 'Budgets',
